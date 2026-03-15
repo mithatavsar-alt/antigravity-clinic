@@ -79,7 +79,7 @@ export function ConsentForm({ onConfirm, onBack, loading = false }: ConsentFormP
           type="button"
           size="md"
           onClick={handleConfirm}
-          disabled={loading || !allChecked}
+          disabled={loading}
           className="flex-1 justify-center"
         >
           {loading ? 'Kaydediliyor...' : 'Analizi Başlat'}
