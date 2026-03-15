@@ -37,7 +37,7 @@ export function LoadingScreen({
                 <div className="w-full flex flex-col gap-3">
                   {steps.map((step, i) => (
                     <div
-                      key={step}
+                      key={i}
                       className="flex items-center gap-3 rounded-[12px] border border-[rgba(196,163,90,0.12)] bg-[rgba(255,254,249,0.55)] px-4 py-3"
                       style={{ animationDelay: `${i * 180}ms` }}
                     >

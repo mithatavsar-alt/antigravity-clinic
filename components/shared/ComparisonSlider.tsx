@@ -47,6 +47,7 @@ export function ComparisonSlider({
     const onTouchMove = (e: TouchEvent) => { if (dragging.current) updatePosition(e.touches[0].clientX) }
     const onUp = () => { dragging.current = false }
     const onKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement !== containerRef.current) return
       if (e.key === 'ArrowLeft') setPosition((p) => Math.max(0, p - 2))
       if (e.key === 'ArrowRight') setPosition((p) => Math.min(100, p + 2))
     }
@@ -76,6 +77,7 @@ export function ComparisonSlider({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(position)}
+      aria-valuetext={`${Math.round(position)}% ${beforeLabel}`}
       tabIndex={0}
     >
       {/* After image (full) */}
@@ -89,7 +91,7 @@ export function ComparisonSlider({
           src={beforeSrc}
           alt={beforeLabel}
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ width: `${(100 / position) * 100}%`, maxWidth: 'none' }}
+          style={{ width: position > 0 ? `${(100 / position) * 100}%` : '100%', maxWidth: 'none' }}
           draggable={false}
         />
       </div>
