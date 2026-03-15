@@ -35,12 +35,13 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const takeSnapshot = () => {
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas) return
+    if (!video || !canvas || video.videoWidth === 0) return
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     // Mirror the image
+    ctx.resetTransform()
     ctx.translate(canvas.width, 0)
     ctx.scale(-1, 1)
     ctx.drawImage(video, 0, 0)

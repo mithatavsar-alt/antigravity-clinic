@@ -143,9 +143,7 @@ export function MediaUploadGrid({ value, onChange }: MediaUploadGridProps) {
                 onChange={(e) => {
                   const f = e.target.files?.[0]
                   if (!f) return
-                  const reader = new FileReader()
-                  reader.onload = (ev) => { if (ev.target?.result) update('video', ev.target.result as string) }
-                  reader.readAsDataURL(f)
+                  update('video', URL.createObjectURL(f))
                 }} />
             </label>
           )}

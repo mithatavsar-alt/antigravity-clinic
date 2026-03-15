@@ -35,7 +35,7 @@ export function ConsentForm({ onConfirm, onBack, loading = false }: ConsentFormP
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-4 border-b border-[rgba(196,163,90,0.15)] pb-5">
-        <label className={labelClass} onClick={() => { setKvkk((v) => !v); setError(null) }}>
+        <label className={labelClass}>
           <input type="checkbox" checked={kvkk} onChange={(e) => { setKvkk(e.target.checked); setError(null) }} className={checkboxClass} />
           <span className={textClass}>
             <Link href="/privacy" target="_blank" className={linkClass}>KVKK Aydınlatma Metni</Link>
@@ -43,7 +43,7 @@ export function ConsentForm({ onConfirm, onBack, loading = false }: ConsentFormP
           </span>
         </label>
 
-        <label className={labelClass} onClick={() => { setRiza((v) => !v); setError(null) }}>
+        <label className={labelClass}>
           <input type="checkbox" checked={riza} onChange={(e) => { setRiza(e.target.checked); setError(null) }} className={checkboxClass} />
           <span className={textClass}>
             <Link href="/consent" target="_blank" className={linkClass}>Açık Rıza Metni</Link>
@@ -51,7 +51,7 @@ export function ConsentForm({ onConfirm, onBack, loading = false }: ConsentFormP
           </span>
         </label>
 
-        <label className={labelClass} onClick={() => { setAi((v) => !v); setError(null) }}>
+        <label className={labelClass}>
           <input type="checkbox" checked={ai} onChange={(e) => { setAi(e.target.checked); setError(null) }} className={checkboxClass} />
           <span className={textClass}>
             Fotoğrafımın yapay zeka destekli ön analiz için kullanılmasına onay veriyorum. *
