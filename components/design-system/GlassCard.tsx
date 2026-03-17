@@ -26,7 +26,7 @@ export function GlassCard({
         strong ? 'glass-strong' : 'glass',
         roundedMap[rounded],
         paddingMap[padding],
-        hover && 'transition-shadow duration-300 hover:shadow-[0_16px_48px_rgba(26,26,46,0.10)] cursor-pointer',
+        hover && 'glass-hover transition-shadow duration-300 hover:shadow-[0_16px_48px_rgba(26,26,46,0.10)] cursor-pointer',
         className
       )}
     >

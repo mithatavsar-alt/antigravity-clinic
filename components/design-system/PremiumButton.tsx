@@ -17,7 +17,7 @@ const variants = {
   primary: 'bg-gradient-to-br from-[#2D5F5D] to-[#3D7A5F] text-white border-transparent hover:shadow-[0_8px_24px_rgba(45,95,93,0.3)] hover:-translate-y-0.5',
   secondary: 'bg-transparent text-[#C4A35A] border border-[#C4A35A] hover:bg-[rgba(196,163,90,0.06)] hover:-translate-y-0.5',
   gold: 'bg-gradient-to-r from-[#C4A35A] to-[#D4B96A] text-white border-transparent hover:shadow-[0_8px_24px_rgba(196,163,90,0.35)] hover:-translate-y-0.5',
-  ghost: 'bg-transparent text-[#78716C] border border-[rgba(196,163,90,0.2)] hover:text-[#1A1A2E] hover:border-[rgba(196,163,90,0.4)]',
+  ghost: 'btn-ghost bg-transparent text-[#78716C] border border-[rgba(196,163,90,0.2)] hover:text-[#1A1A2E] hover:border-[rgba(196,163,90,0.4)]',
 }
 
 const sizes = {
