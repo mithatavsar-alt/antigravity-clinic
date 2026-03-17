@@ -1,6 +1,6 @@
 export function HeroWireframe() {
   return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none hidden lg:flex">
+    <div className="absolute inset-0 items-center justify-center pointer-events-none hidden lg:flex">
       <svg
         viewBox="0 0 200 280"
         className="h-[55vh] w-auto"

@@ -12,9 +12,11 @@ export function PublicNavbar() {
   const [isDark, setIsDark] = useState(false)
 
   useEffect(() => {
-    if (navRef.current) {
-      setIsDark(!!navRef.current.closest('.theme-dark'))
-    }
+    // Navbar is a sibling of <main>, not inside .theme-dark,
+    // so check the first child of <main> for the theme class
+    const main = document.querySelector('main')
+    const firstChild = main?.firstElementChild
+    setIsDark(firstChild?.classList.contains('theme-dark') ?? false)
 
     const onScroll = () => setScrolled(window.scrollY > 40)
     window.addEventListener('scroll', onScroll)

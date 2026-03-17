@@ -49,7 +49,7 @@ function MetricRow({ label, value }: { label: string; value: string }) {
 function PhotoLightbox({ src, onClose }: { src: string; onClose: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(26,26,46,0.75)] backdrop-blur-md p-4 cursor-pointer"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)] backdrop-blur-md p-4 cursor-pointer"
       onClick={onClose}
     >
       <div className="relative max-w-2xl w-full max-h-[85vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
@@ -57,15 +57,15 @@ function PhotoLightbox({ src, onClose }: { src: string; onClose: () => void }) {
         <img
           src={src}
           alt="Analiz görseli — büyük önizleme"
-          className="max-w-full max-h-[85vh] rounded-[20px] shadow-[0_32px_80px_rgba(26,26,46,0.35)] object-contain"
+          className="max-w-full max-h-[85vh] rounded-[20px] shadow-[0_32px_80px_rgba(0,0,0,0.5)] object-contain"
         />
         <button
           type="button"
           aria-label="Önizlemeyi kapat"
           onClick={onClose}
-          className="absolute -top-3 -right-3 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-colors"
+          className="absolute -top-3 -right-3 w-10 h-10 rounded-full bg-[rgba(20,18,15,0.8)] backdrop-blur-sm shadow-lg border border-[rgba(214,185,140,0.2)] flex items-center justify-center hover:bg-[rgba(20,18,15,0.95)] transition-colors"
         >
-          <svg className="w-5 h-5 text-[#1A1A2E]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-[#F8F6F2]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
@@ -410,12 +410,12 @@ function ResultContent() {
 
         {/* Dev-mode: Analysis Source Debug Panel */}
         {process.env.NODE_ENV === 'development' && (
-          <div className="rounded-[12px] border-2 border-dashed border-[rgba(196,163,90,0.4)] bg-[rgba(196,163,90,0.05)] p-4 font-mono text-[11px] text-[rgba(26,26,46,0.7)] flex flex-col gap-1.5">
-            <p className="font-body font-semibold text-[12px] text-[#C4A35A] tracking-[0.15em] uppercase mb-1">Debug: Analysis Source</p>
+          <div className="rounded-[12px] border-2 border-dashed border-[rgba(214,185,140,0.3)] bg-[rgba(214,185,140,0.04)] p-4 font-mono text-[11px] text-[rgba(248,246,242,0.5)] flex flex-col gap-1.5">
+            <p className="font-body font-semibold text-[12px] text-[#D6B98C] tracking-[0.15em] uppercase mb-1">Debug: Analysis Source</p>
             <p>Provider: <strong>{analysisSource?.provider ?? 'unknown'}</strong></p>
             <p>Source: <strong>{analysisSource?.source ?? 'unknown'}</strong></p>
-            <p>FaceMesh: <strong className={analysisSource?.facemesh_ok ? 'text-[#3D7A5F]' : 'text-[#A05252]'}>{analysisSource?.facemesh_ok ? 'OK' : 'FAILED'}</strong></p>
-            <p>PerfectCorp: <strong className={analysisSource?.perfectcorp_ok ? 'text-[#3D7A5F]' : 'text-[#A05252]'}>{analysisSource?.perfectcorp_ok ? 'OK' : 'FAILED'}</strong></p>
+            <p>FaceMesh: <strong className={analysisSource?.facemesh_ok ? 'text-[#3D9B7A]' : 'text-[#B06060]'}>{analysisSource?.facemesh_ok ? 'OK' : 'FAILED'}</strong></p>
+            <p>PerfectCorp: <strong className={analysisSource?.perfectcorp_ok ? 'text-[#3D9B7A]' : 'text-[#B06060]'}>{analysisSource?.perfectcorp_ok ? 'OK' : 'FAILED'}</strong></p>
             <p>Analyzed at: {analysisSource?.analyzed_at ?? 'N/A'}</p>
             <p>Lead ID: {selectedLead.id}</p>
             <p>Photo available: {photoUrl ? 'yes' : 'no'}{photoUrl?.startsWith('data:') ? ' (data URI)' : photoUrl?.startsWith('blob:') ? ' (blob URL)' : photoUrl ? ' (URL)' : ''}</p>
@@ -423,7 +423,7 @@ function ResultContent() {
             <p>Skin scores (PerfectCorp): {hasSkin ? 'yes' : 'no'}</p>
             <p>Created: {selectedLead.created_at}</p>
             {!analysisSource && (
-              <p className="text-[#A05252] font-semibold mt-1">
+              <p className="text-[#B06060] font-semibold mt-1">
                 WARNING: No analysis_source field — this lead was created before source tracking was added, or analysis failed before saving source info.
               </p>
             )}
