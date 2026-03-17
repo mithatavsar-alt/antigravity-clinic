@@ -105,6 +105,8 @@ body {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: #FAF6F1; }
 ::-webkit-scrollbar-thumb { background: rgba(196, 163, 90, 0.4); border-radius: 2px; }
+.theme-dark::-webkit-scrollbar-track { background: #0E0B09; }
+.theme-dark::-webkit-scrollbar-thumb { background: rgba(214, 185, 140, 0.3); border-radius: 2px; }
 
 /* ── CSS KEYFRAMES ─────────────────────── */
 @keyframes markerPulse {
@@ -190,6 +192,15 @@ body {
 .theme-dark .thin-line,
 .theme-light .thin-line {
   background-color: var(--color-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-dark *,
+  .theme-light * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .text-gradient-gold {
