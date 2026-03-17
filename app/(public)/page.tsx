@@ -10,14 +10,18 @@ import { CTASection } from '@/components/public/CTASection'
 export default function HomePage() {
   return (
     <>
-      <HeroSection />
-      <ClinicApproachSection />
-      <TreatmentsSection />
-      <HowItWorksSection />
-      <AIAnalysisPreview />
-      <TrustSection />
-      <FAQSection />
-      <CTASection />
+      <div className="theme-dark">
+        <HeroSection />
+      </div>
+      <div className="theme-light">
+        <ClinicApproachSection />
+        <TreatmentsSection />
+        <HowItWorksSection />
+        <AIAnalysisPreview />
+        <TrustSection />
+        <FAQSection />
+        <CTASection />
+      </div>
     </>
   )
 }
