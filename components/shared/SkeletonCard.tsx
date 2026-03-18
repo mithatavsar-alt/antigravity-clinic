@@ -28,7 +28,7 @@ export function SkeletonText({ lines = 3, className }: { lines?: number; classNa
 export function SkeletonTable({ rows = 5 }: { rows?: number }) {
   return (
     <div className="overflow-hidden rounded-[14px] border border-[rgba(196,163,90,0.15)]">
-      <div className="bg-[#F5F5F4] px-4 py-3 flex gap-4">
+      <div className="bg-[rgba(255,254,249,0.8)] px-4 py-3 flex gap-4">
         {[120, 100, 80, 100, 80].map((w, i) => (
           <div key={i} className="skeleton h-3 rounded" style={{ width: w }} />
         ))}
