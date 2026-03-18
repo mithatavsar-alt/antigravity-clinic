@@ -20,7 +20,7 @@ export function DoctorSidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="hidden lg:flex flex-col w-56 bg-[#FFFEF9] border-r border-[rgba(196,163,90,0.1)] min-h-screen pt-8 px-4">
+    <aside className="hidden lg:flex flex-col w-56 bg-[rgba(255,254,249,0.95)] border-r border-[rgba(196,163,90,0.1)] min-h-screen pt-8 px-4">
       <nav className="flex flex-col gap-1">
         {navItems.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + '/')
@@ -43,7 +43,7 @@ export function DoctorSidebar() {
       </nav>
 
       <div className="mt-auto pb-8 pt-4 border-t border-[rgba(196,163,90,0.1)]">
-        <p className="font-mono text-[9px] text-[rgba(120,113,108,0.4)] tracking-[0.12em] uppercase">
+        <p className="font-mono text-[9px] text-[rgba(26,26,46,0.25)] tracking-[0.12em] uppercase">
           v1.0 · Mock Mod
         </p>
       </div>
