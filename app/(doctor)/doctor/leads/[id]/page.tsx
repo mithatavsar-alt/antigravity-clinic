@@ -131,7 +131,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             updateLeadStatus(lead.id, e.target.value as LeadStatus)
             logAuditEvent('lead_status_changed', { lead_id: lead.id, status: e.target.value })
           }}
-          className="bg-[rgba(255,254,249,0.8)] border border-[rgba(196,163,90,0.25)] rounded-[10px] px-3 py-2 font-body text-[12px] text-[#1A1A2E] focus:outline-none focus:border-[#2D5F5D]"
+          className="field-input field-input-sm"
         >
           {([
             { value: 'new', label: 'Yeni' },
@@ -279,7 +279,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               </GlassCard>
             </div>
 
-            <div className="border border-[rgba(196,163,90,0.2)] rounded-[10px] px-4 py-3 bg-[rgba(196,163,90,0.04)]">
+            <div className="border border-[rgba(196,163,90,0.15)] rounded-[10px] px-4 py-3 bg-[rgba(196,163,90,0.04)]">
               <p className="font-body text-[11px] text-[rgba(26,26,46,0.55)] italic leading-relaxed">
                 Bu çıktı doktor karar desteği içindir. Final uygulama kararı klinik değerlendirme sonrasında verilir.
               </p>
@@ -332,7 +332,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               rows={5}
               maxLength={2000}
               placeholder="Klinik notlarınızı buraya ekleyin..."
-              className="w-full bg-[rgba(255,254,249,0.7)] border border-[rgba(196,163,90,0.25)] rounded-[10px] px-4 py-3 font-body text-[13px] text-[#1A1A2E] focus:outline-none focus:border-[#2D5F5D] resize-none placeholder:text-[rgba(26,26,46,0.3)]"
+              className="field-input resize-none"
             />
             <span className="absolute bottom-2 right-3 font-mono text-[10px] text-[rgba(26,26,46,0.25)]">
               {notes.length}/2000
