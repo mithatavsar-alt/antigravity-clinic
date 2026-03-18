@@ -23,7 +23,7 @@ const RadioGroup = ({ name, options, register, error }: {
 }) => (
   <div className="flex flex-col gap-2">
     {options.map(({ value, label }) => (
-      <label key={value} className="flex items-center gap-3 p-3 rounded-[10px] border border-[rgba(196,163,90,0.2)] cursor-pointer hover:bg-[rgba(196,163,90,0.04)] transition-colors">
+      <label key={value} className="flex items-center gap-3 p-3 rounded-[10px] border border-[rgba(196,163,90,0.15)] cursor-pointer hover:bg-[rgba(196,163,90,0.04)] transition-colors">
         <input type="radio" value={value} {...register(name)} className="accent-[#2D5F5D]" />
         <span className="font-body text-[13px] text-[#1A1A2E]">{label}</span>
       </label>
