@@ -7,7 +7,7 @@ import { DoctorSidebar } from '@/components/doctor/DoctorSidebar'
 export default function DoctorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
-  if (pathname === '/doctor/login') {
+  if (pathname === '/doctor/login' || pathname.endsWith('/report')) {
     return <main>{children}</main>
   }
 

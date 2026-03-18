@@ -128,6 +128,81 @@ export interface Lead {
   doctor_analysis?: DoctorAnalysis
   consultation_readiness?: ConsultationReadiness
 
+  ai_scores?: {
+    symmetry: number
+    proportion: number
+    suggestions: string[]
+    metrics: {
+      faceRatio: number
+      eyeDistanceRatio: number
+      noseToFaceWidth: number
+      mouthToNoseWidth: number
+      symmetryRatio: number
+    }
+  }
+
+  /** PerfectCorp skin analysis scores (from server-side API) */
+  skin_scores?: {
+    skinAge: number | null
+    wrinkle: number | null
+    texture: number | null
+    pore: number | null
+    pigmentation: number | null
+    redness: number | null
+    face_symmetry: number | null
+    face_harmony: number | null
+  }
+
+  /** Estimated age from Human engine */
+  estimated_age?: number | null
+
+  /** Estimated gender from Human engine */
+  estimated_gender?: string | null
+
+  /** Gender detection confidence 0-1 */
+  estimated_gender_confidence?: number
+
+  /** Focus areas with cosmetic-support insights */
+  focus_areas?: Array<{
+    region: string
+    label: string
+    score: number
+    insight: string
+    doctorReviewRecommended: boolean
+  }>
+
+  /** Wrinkle / skin-line analysis scores */
+  wrinkle_scores?: {
+    regions: Array<{
+      region: string
+      label: string
+      density: number
+      score: number
+      level: 'low' | 'medium' | 'high'
+      insight: string
+    }>
+    overallScore: number
+    overallLevel: 'low' | 'medium' | 'high'
+  }
+
+  /** Suggested doctor-review zones */
+  suggested_zones?: string[]
+
+  /** Detection confidence 0-1 */
+  analysis_confidence?: number
+
+  /** Overall quality score 0-100 */
+  quality_score?: number
+
+  /** Tracks where the analysis data came from */
+  analysis_source?: {
+    provider: 'facemesh-local' | 'human-local' | 'perfectcorp' | 'combined' | 'mock'
+    source: 'real-client-side' | 'real-api' | 'combined' | 'fallback'
+    facemesh_ok: boolean
+    perfectcorp_ok: boolean
+    analyzed_at: string
+  }
+
   doctor_notes?: string
   doctor_notes_updated_at?: string
   report_url?: string

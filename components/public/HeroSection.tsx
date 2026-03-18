@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { HeroTrustStrip } from '@/components/public/HeroTrustStrip'
 import { HeroWireframe } from '@/components/public/HeroWireframe'
+import { contact } from '@/lib/contact'
 
 const ease = [0.16, 1, 0.3, 1] as const
 
@@ -80,7 +81,7 @@ export function HeroSection() {
             </button>
           </Link>
           <a
-            href="https://wa.me/905551234567"
+            href={contact.whatsappUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="w-full sm:w-auto"

@@ -12,6 +12,7 @@ import { photoQualityLabels } from '@/types/lead'
 import type { Lead } from '@/types/lead'
 import { getPhoto, removePhoto } from '@/lib/photo-bridge'
 import { LandmarkOverlay } from '@/components/analysis/LandmarkOverlay'
+import { contact } from '@/lib/contact'
 
 const fallbackFocusAreas = ['Göz Çevresi', 'Orta Yüz', 'Alt Yüz', 'Cilt Görünümü']
 
@@ -76,7 +77,8 @@ function PhotoLightbox({ src, onClose }: { src: string; onClose: () => void }) {
 
 /* ── Hero photo card with landmark overlay ─────────────────── */
 function AnalysisPhoto({ src, onClick, hasAI }: { src: string; onClick: () => void; hasAI: boolean }) {
-  const [showLandmarks, setShowLandmarks] = useState(hasAI)
+  // Default: mesh hidden — user can toggle to inspect
+  const [showMesh, setShowMesh] = useState(false)
 
   return (
     <div className="flex flex-col gap-3">
@@ -94,8 +96,8 @@ function AnalysisPhoto({ src, onClick, hasAI }: { src: string; onClick: () => vo
               className="w-full h-full object-cover object-[center_25%]"
             />
           </div>
-          {/* Landmark overlay on the photo */}
-          {hasAI && <LandmarkOverlay src={src} visible={showLandmarks} />}
+          {/* Landmark overlay — fade in/out */}
+          {hasAI && <LandmarkOverlay src={src} visible={showMesh} />}
           {/* Hover overlay */}
           <div className="absolute inset-0 bg-[rgba(0,0,0,0.0)] group-hover:bg-[rgba(0,0,0,0.2)] transition-colors duration-300 flex items-center justify-center">
             <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg">
@@ -104,38 +106,49 @@ function AnalysisPhoto({ src, onClick, hasAI }: { src: string; onClick: () => vo
               </svg>
             </div>
           </div>
-          {/* Bottom gradient for label */}
+          {/* Bottom gradient with status label */}
           <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[rgba(10,10,15,0.7)] to-transparent pt-10 pb-4 px-4">
             <p className="font-body text-[11px] tracking-[0.18em] uppercase text-white/90 flex items-center gap-2">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-              </svg>
-              {showLandmarks ? 'AI Harita Görünümü' : 'Analiz Edilen Görüntü'}
+              {hasAI ? (
+                <>
+                  <svg className="w-3.5 h-3.5 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75" />
+                  </svg>
+                  {showMesh ? 'AI Harita Görünümü' : 'Analiz Tamamlandı'}
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                  </svg>
+                  Analiz Edilen Görüntü
+                </>
+              )}
             </p>
           </div>
         </button>
 
-        {/* Landmark toggle button */}
+        {/* AI Map toggle button — only shown when analysis is complete */}
         {hasAI && (
           <button
             type="button"
-            onClick={() => setShowLandmarks((v) => !v)}
-            className={`absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-medium tracking-[0.1em] uppercase border backdrop-blur-md transition-all duration-300 ${
-              showLandmarks
-                ? 'bg-[rgba(0,255,102,0.15)] text-[#00FF66] border-[rgba(0,255,102,0.3)]'
-                : 'bg-[rgba(255,255,255,0.1)] text-white/60 border-[rgba(255,255,255,0.15)] hover:text-white hover:border-[rgba(255,255,255,0.3)]'
+            onClick={() => setShowMesh((v) => !v)}
+            className={`absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[10px] font-medium tracking-[0.08em] uppercase border backdrop-blur-md transition-all duration-300 active:scale-95 ${
+              showMesh
+                ? 'bg-[rgba(0,255,102,0.12)] text-[#4AE3A7] border-[rgba(0,255,102,0.25)] shadow-[0_0_12px_rgba(74,227,167,0.15)]'
+                : 'bg-[rgba(255,255,255,0.08)] text-white/60 border-[rgba(255,255,255,0.12)] hover:text-white hover:border-[rgba(255,255,255,0.25)] hover:shadow-[0_0_12px_rgba(214,185,140,0.12)]'
             }`}
-            aria-label={showLandmarks ? 'Haritayı gizle' : 'Haritayı göster'}
+            aria-label={showMesh ? 'AI Haritasını Gizle' : 'AI Haritasını Göster'}
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              {showLandmarks ? (
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              {showMesh ? (
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
               ) : (
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
               )}
             </svg>
-            {showLandmarks ? '468 Nokta' : 'Harita'}
+            {showMesh ? 'AI Haritasını Gizle' : 'AI Haritasını Göster'}
           </button>
         )}
       </div>
@@ -158,7 +171,10 @@ function PhotoPlaceholder() {
 }
 
 /* ── Scores compact card (for desktop sidebar) ─────────────── */
-function ScoresPanel({ aiScores }: { aiScores: NonNullable<Lead['ai_scores']> }) {
+function ScoresPanel({ aiScores, qualityScore }: {
+  aiScores: NonNullable<Lead['ai_scores']>
+  qualityScore?: number
+}) {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-2">
@@ -167,6 +183,16 @@ function ScoresPanel({ aiScores }: { aiScores: NonNullable<Lead['ai_scores']> })
         </svg>
         <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Yüz Geometrisi</p>
       </div>
+
+      {/* Quality badge */}
+      {qualityScore != null && (
+        <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[rgba(214,185,140,0.06)] border border-[rgba(214,185,140,0.12)]">
+            <span className="font-body text-[10px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.4)]">Görüntü Kalitesi</span>
+            <span className="font-mono text-[13px] text-[#D6B98C]">{qualityScore}%</span>
+          </div>
+        </div>
+      )}
 
       <ScoreBar label="Simetri Skoru" score={aiScores.symmetry} />
       <ScoreBar label="Altın Oran Uyumu" score={aiScores.proportion} />
@@ -180,6 +206,238 @@ function ScoresPanel({ aiScores }: { aiScores: NonNullable<Lead['ai_scores']> })
         <MetricRow label="Burun Genişliği Oranı" value={aiScores.metrics.noseToFaceWidth.toFixed(2)} />
         <MetricRow label="Dudak / Burun Oranı" value={aiScores.metrics.mouthToNoseWidth.toFixed(2)} />
         <MetricRow label="Simetri Oranı" value={aiScores.metrics.symmetryRatio.toFixed(2)} />
+      </div>
+    </div>
+  )
+}
+
+/* ── Age Estimation panel ─────────────────────────────────── */
+function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence }: {
+  estimatedAge: number | null | undefined
+  confidence?: number
+  gender?: string | null
+  genderConfidence?: number
+}) {
+  const hasAge = estimatedAge != null
+  const hasGender = !!gender
+  const genderLabel = gender === 'male' ? 'Erkek' : gender === 'female' ? 'Kadın' : gender ?? null
+
+  if (!hasAge && !hasGender) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+          </svg>
+          <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Yaş Tahmini</p>
+        </div>
+        <p className="font-body text-[13px] text-[rgba(248,246,242,0.4)] italic">
+          Yaş tahmini yapılamadı
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center gap-2">
+        <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+        </svg>
+        <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Yaş Tahmini</p>
+      </div>
+
+      <div className="flex items-center gap-6">
+        {/* Age display */}
+        {hasAge && (
+          <div className="flex flex-col items-center gap-1">
+            <span className="font-mono text-[40px] font-light text-[#F8F6F2] leading-none tracking-tight">
+              {Math.round(estimatedAge)}
+            </span>
+            <span className="font-body text-[10px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.35)]">
+              Tahmini Yaş
+            </span>
+          </div>
+        )}
+
+        {/* Divider */}
+        {hasAge && hasGender && (
+          <div className="w-px h-12 bg-[rgba(214,185,140,0.12)]" />
+        )}
+
+        {/* Gender + confidence */}
+        <div className="flex flex-col gap-2">
+          {hasGender && (
+            <div className="flex items-center gap-2">
+              <span className="font-body text-[14px] text-[#F8F6F2]">{genderLabel}</span>
+              {genderConfidence != null && genderConfidence > 0 && (
+                <span className="font-mono text-[11px] text-[rgba(248,246,242,0.3)]">
+                  ({Math.round(genderConfidence * 100)}%)
+                </span>
+              )}
+            </div>
+          )}
+          {confidence != null && confidence > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="font-body text-[11px] text-[rgba(248,246,242,0.35)]">Algılama Güveni:</span>
+              <span className="font-mono text-[12px] text-[#D6B98C]">{Math.round(confidence * 100)}%</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-[rgba(214,185,140,0.03)] border border-[rgba(214,185,140,0.08)] rounded-[10px] p-3">
+        <p className="font-body text-[10px] text-[rgba(248,246,242,0.3)] leading-relaxed italic">
+          Yaş ve cinsiyet tahmini yapay zeka modeli tarafından yapılmıştır. Kesin değil, yaklaşık değerlerdir.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/* ── Focus areas detailed panel ────────────────────────────── */
+function FocusAreasPanel({ focusAreas }: { focusAreas: NonNullable<Lead['focus_areas']> }) {
+  if (!focusAreas || focusAreas.length === 0) return null
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center gap-2">
+        <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+        </svg>
+        <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Odak Bölgeleri</p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {focusAreas.map((area) => {
+          const color = area.score >= 60 ? '#D6B98C' : area.score >= 40 ? 'rgba(248,246,242,0.5)' : '#3D9B7A'
+          return (
+            <div
+              key={area.region}
+              className="rounded-[12px] border border-[rgba(214,185,140,0.1)] bg-[rgba(20,18,15,0.4)] px-4 py-3"
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-body text-[13px] font-medium text-[#F8F6F2]">{area.label}</span>
+                <div className="flex items-center gap-2">
+                  {area.doctorReviewRecommended && (
+                    <span className="font-body text-[8px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(214,185,140,0.1)] text-[#D6B98C] border border-[rgba(214,185,140,0.15)]">
+                      Doktor
+                    </span>
+                  )}
+                  <span className="font-mono text-[14px] font-medium" style={{ color }}>
+                    {area.score}
+                  </span>
+                </div>
+              </div>
+              <p className="font-body text-[12px] text-[rgba(248,246,242,0.45)] leading-relaxed">
+                {area.insight}
+              </p>
+              {/* Score bar */}
+              <div className="h-1.5 rounded-full bg-[rgba(248,246,242,0.06)] overflow-hidden mt-2">
+                <div
+                  className="h-full rounded-full transition-all duration-700 ease-out"
+                  style={{ width: `${area.score}%`, backgroundColor: color }}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="bg-[rgba(214,185,140,0.03)] border border-[rgba(214,185,140,0.08)] rounded-[10px] p-3">
+        <p className="font-body text-[10px] text-[rgba(248,246,242,0.3)] leading-relaxed italic">
+          Puanlar geometrik analiz ve yaş tahminine dayalıdır. Cilt durumu değerlendirmesi dahil değildir.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/* ── Wrinkle / Skin-Line analysis ─────────────────────────── */
+function WrinkleAnalysisPanel({ wrinkleScores }: { wrinkleScores: NonNullable<Lead['wrinkle_scores']> }) {
+  const levelLabel: Record<string, string> = {
+    low: 'Düşük',
+    medium: 'Orta',
+    high: 'Yüksek',
+  }
+  const levelColor: Record<string, string> = {
+    low: '#3D9B7A',
+    medium: '#D6B98C',
+    high: '#B06060',
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+          </svg>
+          <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Cilt / Çizgi Analizi</p>
+        </div>
+        {/* Overall level badge */}
+        <div
+          className="flex items-center gap-1.5 px-3 py-1 rounded-full border"
+          style={{
+            backgroundColor: `${levelColor[wrinkleScores.overallLevel]}10`,
+            borderColor: `${levelColor[wrinkleScores.overallLevel]}30`,
+          }}
+        >
+          <span className="font-body text-[10px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.4)]">Genel</span>
+          <span className="font-mono text-[13px] font-medium" style={{ color: levelColor[wrinkleScores.overallLevel] }}>
+            {wrinkleScores.overallScore}
+          </span>
+          <span className="font-body text-[9px] uppercase" style={{ color: levelColor[wrinkleScores.overallLevel] }}>
+            {levelLabel[wrinkleScores.overallLevel]}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {wrinkleScores.regions.map((region) => {
+          const color = levelColor[region.level] ?? '#D6B98C'
+          return (
+            <div
+              key={region.region}
+              className="rounded-[12px] border border-[rgba(214,185,140,0.1)] bg-[rgba(20,18,15,0.4)] px-4 py-3"
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-body text-[13px] font-medium text-[#F8F6F2]">{region.label}</span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="font-body text-[9px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full border"
+                    style={{
+                      color,
+                      backgroundColor: `${color}10`,
+                      borderColor: `${color}25`,
+                    }}
+                  >
+                    {levelLabel[region.level]}
+                  </span>
+                  <span className="font-mono text-[14px] font-medium" style={{ color }}>
+                    {region.score}
+                  </span>
+                </div>
+              </div>
+              <p className="font-body text-[12px] text-[rgba(248,246,242,0.45)] leading-relaxed">
+                {region.insight}
+              </p>
+              {/* Score bar */}
+              <div className="h-1.5 rounded-full bg-[rgba(248,246,242,0.06)] overflow-hidden mt-2">
+                <div
+                  className="h-full rounded-full transition-all duration-700 ease-out"
+                  style={{ width: `${region.score}%`, backgroundColor: color }}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="bg-[rgba(214,185,140,0.03)] border border-[rgba(214,185,140,0.08)] rounded-[10px] p-3">
+        <p className="font-body text-[10px] text-[rgba(248,246,242,0.3)] leading-relaxed italic">
+          Çizgi analizi görüntü işleme tabanlı ön değerlendirmedir. Kesin sonuçlar klinik muayene gerektirir.
+        </p>
       </div>
     </div>
   )
@@ -278,7 +536,16 @@ function ResultContent() {
   const analysisSource = selectedLead.analysis_source
   const hasAI = !!aiScores
   const hasSkin = !!skinScores
+  const detailedFocusAreas = selectedLead.focus_areas
+  const estimatedAge = selectedLead.estimated_age
+  const estimatedGender = selectedLead.estimated_gender
+  const estimatedGenderConfidence = selectedLead.estimated_gender_confidence
+  const qualityScore = selectedLead.quality_score
+  const analysisConfidence = selectedLead.analysis_confidence
+  const wrinkleScores = selectedLead.wrinkle_scores
+  const hasWrinkle = !!wrinkleScores && wrinkleScores.regions.length > 0
   const isCombined = analysisSource?.provider === 'combined'
+  const isHumanLocal = analysisSource?.provider === 'human-local'
   const isFallback = analysisSource?.provider === 'mock' || (!hasAI && !hasSkin)
   // Photo may have been stripped from localStorage (quota protection).
   // Recover from sessionStorage bridge if needed.
@@ -297,7 +564,7 @@ function ResultContent() {
             </svg>
           </div>
           <SectionLabel className="justify-center mb-3">
-            {isCombined ? 'AI Analiz Tamamlandı' : isFallback ? 'Ön Değerlendirme (Sınırlı)' : hasAI || hasSkin ? 'AI Analiz Tamamlandı' : 'Ön Değerlendirme Tamamlandı'}
+            {isHumanLocal ? 'AI Analiz Tamamlandı' : isCombined ? 'AI Analiz Tamamlandı' : isFallback ? 'Ön Değerlendirme (Sınırlı)' : hasAI || hasSkin ? 'AI Analiz Tamamlandı' : 'Ön Değerlendirme Tamamlandı'}
           </SectionLabel>
           <h1 className="font-display text-[clamp(28px,4vw,44px)] font-light text-[#F8F6F2] tracking-[-0.02em]">
             {selectedLead.full_name.split(' ')[0]}, analiz özetiniz hazır
@@ -324,10 +591,39 @@ function ResultContent() {
 
           {/* Right: Scores + Summary */}
           <div className="flex flex-col gap-6">
+            {/* Age Estimation Card */}
+            {isHumanLocal && (
+              <GlassCard strong padding="lg" rounded="xl">
+                <AgeEstimationPanel
+                  estimatedAge={estimatedAge}
+                  confidence={analysisConfidence}
+                  gender={estimatedGender}
+                  genderConfidence={estimatedGenderConfidence}
+                />
+              </GlassCard>
+            )}
+
             {/* AI Scores Card */}
             {hasAI && (
               <GlassCard strong padding="lg" rounded="xl">
-                <ScoresPanel aiScores={aiScores} />
+                <ScoresPanel
+                  aiScores={aiScores}
+                  qualityScore={qualityScore}
+                />
+              </GlassCard>
+            )}
+
+            {/* Focus Areas Card (detailed, from Human engine) */}
+            {detailedFocusAreas && detailedFocusAreas.length > 0 && (
+              <GlassCard strong padding="lg" rounded="xl">
+                <FocusAreasPanel focusAreas={detailedFocusAreas} />
+              </GlassCard>
+            )}
+
+            {/* Wrinkle / Skin-Line Analysis Card */}
+            {hasWrinkle && (
+              <GlassCard strong padding="lg" rounded="xl">
+                <WrinkleAnalysisPanel wrinkleScores={wrinkleScores} />
               </GlassCard>
             )}
 
@@ -419,8 +715,15 @@ function ResultContent() {
             <p>Analyzed at: {analysisSource?.analyzed_at ?? 'N/A'}</p>
             <p>Lead ID: {selectedLead.id}</p>
             <p>Photo available: {photoUrl ? 'yes' : 'no'}{photoUrl?.startsWith('data:') ? ' (data URI)' : photoUrl?.startsWith('blob:') ? ' (blob URL)' : photoUrl ? ' (URL)' : ''}</p>
-            <p>AI scores (FaceMesh): {hasAI ? 'yes' : 'no'}</p>
+            <p>AI scores: {hasAI ? 'yes' : 'no'}</p>
             <p>Skin scores (PerfectCorp): {hasSkin ? 'yes' : 'no'}</p>
+            <p>Estimated age: {estimatedAge != null ? Math.round(estimatedAge) : 'N/A'}</p>
+            <p>Estimated gender: {estimatedGender ?? 'N/A'}{estimatedGenderConfidence ? ` (${Math.round(estimatedGenderConfidence * 100)}%)` : ''}</p>
+            <p>Quality score: {qualityScore ?? 'N/A'}</p>
+            <p>Confidence: {analysisConfidence != null ? `${Math.round(analysisConfidence * 100)}%` : 'N/A'}</p>
+            <p>Wrinkle analysis: {hasWrinkle ? `score=${wrinkleScores.overallScore} (${wrinkleScores.overallLevel})` : 'N/A'}</p>
+            <p>Focus areas: {detailedFocusAreas?.length ?? 0}</p>
+            <p>Suggested zones: {selectedLead.suggested_zones?.join(', ') || 'none'}</p>
             <p>Created: {selectedLead.created_at}</p>
             {!analysisSource && (
               <p className="text-[#B06060] font-semibold mt-1">
@@ -433,7 +736,7 @@ function ResultContent() {
         {/* CTA Buttons */}
         <div className="flex flex-col gap-3 max-w-lg mx-auto w-full">
           <a
-            href="https://wa.me/905321234567?text=Merhaba%2C%20AI%20%C3%B6n%20de%C4%9Ferlendirmemi%20tamamlad%C4%B1m.%20Randevu%20planlamak%20istiyorum."
+            href={contact.whatsappBookingUrl}
             target="_blank"
             rel="noopener noreferrer"
           >

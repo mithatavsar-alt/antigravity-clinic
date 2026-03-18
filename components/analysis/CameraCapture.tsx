@@ -9,6 +9,57 @@ interface CameraCaptureProps {
   onClose: () => void
 }
 
+function diagnoseCameraError(err: unknown): string {
+  if (!(err instanceof DOMException)) return 'Kamera başlatılamadı'
+  switch (err.name) {
+    case 'NotAllowedError': return 'Kamera izni reddedildi. Lütfen tarayıcı ayarlarından kamera iznini açın.'
+    case 'NotFoundError': return 'Kamera bulunamadı. Lütfen bir kamera bağlayın.'
+    case 'NotReadableError': return 'Kamera başka bir uygulama tarafından kullanılıyor. Diğer uygulamaları kapatıp tekrar deneyin.'
+    case 'OverconstrainedError': return 'Kamera istenen çözünürlüğü desteklemiyor.'
+    case 'SecurityError': return 'Kamera güvenli bağlantı (HTTPS) gerektirir.'
+    default: return `Kamera hatası: ${err.message}`
+  }
+}
+
+async function acquireCamera(): Promise<MediaStream> {
+  if (typeof window !== 'undefined' && !window.isSecureContext) {
+    throw new DOMException('Kamera yalnızca güvenli bağlantılarda çalışır.', 'SecurityError')
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new DOMException('Bu tarayıcı kamera erişimini desteklemiyor.', 'NotFoundError')
+  }
+
+  // Attempt 1: front camera with ideal resolution
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+    })
+  } catch (err) {
+    if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'NotFoundError')) throw err
+  }
+
+  // Attempt 2: front camera, no resolution
+  try {
+    return await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'NotAllowedError') throw err
+  }
+
+  // Attempt 3: enumerate and try each device
+  const devices = await navigator.mediaDevices.enumerateDevices()
+  const videoDevices = devices.filter((d) => d.kind === 'videoinput')
+  if (videoDevices.length === 0) throw new DOMException('Kamera bulunamadı.', 'NotFoundError')
+
+  for (const device of videoDevices) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: device.deviceId } } })
+    } catch { /* try next */ }
+  }
+
+  // Attempt 4: bare minimum
+  return await navigator.mediaDevices.getUserMedia({ video: true })
+}
+
 export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -18,14 +69,16 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
 
   useEffect(() => {
     let active = true
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } })
-      .then((stream) => {
+    acquireCamera()
+      .then(async (stream) => {
         if (!active) { stream.getTracks().forEach((t) => t.stop()); return }
         streamRef.current = stream
-        if (videoRef.current) videoRef.current.srcObject = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          try { await videoRef.current.play() } catch { /* autoPlay attr handles it */ }
+        }
       })
-      .catch(() => setError('Kameraya erişilemiyor. Lütfen tarayıcı izinlerini kontrol edin veya fotoğraf yükleme seçeneğini kullanın.'))
+      .catch((err) => setError(diagnoseCameraError(err)))
     return () => {
       active = false
       streamRef.current?.getTracks().forEach((t) => t.stop())

@@ -1,114 +1,87 @@
+/**
+ * FaceMesh compatibility layer.
+ *
+ * Wraps the Human engine to provide the same public API that
+ * FaceGuideCapture and the processing pipeline expect.
+ * This is a drop-in replacement of the old MediaPipe CDN scripts.
+ */
+
 import { FaceMeshError } from './types'
 import type { Landmark } from './types'
+import {
+  init as initHuman,
+  detectFace,
+  destroy as destroyHuman,
+  isInitialized,
+} from './human-engine'
 
 type ResultCallback = (landmarks: Landmark[] | null) => void
 
-interface FaceMeshInstance {
-  setOptions(options: {
-    maxNumFaces: number
-    refineLandmarks: boolean
-    minDetectionConfidence: number
-    minTrackingConfidence: number
-  }): void
-  onResults(callback: (results: { multiFaceLandmarks?: Landmark[][] }) => void): void
-  send(input: { image: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement }): Promise<void>
-  close(): void
-}
-
-let faceMeshInstance: FaceMeshInstance | null = null
-let initPromise: Promise<void> | null = null
-let pendingResolve: (() => void) | null = null
-let pendingReject: ((err: unknown) => void) | null = null
-let pendingCallback: ResultCallback | null = null
-
-function handleResults(results: { multiFaceLandmarks?: Landmark[][] }) {
-  const cb = pendingCallback
-  const resolve = pendingResolve
-  const reject = pendingReject
-  pendingCallback = null
-  pendingResolve = null
-  pendingReject = null
-
-  try {
-    const landmarks = results.multiFaceLandmarks?.[0] ?? null
-    if (!landmarks || landmarks.length === 0) {
-      cb?.(null)
-    } else {
-      cb?.(landmarks)
-    }
-    resolve?.()
-  } catch (err) {
-    reject?.(err)
-  }
-}
-
 export async function init(): Promise<void> {
-  if (faceMeshInstance) return
-  if (initPromise) return initPromise
-
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(
-      () => reject(new FaceMeshError('INIT_TIMEOUT', 'MediaPipe FaceMesh did not initialize within 8 seconds')),
-      8000
-    )
-  )
-
-  const loadPromise = (async () => {
-    const mod = await import('@mediapipe/face_mesh')
-    // @mediapipe/face_mesh exports FaceMesh as a named export
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const FaceMeshClass = (mod as any).FaceMesh
-    const instance: FaceMeshInstance = new FaceMeshClass({
-      locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
-    })
-    instance.setOptions({
-      maxNumFaces: 1,
-      refineLandmarks: true,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    })
-    // Register onResults once — routes to current pending callback
-    instance.onResults(handleResults)
-    faceMeshInstance = instance
-  })()
-
-  initPromise = Promise.race([loadPromise, timeoutPromise])
-  try {
-    await initPromise
-  } catch (err) {
-    initPromise = null
-    faceMeshInstance = null
-    throw err
-  }
+  await initHuman()
 }
 
+/**
+ * Analyze a static image and return face landmarks via callback.
+ * Maintains the same signature as the old MediaPipe-based version.
+ */
 export async function analyzeImage(
   imageElement: HTMLImageElement,
   onResult: ResultCallback
 ): Promise<void> {
-  if (!faceMeshInstance) {
-    throw new FaceMeshError('MODEL_LOAD_FAILED', 'FaceMesh not initialized. Call init() first.')
+  if (!isInitialized()) {
+    throw new FaceMeshError('MODEL_LOAD_FAILED', 'Human engine not initialized. Call init() first.')
   }
 
-  return new Promise((resolve, reject) => {
-    pendingCallback = onResult
-    pendingResolve = resolve
-    pendingReject = reject
+  console.log('[FaceMesh] Analyzing image...', imageElement.naturalWidth, 'x', imageElement.naturalHeight)
 
-    faceMeshInstance!.send({ image: imageElement }).catch((err: unknown) => {
-      pendingCallback = null
-      pendingResolve = null
-      pendingReject = null
-      reject(err instanceof FaceMeshError ? err : new FaceMeshError('MODEL_LOAD_FAILED', String(err)))
-    })
+  const ANALYZE_TIMEOUT_MS = 4000
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      console.error('[FaceMesh] analyzeImage timed out after', ANALYZE_TIMEOUT_MS, 'ms')
+      onResult(null)
+      resolve()
+    }, ANALYZE_TIMEOUT_MS)
+
+    detectFace(imageElement)
+      .then((detection) => {
+        clearTimeout(timer)
+        if (!detection) {
+          onResult(null)
+        } else {
+          console.log('[FaceMesh] Got', detection.landmarks.length, 'landmarks, confidence:', detection.confidence.toFixed(2))
+          onResult(detection.landmarks)
+        }
+        resolve()
+      })
+      .catch((err) => {
+        clearTimeout(timer)
+        console.error('[FaceMesh] detect failed:', err)
+        reject(err instanceof FaceMeshError ? err : new FaceMeshError('MODEL_LOAD_FAILED', String(err)))
+      })
   })
 }
 
+/**
+ * Analyze a video frame and return face landmarks via callback.
+ * Used by FaceGuideCapture for real-time guidance.
+ */
+export async function analyzeVideoFrame(
+  video: HTMLVideoElement,
+  onResult: ResultCallback
+): Promise<void> {
+  if (!isInitialized()) return
+
+  try {
+    const detection = await detectFace(video)
+    onResult(detection?.landmarks ?? null)
+  } catch (err) {
+    console.warn('[FaceMesh] Video frame analysis failed:', err)
+    onResult(null)
+  }
+}
+
 export function destroy(): void {
-  faceMeshInstance?.close()
-  faceMeshInstance = null
-  initPromise = null
-  pendingCallback = null
-  pendingResolve = null
-  pendingReject = null
+  destroyHuman()
 }
