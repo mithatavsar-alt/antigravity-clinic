@@ -257,6 +257,29 @@ input:focus, select:focus, textarea:focus,
   transition: width 1.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ── FORM FIELDS ──────────────────────── */
+.field-input {
+  width: 100%;
+  background: rgba(255, 254, 249, 0.7);
+  border: 1px solid rgba(196, 163, 90, 0.25);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-size: 13px;
+  color: #1A1A2E;
+  transition: all 0.2s;
+}
+.field-input::placeholder { color: rgba(26, 26, 46, 0.3); }
+.field-input:focus {
+  outline: none;
+  border-color: #2D5F5D;
+  box-shadow: 0 0 0 2px rgba(45, 95, 93, 0.12);
+}
+.field-input-sm {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
 /* ── PRINT ─────────────────────────── */
 @media print {
   /* Hide site chrome */
@@ -284,4 +307,11 @@ input:focus, select:focus, textarea:focus,
   .print\:px-0 { padding-left: 0 !important; padding-right: 0 !important; }
   .print\:py-0 { padding-top: 0 !important; padding-bottom: 0 !important; }
   .print\:max-w-none { max-width: none !important; }
+
+  /* Print-friendly legal page footer */
+  .print-footer {
+    font-size: 11px;
+    color: rgba(26, 26, 46, 0.4);
+    text-align: center;
+  }
 }
