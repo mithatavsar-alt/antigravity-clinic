@@ -19,7 +19,7 @@ const features = [
 
 export function ClinicApproachSection() {
   return (
-    <section className="py-[100px] px-10 bg-[#FAF6F1]">
+    <section className="py-[100px] px-10 bg-[#0E0B09]">
       <div className="container-main grid grid-cols-1 md:grid-cols-2 gap-20 items-center">
         {/* Left — Decorative placeholder + badge */}
         <motion.div
@@ -33,9 +33,9 @@ export function ClinicApproachSection() {
             <PlaceholderImage variant="editorial" className="w-full h-72" />
             {/* Dr. badge */}
             <div className="absolute bottom-8 left-8 glass-strong rounded-[12px] px-4 py-3">
-              <p className="font-mono text-[9px] tracking-[0.2em] uppercase text-[#8B7FA8] mb-0.5">Uzman Hekim</p>
-              <p className="font-display text-[15px] font-light text-[#1A1A2E]">Dr. Müjde Ocak</p>
-              <p className="font-body text-[10px] text-[rgba(26,26,46,0.5)]">Medikal Estetik Uzmanı</p>
+              <p className="font-mono text-[9px] tracking-[0.2em] uppercase text-[rgba(214,185,140,0.6)] mb-0.5">Uzman Hekim</p>
+              <p className="font-display text-[15px] font-light text-[#F8F6F2]">Dr. Müjde Ocak</p>
+              <p className="font-body text-[10px] text-[rgba(248,246,242,0.45)]">Medikal Estetik Uzmanı</p>
             </div>
           </GlassCard>
         </motion.div>
@@ -49,20 +49,20 @@ export function ClinicApproachSection() {
           className="flex flex-col gap-7"
         >
           <SectionLabel>Klinik Yaklaşımı</SectionLabel>
-          <EditorialHeading>
+          <EditorialHeading light>
             Bilim,<br />
             <GoldItalic>Hassasiyet</GoldItalic>,<br />
             Sanat
           </EditorialHeading>
           <ThinLine />
-          <p className="font-body text-[14px] text-[rgba(26,26,46,0.6)] leading-relaxed">
+          <p className="font-body text-[14px] text-[rgba(248,246,242,0.55)] leading-relaxed">
             Her yüz eşsizdir. Antigravity Dynamic Face AI™ sistemi doktorun klinik sezgisini veri ile güçlendirir; doğal, kişiye özel sonuçlar elde etmenizi sağlar.
           </p>
           <ul className="flex flex-col gap-3">
             {features.map((f) => (
               <li key={f} className="flex items-start gap-3">
-                <span className="text-[#C4A35A] mt-0.5 flex-shrink-0">◈</span>
-                <span className="font-body text-[13px] text-[rgba(26,26,46,0.65)]">{f}</span>
+                <span className="text-[#D6B98C] mt-0.5 flex-shrink-0">◈</span>
+                <span className="font-body text-[13px] text-[rgba(248,246,242,0.6)]">{f}</span>
               </li>
             ))}
           </ul>

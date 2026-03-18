@@ -40,7 +40,7 @@ const items = [
 
 export function TrustSection() {
   return (
-    <section className="py-[100px] px-10 bg-[#FAF6F1]">
+    <section className="py-[100px] px-10 bg-[#0E0B09]">
       <div className="container-main">
         <div className="text-center mb-14">
           <motion.div
@@ -50,7 +50,7 @@ export function TrustSection() {
             viewport={{ once: true }}
           >
             <SectionLabel className="justify-center mb-4">Güven</SectionLabel>
-            <EditorialHeading>Mahremiyet & Güvenlik</EditorialHeading>
+            <EditorialHeading light>Mahremiyet & Güvenlik</EditorialHeading>
           </motion.div>
         </div>
 
@@ -64,11 +64,11 @@ export function TrustSection() {
               viewport={{ once: true }}
             >
               <GlassCard className="flex flex-col gap-4 h-full">
-                <div className="w-10 h-10 rounded-full bg-[rgba(196,163,90,0.08)] border border-[rgba(196,163,90,0.2)] flex items-center justify-center text-[#C4A35A]">
+                <div className="w-10 h-10 rounded-full bg-[rgba(214,185,140,0.06)] border border-[rgba(214,185,140,0.15)] flex items-center justify-center text-[#D6B98C]">
                   {icon}
                 </div>
-                <h3 className="font-display text-[20px] font-light text-[#1A1A2E]">{title}</h3>
-                <p className="font-body text-[13px] text-[rgba(26,26,46,0.55)] leading-relaxed">{desc}</p>
+                <h3 className="font-display text-[20px] font-light text-[#F8F6F2]">{title}</h3>
+                <p className="font-body text-[13px] text-[rgba(248,246,242,0.5)] leading-relaxed">{desc}</p>
               </GlassCard>
             </motion.div>
           ))}

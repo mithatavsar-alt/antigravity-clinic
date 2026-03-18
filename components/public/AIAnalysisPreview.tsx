@@ -20,9 +20,9 @@ const mockRegions = [
 
 export function AIAnalysisPreview() {
   return (
-    <section id="ai-analysis" className="py-[100px] px-10 bg-gradient-platinum relative overflow-hidden">
+    <section id="ai-analysis" className="py-[100px] px-10 bg-[#0B0E10] relative overflow-hidden">
       <div className="absolute inset-0 opacity-30"
-        style={{ backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(196,163,90,0.12) 0%, transparent 70%)' }}
+        style={{ backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(214,185,140,0.08) 0%, transparent 70%)' }}
       />
 
       <div className="container-main relative z-10">
@@ -35,7 +35,7 @@ export function AIAnalysisPreview() {
             className="flex flex-col items-center gap-4"
           >
             <SectionLabel>AI Analiz Sistemi</SectionLabel>
-            <EditorialHeading>
+            <EditorialHeading light>
               <GoldItalic>Akıllı</GoldItalic> Tanı,<br />
               Kesin Sonuç
             </EditorialHeading>
@@ -53,12 +53,12 @@ export function AIAnalysisPreview() {
             {/* Header */}
             <div className="flex justify-between items-center mb-6">
               <div>
-                <p className="font-body text-[9px] tracking-[0.2em] uppercase text-[#8B7FA8] mb-1">Örnek Analiz</p>
-                <p className="font-display text-[18px] font-light text-[#1A1A2E]">Bölgesel Değerlendirme</p>
+                <p className="font-body text-[9px] tracking-[0.2em] uppercase text-[rgba(214,185,140,0.6)] mb-1">Örnek Analiz</p>
+                <p className="font-display text-[18px] font-light text-[#F8F6F2]">Bölgesel Değerlendirme</p>
               </div>
               <div className="text-right">
-                <span className="font-mono text-[9px] text-[rgba(139,127,168,0.6)] tracking-[0.12em] block">MODEL</span>
-                <span className="font-mono text-[11px] text-[#8B7FA8]">mock-v1</span>
+                <span className="font-mono text-[9px] text-[rgba(214,185,140,0.4)] tracking-[0.12em] block">MODEL</span>
+                <span className="font-mono text-[11px] text-[rgba(214,185,140,0.6)]">mock-v1</span>
               </div>
             </div>
 
@@ -70,8 +70,8 @@ export function AIAnalysisPreview() {
             </div>
 
             {/* Disclaimer */}
-            <div className="mt-6 border border-[rgba(196,163,90,0.2)] rounded-[10px] p-3">
-              <p className="font-body text-[10px] text-[rgba(26,26,46,0.5)] leading-relaxed italic">
+            <div className="mt-6 border border-[rgba(214,185,140,0.15)] rounded-[10px] p-3">
+              <p className="font-body text-[10px] text-[rgba(248,246,242,0.45)] leading-relaxed italic">
                 Bu önizleme örnek verilerle oluşturulmuştur. Gerçek analiz fotoğraf yüklenmesi ve doktor onayı ile tamamlanır.
               </p>
             </div>

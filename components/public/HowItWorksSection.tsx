@@ -19,7 +19,7 @@ const steps = [
 
 export function HowItWorksSection() {
   return (
-    <section id="how-it-works" className="py-[100px] px-10 bg-gradient-to-b from-[#FAF6F1] to-[#F5E6D3]">
+    <section id="how-it-works" className="py-[100px] px-10 bg-gradient-to-b from-[#0E0B09] to-[#14110E]">
       <div className="container-main grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
         {/* Left text */}
         <motion.div
@@ -30,16 +30,16 @@ export function HowItWorksSection() {
           className="flex flex-col gap-6"
         >
           <SectionLabel>Süreç</SectionLabel>
-          <EditorialHeading>
+          <EditorialHeading light>
             Ön Değerlendirme<br />
             <GoldItalic>Nasıl</GoldItalic> Çalışır?
           </EditorialHeading>
           <ThinLine />
-          <p className="font-body text-[14px] text-[rgba(26,26,46,0.6)] leading-relaxed">
+          <p className="font-body text-[14px] text-[rgba(248,246,242,0.55)] leading-relaxed">
             3 basit adımla yapay zeka destekli ön değerlendirmeni tamamla. Doktorun analizi inceleyerek sana özel tedavi planı oluşturur.
           </p>
           <Link href="/analysis">
-            <PremiumButton>Hemen Başla</PremiumButton>
+            <PremiumButton variant="gold">Hemen Başla</PremiumButton>
           </Link>
         </motion.div>
 
@@ -54,12 +54,12 @@ export function HowItWorksSection() {
               viewport={{ once: true }}
             >
               <GlassCard className="flex gap-5 items-start">
-                <div className="w-10 h-10 rounded-full border border-[rgba(196,163,90,0.3)] flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-full border border-[rgba(214,185,140,0.2)] flex items-center justify-center flex-shrink-0">
                   <span className="font-mono text-[12px] text-gradient-gold">{n}</span>
                 </div>
                 <div>
-                  <h4 className="font-display text-[18px] font-light text-[#1A1A2E] mb-1">{title}</h4>
-                  <p className="font-body text-[12px] text-[rgba(26,26,46,0.55)] leading-relaxed">{desc}</p>
+                  <h4 className="font-display text-[18px] font-light text-[#F8F6F2] mb-1">{title}</h4>
+                  <p className="font-body text-[12px] text-[rgba(248,246,242,0.5)] leading-relaxed">{desc}</p>
                 </div>
               </GlassCard>
             </motion.div>
