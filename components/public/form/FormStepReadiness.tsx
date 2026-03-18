@@ -23,12 +23,12 @@ const RadioGroup = ({ name, options, register, error }: {
 }) => (
   <div className="flex flex-col gap-2">
     {options.map(({ value, label }) => (
-      <label key={value} className="flex items-center gap-3 p-3 rounded-[10px] border border-[rgba(196,163,90,0.15)] cursor-pointer hover:bg-[rgba(196,163,90,0.04)] transition-colors">
-        <input type="radio" value={value} {...register(name)} className="accent-[#2D5F5D]" />
-        <span className="font-body text-[13px] text-[#1A1A2E]">{label}</span>
+      <label key={value} className="flex items-center gap-3 p-3 rounded-[10px] border border-[rgba(214,185,140,0.12)] cursor-pointer hover:bg-[rgba(214,185,140,0.04)] transition-colors">
+        <input type="radio" value={value} {...register(name)} className="accent-[#D6B98C]" />
+        <span className="font-body text-[13px] text-[#F8F6F2]">{label}</span>
       </label>
     ))}
-    {error && <p className="font-body text-[11px] text-[#A05252]">{error}</p>}
+    {error && <p className="font-body text-[11px] text-[#C47A7A]">{error}</p>}
   </div>
 )
 
@@ -53,7 +53,7 @@ export function FormStepReadiness() {
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
       {/* Desired result */}
       <div className="flex flex-col gap-2.5">
-        <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.5)]">
+        <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.4)]">
           Nasıl bir sonuç bekliyorsunuz? *
         </label>
         <RadioGroup
@@ -66,7 +66,7 @@ export function FormStepReadiness() {
 
       {/* Prior treatment */}
       <div className="flex flex-col gap-2.5">
-        <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.5)]">
+        <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.4)]">
           Daha önce estetik işlem yaptırdınız mı? *
         </label>
         <RadioGroup
@@ -79,7 +79,7 @@ export function FormStepReadiness() {
 
       {/* Consultation timing */}
       <div className="flex flex-col gap-2.5">
-        <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.5)]">
+        <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.4)]">
           Doktor görüşmesini ne zaman düşünüyorsunuz? *
         </label>
         <RadioGroup
@@ -94,7 +94,7 @@ export function FormStepReadiness() {
         <PremiumButton type="button" variant="ghost" size="md" onClick={() => setFormStep(1)} className="flex-1 justify-center">
           Geri
         </PremiumButton>
-        <PremiumButton type="submit" size="md" className="flex-1 justify-center">
+        <PremiumButton type="submit" variant="gold" size="md" className="flex-1 justify-center">
           Devam Et
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />

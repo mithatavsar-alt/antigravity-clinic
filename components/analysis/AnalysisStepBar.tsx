@@ -15,12 +15,12 @@ export function AnalysisStepBar({
     <div className="flex flex-col gap-3 mb-8">
       <div className="flex gap-2">
         {[1, 2, 3].map((s) => (
-          <div key={s} className="flex-1 h-0.5 rounded-full overflow-hidden bg-[rgba(196,163,90,0.12)]">
+          <div key={s} className="flex-1 h-0.5 rounded-full overflow-hidden bg-[rgba(248,246,242,0.06)]">
             <div
               className="h-full rounded-full transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
               style={{
                 width: currentStep >= s ? '100%' : '0%',
-                background: 'linear-gradient(90deg, #C4A35A, #D4B96A)',
+                background: 'linear-gradient(90deg, #D6B98C, #C4A35A)',
               }}
             />
           </div>
@@ -31,7 +31,7 @@ export function AnalysisStepBar({
           <span
             key={label}
             className="font-body text-[10px] tracking-[0.12em] uppercase transition-colors"
-            style={{ color: currentStep >= i + 1 ? '#C4A35A' : 'rgba(26,26,46,0.3)' }}
+            style={{ color: currentStep >= i + 1 ? '#D6B98C' : 'rgba(248,246,242,0.25)' }}
           >
             {label}
           </span>

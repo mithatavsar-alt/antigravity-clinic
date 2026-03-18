@@ -42,15 +42,15 @@ export default function AnalysisMediaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#FAF6F1] to-[#F5E6D3] py-28 px-5">
+    <div className="theme-dark min-h-screen py-28 px-5" style={{ background: 'linear-gradient(160deg, #0E0B09 0%, #14110E 40%, #0B0E10 100%)' }}>
       <div className="max-w-xl mx-auto">
         <div className="text-center mb-10">
-          <p className="font-body text-[10px] tracking-[0.25em] uppercase text-[#8B7FA8] mb-3">Adım 2 / 3</p>
-          <h1 className="font-display text-[clamp(32px,5vw,48px)] font-light text-[#1A1A2E] tracking-[-0.02em]">
+          <p className="font-body text-[10px] tracking-[0.25em] uppercase text-[#D6B98C] mb-3">Adım 2 / 3</p>
+          <h1 className="font-display text-[clamp(32px,5vw,48px)] font-light text-[#F8F6F2] tracking-[-0.02em]">
             Fotoğraf Yükleme
           </h1>
           <div className="flex justify-center mt-4">
-            <ThinLine width={48} />
+            <ThinLine width={48} light />
           </div>
         </div>
 
@@ -58,14 +58,14 @@ export default function AnalysisMediaPage() {
           <AnalysisStepBar currentStep={2} labels={['Kişisel Bilgiler', 'Fotoğraf', 'Onay']} />
 
           <SectionLabel className="mb-4">Fotoğraflarınızı Yükleyin</SectionLabel>
-          <p className="font-body text-[12px] text-[rgba(26,26,46,0.55)] mb-6 leading-relaxed">
+          <p className="font-body text-[12px] text-[rgba(248,246,242,0.5)] mb-6 leading-relaxed">
             En iyi sonuç için önden çekilmiş fotoğraf zorunludur. Diğer açılar ve mimik fotoğrafları isteğe bağlıdır ancak doktor değerlendirmesine katkı sağlar.
           </p>
 
           <MediaUploadGrid value={slots} onChange={setSlots} />
 
           {error && (
-            <p className="mt-4 font-body text-[12px] text-[#A05252] bg-[rgba(160,82,82,0.06)] rounded-[10px] px-4 py-3">
+            <p className="mt-4 font-body text-[12px] text-[#C47A7A] bg-[rgba(160,82,82,0.1)] rounded-[10px] px-4 py-3">
               {error}
             </p>
           )}
@@ -74,13 +74,13 @@ export default function AnalysisMediaPage() {
             <PremiumButton variant="ghost" size="md" onClick={() => router.back()} className="flex-1 justify-center">
               Geri
             </PremiumButton>
-            <PremiumButton size="md" onClick={handleContinue} className="flex-1 justify-center">
+            <PremiumButton variant="gold" size="md" onClick={handleContinue} className="flex-1 justify-center">
               Devam
             </PremiumButton>
           </div>
         </GlassCard>
 
-        <p className="text-center font-body text-[11px] text-[rgba(26,26,46,0.35)] mt-6 leading-relaxed">
+        <p className="text-center font-body text-[11px] text-[rgba(248,246,242,0.25)] mt-6 leading-relaxed">
           Fotoğraflarınız yalnızca cihazınızda işlenir. Sunucuya yüklenmez.
         </p>
       </div>

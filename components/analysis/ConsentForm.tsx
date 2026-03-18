@@ -28,14 +28,14 @@ export function ConsentForm({ onConfirm, onBack, loading = false }: ConsentFormP
     onConfirm()
   }
 
-  const checkboxClass = 'mt-0.5 accent-[#2D5F5D] flex-shrink-0 w-4 h-4'
+  const checkboxClass = 'mt-0.5 accent-[#D6B98C] flex-shrink-0 w-4 h-4'
   const labelClass = 'flex items-start gap-3 cursor-pointer'
-  const textClass = 'font-body text-[12px] text-[rgba(26,26,46,0.65)] leading-relaxed'
-  const linkClass = 'text-[#C4A35A] hover:underline'
+  const textClass = 'font-body text-[12px] text-[rgba(248,246,242,0.55)] leading-relaxed'
+  const linkClass = 'text-[#D6B98C] hover:underline'
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-4 border-b border-[rgba(196,163,90,0.15)] pb-5">
+      <div className="flex flex-col gap-4 border-b border-[rgba(214,185,140,0.1)] pb-5">
         <label className={labelClass}>
           <input type="checkbox" checked={kvkk} onChange={(e) => { setKvkk(e.target.checked); setError(null) }} className={checkboxClass} />
           <span className={textClass}>
@@ -61,13 +61,13 @@ export function ConsentForm({ onConfirm, onBack, loading = false }: ConsentFormP
       </div>
 
       <GlassCard padding="sm" rounded="md">
-        <p className="font-body text-[10px] text-[rgba(26,26,46,0.55)] leading-relaxed">
+        <p className="font-body text-[10px] text-[rgba(248,246,242,0.45)] leading-relaxed">
           Verileriniz KVKK kapsamında korunmaktadır. Hiçbir ücret talep edilmez. Dilediğiniz zaman geri çekebilirsiniz.
         </p>
       </GlassCard>
 
       {error && (
-        <p className="font-body text-[12px] text-[#A05252] bg-[rgba(160,82,82,0.06)] rounded-[10px] px-4 py-3">
+        <p className="font-body text-[12px] text-[#C47A7A] bg-[rgba(160,82,82,0.1)] rounded-[10px] px-4 py-3">
           {error}
         </p>
       )}
@@ -78,6 +78,7 @@ export function ConsentForm({ onConfirm, onBack, loading = false }: ConsentFormP
         </PremiumButton>
         <PremiumButton
           type="button"
+          variant="gold"
           size="md"
           onClick={handleConfirm}
           disabled={loading}

@@ -280,6 +280,22 @@ input:focus, select:focus, textarea:focus,
   font-size: 12px;
 }
 
+/* Dark theme form fields */
+.theme-dark .field-input {
+  background: rgba(20, 18, 15, 0.6);
+  border-color: rgba(214, 185, 140, 0.15);
+  color: #F8F6F2;
+}
+.theme-dark .field-input::placeholder { color: rgba(248, 246, 242, 0.25); }
+.theme-dark .field-input:focus {
+  border-color: #D6B98C;
+  box-shadow: 0 0 0 2px rgba(214, 185, 140, 0.12);
+}
+.theme-dark .field-input option {
+  background: #14110E;
+  color: #F8F6F2;
+}
+
 /* ── PRINT ─────────────────────────── */
 @media print {
   /* Hide site chrome */

@@ -5,7 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useClinicStore } from '@/lib/store'
 import { PremiumButton } from '@/components/design-system/PremiumButton'
-import { FormField } from '@/components/design-system/FormField'
 import { concernAreaLabels } from '@/types/lead'
 
 const schema = z.object({
@@ -46,48 +45,71 @@ export function FormStepPersonal() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
       {/* Name */}
-      <FormField label="Ad Soyad" required error={errors.full_name?.message}>
+      <div className="flex flex-col gap-1.5">
+        <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.4)]">
+          Ad Soyad *
+        </label>
         <input {...register('full_name')} placeholder="Adınız Soyadınız" className="field-input" />
-      </FormField>
+        {errors.full_name?.message && <p className="font-body text-[11px] text-[#C47A7A]">{errors.full_name.message}</p>}
+      </div>
 
       {/* Phone */}
-      <FormField label="Telefon" required error={errors.phone?.message}>
+      <div className="flex flex-col gap-1.5">
+        <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.4)]">
+          Telefon *
+        </label>
         <input {...register('phone')} placeholder="05XX XXX XX XX" className="field-input" />
-      </FormField>
+        {errors.phone?.message && <p className="font-body text-[11px] text-[#C47A7A]">{errors.phone.message}</p>}
+      </div>
 
       {/* Age + Gender */}
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Yaş Aralığı" required error={errors.age_range?.message}>
+        <div className="flex flex-col gap-1.5">
+          <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.4)]">
+            Yaş Aralığı *
+          </label>
           <select {...register('age_range')} className="field-input">
             <option value="">Seçin</option>
             {['18-24', '25-34', '35-44', '45-54', '55+'].map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
-        </FormField>
+          {errors.age_range?.message && <p className="font-body text-[11px] text-[#C47A7A]">{errors.age_range.message}</p>}
+        </div>
 
-        <FormField label="Cinsiyet" required error={errors.gender?.message}>
+        <div className="flex flex-col gap-1.5">
+          <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.4)]">
+            Cinsiyet *
+          </label>
           <select {...register('gender')} className="field-input">
             <option value="">Seçin</option>
             <option value="female">Kadın</option>
             <option value="male">Erkek</option>
             <option value="other">Diğer</option>
           </select>
-        </FormField>
+          {errors.gender?.message && <p className="font-body text-[11px] text-[#C47A7A]">{errors.gender.message}</p>}
+        </div>
       </div>
 
       {/* Concern area */}
-      <FormField label="İlgilendiğiniz Alan" required error={errors.concern_area?.message}>
+      <div className="flex flex-col gap-1.5">
+        <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.4)]">
+          İlgilendiğiniz Alan *
+        </label>
         <select {...register('concern_area')} className="field-input">
           <option value="">Seçin</option>
           {(Object.entries(concernAreaLabels) as [string, string][]).map(([val, label]) => (
             <option key={val} value={val}>{label}</option>
           ))}
         </select>
-      </FormField>
+        {errors.concern_area?.message && <p className="font-body text-[11px] text-[#C47A7A]">{errors.concern_area.message}</p>}
+      </div>
 
       {/* Expectation note */}
-      <FormField label="Beklenti Notunuz" error={undefined}>
+      <div className="flex flex-col gap-1.5">
+        <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.4)]">
+          Beklenti Notunuz
+        </label>
         <textarea
           {...register('expectation_note')}
           rows={3}
@@ -95,9 +117,9 @@ export function FormStepPersonal() {
           className="field-input resize-none"
           maxLength={300}
         />
-      </FormField>
+      </div>
 
-      <PremiumButton type="submit" size="lg" className="mt-2 justify-center">
+      <PremiumButton type="submit" variant="gold" size="lg" className="mt-2 justify-center">
         Devam Et
         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
