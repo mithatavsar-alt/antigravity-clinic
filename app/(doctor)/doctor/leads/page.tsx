@@ -9,8 +9,6 @@ import type { LeadStatus, ReadinessBand } from '@/types/lead'
 import { concernAreaLabels } from '@/types/lead'
 import { formatDate } from '@/lib/utils'
 
-const fieldClass = "bg-[rgba(255,254,249,0.8)] border border-[rgba(196,163,90,0.2)] rounded-[10px] px-3 py-2 font-body text-[12px] text-[#1A1A2E] focus:outline-none focus:border-[#2D5F5D] transition-all"
-
 export default function LeadsPage() {
   const { leads } = useClinicStore()
   const [search, setSearch] = useState('')
@@ -46,9 +44,9 @@ export default function LeadsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Ad veya telefon ara..."
-          className={`${fieldClass} min-w-[200px]`}
+          className="field-input field-input-sm min-w-[200px]"
         />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as LeadStatus | '')} className={fieldClass}>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as LeadStatus | '')} className="field-input field-input-sm">
           <option value="">Tüm Statüler</option>
           {([
             { value: 'new', label: 'Yeni' },
@@ -62,7 +60,7 @@ export default function LeadsPage() {
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
-        <select value={bandFilter} onChange={(e) => setBandFilter(e.target.value as ReadinessBand | '')} className={fieldClass}>
+        <select value={bandFilter} onChange={(e) => setBandFilter(e.target.value as ReadinessBand | '')} className="field-input field-input-sm">
           <option value="">Tüm Readiness</option>
           <option value="very_high">Çok Yüksek</option>
           <option value="high">Yüksek</option>
@@ -75,7 +73,7 @@ export default function LeadsPage() {
       <div className="overflow-x-auto rounded-[14px] border border-[rgba(196,163,90,0.15)] bg-[rgba(255,254,249,0.6)]">
         <table className="w-full min-w-[900px]">
           <thead>
-            <tr className="bg-[#F5F5F4] border-b border-[rgba(196,163,90,0.12)]">
+            <tr className="bg-[rgba(255,254,249,0.8)] border-b border-[rgba(196,163,90,0.12)]">
               {['ID', 'Ad Soyad', 'Yaş / Cinsiyet', 'Telefon', 'İlgi Alanı', 'Statü', 'Readiness', 'Tarih', ''].map((h) => (
                 <th key={h} className="px-4 py-3 text-left font-body text-[10px] tracking-[0.18em] uppercase text-[rgba(26,26,46,0.4)]">
                   {h}
