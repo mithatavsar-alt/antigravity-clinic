@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { getActiveConsentVersion } from '@/data/consent-versions'
 import { GlassCard } from '@/components/design-system/GlassCard'
 import { PrintButton } from '@/components/shared/PrintButton'
+import { SectionLabel } from '@/components/design-system/SectionLabel'
 
 export const metadata: Metadata = {
   title: 'KVKK Aydınlatma Metni — Antigravity AI',
@@ -97,9 +98,7 @@ export default function PrivacyPage() {
 
         {/* Page header */}
         <div className="border-b border-[rgba(196,163,90,0.2)] pb-8">
-          <p className="font-body text-[10px] tracking-[0.25em] uppercase text-[#8B7FA8] mb-3">
-            Yasal Bilgilendirme
-          </p>
+          <SectionLabel className="mb-3">Yasal Bilgilendirme</SectionLabel>
           <h1 className="font-display text-[clamp(28px,4vw,42px)] font-light text-[#1A1A2E] tracking-[-0.02em] mb-4">
             KVKK Aydınlatma Metni
           </h1>
@@ -184,8 +183,8 @@ export default function PrivacyPage() {
         </div>
 
         {/* Print-only footer */}
-        <div className="hidden print:block pt-8 border-t border-gray-200 mt-4">
-          <p className="text-[11px] text-gray-400 text-center">
+        <div className="hidden print:block pt-8 border-t border-[rgba(196,163,90,0.15)] mt-4">
+          <p className="text-[11px] text-[rgba(26,26,46,0.4)] text-center">
             Antigravity Dynamic Face AI™ · Dr. Müjde Ocak Kliniği · v{version.version} · {effectiveDate}
           </p>
         </div>
