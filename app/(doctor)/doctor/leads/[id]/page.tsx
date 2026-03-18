@@ -10,6 +10,7 @@ import { RegionBar } from '@/components/design-system/RegionBar'
 import { PlaceholderImage } from '@/components/design-system/PlaceholderImage'
 import { PremiumButton } from '@/components/design-system/PremiumButton'
 import { ThinLine } from '@/components/design-system/ThinLine'
+import { CollapsibleSection } from '@/components/design-system/CollapsibleSection'
 import { readinessBandConfig } from '@/lib/readiness'
 import { logAuditEvent } from '@/lib/audit'
 import {
@@ -31,32 +32,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     <div>
       <p className="font-body text-[10px] tracking-[0.15em] uppercase text-[rgba(26,26,46,0.4)] mb-0.5">{label}</p>
       <p className="font-body text-[13px] text-[#1A1A2E]">{value}</p>
-    </div>
-  )
-}
-
-function CollapsibleSection({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true)
-
-  return (
-    <div className="border border-[rgba(196,163,90,0.15)] rounded-[14px] overflow-hidden">
-      <button
-        onClick={() => setOpen((current) => !current)}
-        className="w-full flex justify-between items-center px-5 py-4 bg-[rgba(255,254,249,0.7)] hover:bg-[rgba(196,163,90,0.03)] transition-colors"
-      >
-        <h3 className="font-display text-[18px] font-light text-[#1A1A2E]">{title}</h3>
-        <svg
-          className="w-4 h-4 text-[#C4A35A] transition-transform duration-300"
-          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.5}
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
-      {open && <div className="px-5 py-5 border-t border-[rgba(196,163,90,0.1)]">{children}</div>}
     </div>
   )
 }
