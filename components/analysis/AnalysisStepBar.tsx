@@ -15,7 +15,7 @@ export function AnalysisStepBar({
     <div className="flex flex-col gap-3 mb-8">
       <div className="flex gap-2">
         {[1, 2, 3].map((s) => (
-          <div key={s} className="flex-1 h-0.5 rounded-full overflow-hidden bg-[#E7E5E4]">
+          <div key={s} className="flex-1 h-0.5 rounded-full overflow-hidden bg-[rgba(196,163,90,0.12)]">
             <div
               className="h-full rounded-full transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
               style={{

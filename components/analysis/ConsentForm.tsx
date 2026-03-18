@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { PremiumButton } from '@/components/design-system/PremiumButton'
+import { GlassCard } from '@/components/design-system/GlassCard'
 
 interface ConsentFormProps {
-  onConfirm: (consented: boolean) => void
+  onConfirm: () => void
   onBack: () => void
   loading?: boolean
 }
@@ -24,7 +25,7 @@ export function ConsentForm({ onConfirm, onBack, loading = false }: ConsentFormP
       return
     }
     setError(null)
-    onConfirm(true)
+    onConfirm()
   }
 
   const checkboxClass = 'mt-0.5 accent-[#2D5F5D] flex-shrink-0 w-4 h-4'
@@ -59,11 +60,11 @@ export function ConsentForm({ onConfirm, onBack, loading = false }: ConsentFormP
         </label>
       </div>
 
-      <div className="glass rounded-[10px] px-4 py-3">
+      <GlassCard padding="sm" rounded="md">
         <p className="font-body text-[10px] text-[rgba(26,26,46,0.55)] leading-relaxed">
           Verileriniz KVKK kapsamında korunmaktadır. Hiçbir ücret talep edilmez. Dilediğiniz zaman geri çekebilirsiniz.
         </p>
-      </div>
+      </GlassCard>
 
       {error && (
         <p className="font-body text-[12px] text-[#A05252] bg-[rgba(160,82,82,0.06)] rounded-[10px] px-4 py-3">
@@ -82,7 +83,12 @@ export function ConsentForm({ onConfirm, onBack, loading = false }: ConsentFormP
           disabled={loading}
           className="flex-1 justify-center"
         >
-          {loading ? 'Kaydediliyor...' : 'Analizi Başlat'}
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              Analiz başlatılıyor...
+            </span>
+          ) : 'Analizi Başlat'}
         </PremiumButton>
       </div>
     </div>
