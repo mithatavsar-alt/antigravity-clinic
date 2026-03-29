@@ -86,6 +86,8 @@ export interface WrinkleRegionResult {
   level: WrinkleLevel
   /** Patient-facing insight text */
   insight: string
+  /** Confidence in the measurement 0–1 (low = unreliable region quality) */
+  confidence: number
 }
 
 export interface WrinkleAnalysisResult {

@@ -24,6 +24,108 @@ export interface FaceGuideStatus {
   }
   /** Face height as fraction of frame (0–1) for UI display */
   faceHeightRatio: number
+  /** Face lock state — true when face has been reliably detected for several frames */
+  faceLocked: boolean
+  /** Debug info for overlay */
+  debug: FaceDebugInfo
+}
+
+export interface FaceDebugInfo {
+  faceSizePct: number
+  centerOffsetX: number
+  centerOffsetY: number
+  tiltDeg: number
+  yawDeg: number
+  pitchDeg: number
+  brightness: number
+  lockFrames: number
+  unlockFrames: number
+  rejectionReason: string | null
+  boundingBox: { x: number; y: number; w: number; h: number } | null
+}
+
+// ─── Face lock system ──────────────────────────────────────
+// Prevents rapid lock/unlock flicker by requiring several consecutive
+// detection frames before locking and several missing frames before unlocking.
+
+const LOCK_FRAMES_REQUIRED = 4      // consecutive detections to lock
+const UNLOCK_FRAMES_REQUIRED = 8    // consecutive misses to unlock
+const DETECTION_BUFFER_SIZE = 12    // rolling buffer of recent detections
+
+interface DetectionEntry {
+  landmarks: Landmark[]
+  box: { cx: number; cy: number; w: number; h: number }
+  confidence: number
+  time: number
+}
+
+let detectionBuffer: DetectionEntry[] = []
+let consecutiveDetections = 0
+let consecutiveMisses = 0
+let faceLocked = false
+let lastValidBox: { cx: number; cy: number; w: number; h: number } | null = null
+
+export function isFaceLocked(): boolean {
+  return faceLocked
+}
+
+/** Push a successful detection into the buffer */
+export function pushDetection(landmarks: Landmark[], confidence: number): void {
+  const forehead = landmarks[10]
+  const chin = landmarks[152]
+  const leftCheek = landmarks[234]
+  const rightCheek = landmarks[454]
+  if (!forehead || !chin || !leftCheek || !rightCheek) return
+
+  const cx = (leftCheek.x + rightCheek.x) / 2
+  const cy = (forehead.y + chin.y) / 2
+  const w = Math.abs(rightCheek.x - leftCheek.x)
+  const h = Math.abs(chin.y - forehead.y)
+
+  const entry: DetectionEntry = { landmarks, box: { cx, cy, w, h }, confidence, time: performance.now() }
+  detectionBuffer.push(entry)
+  if (detectionBuffer.length > DETECTION_BUFFER_SIZE) {
+    detectionBuffer = detectionBuffer.slice(-DETECTION_BUFFER_SIZE)
+  }
+
+  consecutiveDetections++
+  consecutiveMisses = 0
+  lastValidBox = { cx, cy, w, h }
+
+  if (!faceLocked && consecutiveDetections >= LOCK_FRAMES_REQUIRED) {
+    faceLocked = true
+  }
+}
+
+/** Signal a missed detection frame */
+export function pushMiss(): void {
+  consecutiveMisses++
+  consecutiveDetections = 0
+
+  if (faceLocked && consecutiveMisses >= UNLOCK_FRAMES_REQUIRED) {
+    faceLocked = false
+    detectionBuffer = []
+    lastValidBox = null
+  }
+}
+
+/** Get averaged bounding box from recent detections for stability */
+export function getSmoothedBox(): { cx: number; cy: number; w: number; h: number } | null {
+  if (detectionBuffer.length === 0) return lastValidBox
+  const recent = detectionBuffer.slice(-6)
+  const cx = recent.reduce((s, e) => s + e.box.cx, 0) / recent.length
+  const cy = recent.reduce((s, e) => s + e.box.cy, 0) / recent.length
+  const w = recent.reduce((s, e) => s + e.box.w, 0) / recent.length
+  const h = recent.reduce((s, e) => s + e.box.h, 0) / recent.length
+  return { cx, cy, w, h }
+}
+
+export function resetFaceLock(): void {
+  detectionBuffer = []
+  consecutiveDetections = 0
+  consecutiveMisses = 0
+  faceLocked = false
+  lastValidBox = null
 }
 
 // Key MediaPipe FaceMesh landmark indices
@@ -58,6 +160,12 @@ export const NO_FACE_STATUS: FaceGuideStatus = {
   qualityScore: 0,
   qualityBreakdown: { distance: 0, alignment: 0, lighting: 0, sharpness: 0, stability: 0 },
   faceHeightRatio: 0,
+  faceLocked: false,
+  debug: {
+    faceSizePct: 0, centerOffsetX: 0, centerOffsetY: 0,
+    tiltDeg: 0, yawDeg: 0, pitchDeg: 0, brightness: 0,
+    lockFrames: 0, unlockFrames: 0, rejectionReason: null, boundingBox: null,
+  },
 }
 
 // ─── Stability tracker ──────────────────────────────────────
@@ -481,10 +589,39 @@ export function evaluateFaceGuide(
     stability: stabilityScore,
   }
 
+  // ── Determine capture rejection reason (for debug) ──
+  let rejectionReason: string | null = null
+  if (!allOk) {
+    if (distance !== 'ok') rejectionReason = `distance:${distance}`
+    else if (centering !== 'ok') rejectionReason = 'off_center'
+    else if (angle !== 'ok') rejectionReason = `angle:${angle}`
+    else if (!foreheadVisible) rejectionReason = 'forehead_hidden'
+    else if (!eyesVisible) rejectionReason = 'eyes_hidden'
+    else if (lighting !== 'ok') rejectionReason = `lighting:${lighting}`
+  } else if (qualityScore < 0.85) {
+    rejectionReason = `quality:${(qualityScore * 100).toFixed(0)}`
+  }
+
+  const debug: FaceDebugInfo = {
+    faceSizePct: Math.round(faceHeightRatio * 100),
+    centerOffsetX: Math.round(offsetX * 1000) / 1000,
+    centerOffsetY: Math.round(offsetY * 1000) / 1000,
+    tiltDeg: Math.round(Math.atan(tiltRatio) * (180 / Math.PI) * 10) / 10,
+    yawDeg: Math.round(Math.atan(noseOffset) * (180 / Math.PI) * 10) / 10,
+    pitchDeg: Math.round(Math.atan(pitchOffset) * (180 / Math.PI) * 10) / 10,
+    brightness,
+    lockFrames: consecutiveDetections,
+    unlockFrames: consecutiveMisses,
+    rejectionReason,
+    boundingBox: { x: faceCenterX - faceWidth / 2, y: forehead.y, w: faceWidth, h: faceHeight },
+  }
+
   return {
     lighting, angle, distance, centering, eyesVisible, foreheadVisible,
     faceDetected: true, allOk, mainMessage, validCount,
     qualityScore, qualityBreakdown, faceHeightRatio,
+    faceLocked,
+    debug,
   }
 }
 

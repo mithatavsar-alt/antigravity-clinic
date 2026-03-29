@@ -214,7 +214,7 @@ export function LandmarkOverlay({
         landmarks, imageDims.w, imageDims.h,
         rect.width, rect.height, objectPositionY
       )
-      drawMesh(ctx, adjusted, rect.width, rect.height, true, false, false)
+      drawMesh(ctx, adjusted, rect.width, rect.height, true, false, false, 1.0)
     }
 
     const raf = requestAnimationFrame(draw)
@@ -247,7 +247,7 @@ export function LandmarkOverlay({
         landmarks, imageDims.w, imageDims.h,
         rect.width, rect.height, objectPositionY
       )
-      drawMesh(ctx, adjusted, rect.width, rect.height, true, false, false)
+      drawMesh(ctx, adjusted, rect.width, rect.height, true, false, false, 1.0)
     }
 
     window.addEventListener('resize', handleResize)

@@ -180,6 +180,7 @@ export interface Lead {
       score: number
       level: 'low' | 'medium' | 'high'
       insight: string
+      confidence: number
     }>
     overallScore: number
     overallLevel: 'low' | 'medium' | 'high'

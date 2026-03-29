@@ -830,6 +830,7 @@ function ProcessingContent() {
               score: r.score,
               level: r.level,
               insight: r.insight,
+              confidence: r.confidence,
             })),
             overallScore: wrinkleAnalysis.overallScore,
             overallLevel: wrinkleAnalysis.overallLevel,
