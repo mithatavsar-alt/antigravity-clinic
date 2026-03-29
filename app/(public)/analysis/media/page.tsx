@@ -1,21 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useClinicStore } from '@/lib/store'
 import { GlassCard } from '@/components/design-system/GlassCard'
-import { SectionLabel } from '@/components/design-system/SectionLabel'
 import { ThinLine } from '@/components/design-system/ThinLine'
-import { PremiumButton } from '@/components/design-system/PremiumButton'
 import { AnalysisStepBar } from '@/components/analysis/AnalysisStepBar'
-import { MediaUploadGrid, EMPTY_SLOTS } from '@/components/analysis/MediaUploadGrid'
-import type { MediaSlots } from '@/components/analysis/MediaUploadGrid'
+import { FaceMeshCamera } from '@/components/analysis/FaceMeshCamera'
 
 export default function AnalysisMediaPage() {
   const router = useRouter()
   const { currentLead, setCurrentLead } = useClinicStore()
-  const [slots, setSlots] = useState<MediaSlots>(EMPTY_SLOTS)
-  const [error, setError] = useState<string | null>(null)
 
   // Step guard: must have completed step 1 (personal info)
   useEffect(() => {
@@ -24,30 +19,27 @@ export default function AnalysisMediaPage() {
     }
   }, [currentLead, router])
 
-  if (!currentLead?.full_name) return null
-
-  const handleContinue = () => {
-    if (!slots.front) {
-      setError('AI analiz için en az önden çekilmiş fotoğraf zorunludur.')
-      return
-    }
-    setError(null)
+  const handleCapture = useCallback((dataUrl: string) => {
     setCurrentLead({
-      patient_photo_url: slots.front,
-      doctor_frontal_photos: [slots.front, slots.rightProfile, slots.leftProfile].filter(Boolean) as string[],
-      doctor_mimic_photos: [slots.eyebrow, slots.smile].filter(Boolean) as string[],
-      optional_video_url: slots.video ?? undefined,
+      patient_photo_url: dataUrl,
+      doctor_frontal_photos: [dataUrl],
     })
     router.push('/analysis/consent')
-  }
+  }, [setCurrentLead, router])
+
+  const handleBack = useCallback(() => {
+    router.back()
+  }, [router])
+
+  if (!currentLead?.full_name) return null
 
   return (
     <div className="theme-dark min-h-screen py-28 px-5" style={{ background: 'linear-gradient(160deg, #0E0B09 0%, #14110E 40%, #0B0E10 100%)' }}>
-      <div className="max-w-xl mx-auto">
+      <div className="max-w-2xl mx-auto">
         <div className="text-center mb-10">
           <p className="font-body text-[10px] tracking-[0.25em] uppercase text-[#D6B98C] mb-3">Adım 2 / 3</p>
           <h1 className="font-display text-[clamp(32px,5vw,48px)] font-light text-[#F8F6F2] tracking-[-0.02em]">
-            Fotoğraf Yükleme
+            Yüz Tarama
           </h1>
           <div className="flex justify-center mt-4">
             <ThinLine width={48} light />
@@ -55,29 +47,13 @@ export default function AnalysisMediaPage() {
         </div>
 
         <GlassCard strong padding="lg" rounded="xl">
-          <AnalysisStepBar currentStep={2} labels={['Kişisel Bilgiler', 'Fotoğraf', 'Onay']} />
+          <AnalysisStepBar currentStep={2} labels={['Kişisel Bilgiler', 'Yüz Tarama', 'Onay']} />
 
-          <SectionLabel className="mb-4">Fotoğraflarınızı Yükleyin</SectionLabel>
-          <p className="font-body text-[12px] text-[rgba(248,246,242,0.5)] mb-6 leading-relaxed">
-            En iyi sonuç için önden çekilmiş fotoğraf zorunludur. Diğer açılar ve mimik fotoğrafları isteğe bağlıdır ancak doktor değerlendirmesine katkı sağlar.
+          <p className="font-body text-[12px] text-[rgba(248,246,242,0.5)] mb-5 leading-relaxed text-center">
+            Kameranızı açarak yüzünüzü taratın. Face Mesh algılama başladığında fotoğraf çekebilirsiniz.
           </p>
 
-          <MediaUploadGrid value={slots} onChange={setSlots} />
-
-          {error && (
-            <p className="mt-4 font-body text-[12px] text-[#C47A7A] bg-[rgba(160,82,82,0.1)] rounded-[10px] px-4 py-3">
-              {error}
-            </p>
-          )}
-
-          <div className="flex gap-3 mt-6">
-            <PremiumButton variant="ghost" size="md" onClick={() => router.back()} className="flex-1 justify-center">
-              Geri
-            </PremiumButton>
-            <PremiumButton variant="gold" size="md" onClick={handleContinue} className="flex-1 justify-center">
-              Devam
-            </PremiumButton>
-          </div>
+          <FaceMeshCamera onCapture={handleCapture} onClose={handleBack} />
         </GlassCard>
 
         <p className="text-center font-body text-[11px] text-[rgba(248,246,242,0.25)] mt-6 leading-relaxed">
