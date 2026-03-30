@@ -831,44 +831,50 @@ function ResultContent() {
   const photoUrl = selectedLead.patient_photo_url || (id ? getPhoto(id) : null)
 
   return (
-    <div className="theme-dark min-h-screen py-28 px-5 relative" style={{ background: 'linear-gradient(135deg, #0E0B09 0%, #1A1410 25%, #14181A 55%, #0B0E10 100%)' }}>
-      {/* Ambient depth glows */}
-      <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 30% 30%, rgba(214,185,140,0.04) 0%, transparent 55%), radial-gradient(ellipse at 75% 70%, rgba(61,155,122,0.025) 0%, transparent 45%)' }} />
-      <div className="max-w-5xl mx-auto flex flex-col gap-8">
-        {/* Header */}
-        <div className="text-center" style={{ animation: 'cardEntrance 0.6s ease-out both' }}>
-          {/* Glow ring icon */}
-          <div className="relative w-20 h-20 mx-auto mb-6">
-            <div className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(61,155,122,0.18) 0%, transparent 70%)' }} />
-            <div className="w-full h-full rounded-full border border-[rgba(61,155,122,0.25)] flex items-center justify-center" style={{ background: 'rgba(61,155,122,0.07)' }}>
-              <svg className="w-8 h-8 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+    <div className="theme-dark min-h-screen relative" style={{ background: 'linear-gradient(160deg, #0A0908 0%, #141110 20%, #0F1214 50%, #0A0B0D 100%)' }}>
+      {/* Ambient depth glows — cinematic layering */}
+      <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 70% 50% at 25% 20%, rgba(214,185,140,0.035) 0%, transparent 60%), radial-gradient(ellipse 60% 40% at 80% 75%, rgba(61,155,122,0.02) 0%, transparent 50%), radial-gradient(ellipse 80% 60% at 50% 50%, rgba(10,9,8,0.4) 0%, transparent 70%)' }} />
+      <div className="max-w-5xl mx-auto flex flex-col px-5 sm:px-8" style={{ paddingTop: 'clamp(5rem, 10vh, 8rem)', paddingBottom: 'clamp(3rem, 6vh, 5rem)', gap: 'clamp(2.5rem, 5vw, 4rem)' }}>
+        {/* ── Premium Header ──────────────────────────── */}
+        <div className="text-center flex flex-col items-center" style={{ animation: 'heroFadeUp 0.8s ease-out both' }}>
+          {/* Floating icon */}
+          <div className="relative w-16 h-16 mb-8">
+            <div className="absolute inset-[-8px] rounded-full" style={{ background: 'radial-gradient(circle, rgba(61,155,122,0.15) 0%, transparent 70%)', animation: 'subtleFloat 4s ease-in-out infinite' }} />
+            <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: 'rgba(61,155,122,0.06)', border: '1px solid rgba(61,155,122,0.18)' }}>
+              <svg className="w-6 h-6 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
           </div>
-          <SectionLabel className="justify-center mb-4">
+
+          {/* Status label */}
+          <span className="text-label text-[rgba(214,185,140,0.50)] mb-5">
             {isHumanLocal ? 'AI Analiz Tamamlandı' : isCombined ? 'AI Analiz Tamamlandı' : isFallback ? 'Ön Değerlendirme (Sınırlı)' : hasAI || hasSkin ? 'AI Analiz Tamamlandı' : 'Ön Değerlendirme Tamamlandı'}
-          </SectionLabel>
-          <h1 className="font-display text-[clamp(30px,4.5vw,52px)] font-light text-[#F8F6F2] tracking-[-0.02em] leading-tight">
-            {selectedLead.full_name.split(' ')[0]},<br className="sm:hidden" />{' '}analiz özetiniz hazır
+          </span>
+
+          {/* Display heading — Cormorant Garamond */}
+          <h1 className="heading-display heading-display-lg text-[#F8F6F2]" style={{ maxWidth: '18ch' }}>
+            {selectedLead.full_name.split(' ')[0]}, analiz özetiniz hazır
           </h1>
-          {/* Decorative hairline */}
-          <div className="flex items-center justify-center gap-3 mt-5">
-            <div className="h-px w-12 bg-gradient-to-r from-transparent to-[rgba(214,185,140,0.35)]" />
-            <div className="w-1 h-1 rounded-full bg-[rgba(214,185,140,0.4)]" />
-            <div className="h-px w-12 bg-gradient-to-l from-transparent to-[rgba(214,185,140,0.35)]" />
+
+          {/* Editorial divider */}
+          <div className="flex items-center gap-4 mt-7">
+            <div className="h-px w-20" style={{ background: 'linear-gradient(90deg, transparent, rgba(214,185,140,0.30))', animation: 'lineExpand 0.8s ease-out 0.3s both', transformOrigin: 'right' }} />
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(214,185,140,0.30)' }} />
+            <div className="h-px w-20" style={{ background: 'linear-gradient(90deg, rgba(214,185,140,0.30), transparent)', animation: 'lineExpand 0.8s ease-out 0.3s both', transformOrigin: 'left' }} />
           </div>
-          {/* Capture confidence notice for near-valid captures */}
+
+          {/* Capture confidence notice */}
           {captureConfidence && captureConfidence !== 'high' && (
-            <div className="mt-5 mx-auto max-w-md">
-              <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-full" style={{
-                background: 'rgba(229,168,59,0.06)',
-                border: '1px solid rgba(229,168,59,0.15)',
+            <div className="mt-6 max-w-md">
+              <div className="flex items-center justify-center gap-2.5 px-5 py-2.5 rounded-full" style={{
+                background: 'rgba(229,168,59,0.05)',
+                border: '1px solid rgba(229,168,59,0.12)',
               }}>
                 <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#E5A83B' }} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                 </svg>
-                <span className="text-[11px]" style={{ color: 'rgba(229,168,59,0.85)' }}>
+                <span className="font-body text-[11px] text-[rgba(229,168,59,0.75)]">
                   Fotoğraf ideal koşullar dışında çekildi — sonuçlar referans niteliğindedir
                 </span>
               </div>
@@ -885,29 +891,32 @@ function ResultContent() {
           />
         )}
 
-        {/* ── Hero section: Photo + Scores ─────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,2fr)_3fr] gap-6 items-start">
-          {/* Left: Photo */}
-          <div className="flex flex-col gap-4 lg:sticky lg:top-28">
+        {/* ── Detail Section: Photo + Detailed Analysis ─────── */}
+        <div
+          className="grid grid-cols-1 lg:grid-cols-[minmax(280px,2fr)_3fr] items-start"
+          style={{ gap: 'clamp(1.5rem, 3vw, 2.5rem)', animation: 'sectionReveal 0.7s ease-out 0.15s both' }}
+        >
+          {/* Left: Photo — cinematic frame */}
+          <div className="flex flex-col gap-5 lg:sticky lg:top-24">
             {photoUrl ? (
               <AnalysisPhoto src={photoUrl} onClick={() => setLightboxOpen(true)} hasAI={hasAI} />
             ) : (
               <PhotoPlaceholder />
             )}
-            {/* Photo quality badge below photo */}
-            <div className="flex items-center justify-center gap-2 py-2">
-              <div className="w-2 h-2 rounded-full bg-[rgba(61,155,122,0.4)]" />
-              <span className="font-body text-[11px] tracking-[0.12em] text-[rgba(248,246,242,0.35)]">
+            {/* Photo quality badge */}
+            <div className="flex items-center justify-center gap-2.5 py-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-[rgba(61,155,122,0.35)]" />
+              <span className="font-body text-[10px] tracking-[0.14em] text-[rgba(248,246,242,0.30)]">
                 Fotoğraf Kalitesi: {photoQuality ? photoQualityLabels[photoQuality] : 'Değerlendiriliyor'}
               </span>
             </div>
           </div>
 
-          {/* Right: Scores + Summary */}
-          <div className="flex flex-col gap-6">
+          {/* Right: Scores + Summary — premium card stack */}
+          <div className="flex flex-col" style={{ gap: 'clamp(1rem, 2vw, 1.5rem)' }}>
             {/* Age Estimation Card */}
             {isHumanLocal && (
-              <GlassCard strong padding="lg" rounded="xl" className="[animation:cardEntrance_0.5s_ease-out_0.1s_both]">
+              <GlassCard elevated padding="lg" rounded="xl" className="[animation:sectionReveal_0.6s_ease-out_0.2s_both]">
                 <AgeEstimationPanel
                   estimatedAge={estimatedAge}
                   confidence={analysisConfidence}
@@ -920,7 +929,7 @@ function ResultContent() {
 
             {/* AI Scores Card */}
             {hasAI && (
-              <GlassCard strong padding="lg" rounded="xl" className="[animation:cardEntrance_0.5s_ease-out_0.2s_both]">
+              <GlassCard elevated padding="lg" rounded="xl" className="[animation:sectionReveal_0.6s_ease-out_0.3s_both]">
                 <ScoresPanel
                   aiScores={aiScores}
                   qualityScore={qualityScore}
@@ -928,52 +937,52 @@ function ResultContent() {
               </GlassCard>
             )}
 
-            {/* Focus Areas Card (detailed, from Human engine) */}
+            {/* Focus Areas Card */}
             {detailedFocusAreas && detailedFocusAreas.length > 0 && (
-              <GlassCard strong padding="lg" rounded="xl" className="[animation:cardEntrance_0.5s_ease-out_0.3s_both]">
+              <GlassCard elevated padding="lg" rounded="xl" className="[animation:sectionReveal_0.6s_ease-out_0.4s_both]">
                 <FocusAreasPanel focusAreas={detailedFocusAreas} />
               </GlassCard>
             )}
 
-            {/* Wrinkle / Skin-Line Analysis Card */}
+            {/* Wrinkle Analysis Card */}
             {hasWrinkle && (
-              <GlassCard strong padding="lg" rounded="xl" className="[animation:cardEntrance_0.5s_ease-out_0.35s_both]">
+              <GlassCard elevated padding="lg" rounded="xl" className="[animation:sectionReveal_0.6s_ease-out_0.45s_both]">
                 <WrinkleAnalysisPanel wrinkleScores={wrinkleScores} />
               </GlassCard>
             )}
 
             {/* Skin Scores Card */}
             {hasSkin && (
-              <GlassCard strong padding="lg" rounded="xl" className="[animation:cardEntrance_0.5s_ease-out_0.4s_both]">
+              <GlassCard elevated padding="lg" rounded="xl" className="[animation:sectionReveal_0.6s_ease-out_0.5s_both]">
                 <SkinScoresPanel skinScores={skinScores} />
               </GlassCard>
             )}
 
-            {/* Fallback when no analysis data is available */}
+            {/* Fallback when no analysis data */}
             {!hasAI && !hasSkin && !hasWrinkle && (
-              <GlassCard strong padding="lg" rounded="xl">
-                <div className="flex flex-col gap-4 text-center py-4">
-                  <div className="w-14 h-14 rounded-full bg-[rgba(214,185,140,0.08)] border border-[rgba(214,185,140,0.15)] flex items-center justify-center mx-auto">
+              <GlassCard elevated padding="lg" rounded="xl">
+                <div className="flex flex-col gap-5 text-center py-6">
+                  <div className="w-14 h-14 rounded-full bg-[rgba(214,185,140,0.06)] border border-[rgba(214,185,140,0.12)] flex items-center justify-center mx-auto">
                     <svg className="w-6 h-6 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
                     </svg>
                   </div>
-                  <p className="font-body text-[14px] text-[rgba(248,246,242,0.6)] leading-relaxed">
+                  <p className="font-body text-[14px] text-[rgba(248,246,242,0.55)] leading-relaxed">
                     AI analiz sonuçları henüz hazır değil veya oluşturulamadı.
                   </p>
-                  <p className="font-body text-[12px] text-[rgba(248,246,242,0.35)] leading-relaxed">
-                    Bazı metrikler sınırlı kalite nedeniyle üretilememiş olabilir. Doktor değerlendirmesi sırasında detaylı analiz yapılacaktır.
+                  <p className="font-body text-[12px] text-[rgba(248,246,242,0.30)] leading-relaxed">
+                    Bazı metrikler sınırlı kalite nedeniyle üretilememiş olabilir.
                   </p>
                 </div>
               </GlassCard>
             )}
 
-            {/* Summary Card */}
-            <GlassCard strong padding="lg" rounded="xl">
-              <div className="flex flex-col gap-6">
+            {/* Summary Card — refined */}
+            <GlassCard elevated padding="lg" rounded="xl" className="[animation:sectionReveal_0.6s_ease-out_0.55s_both]">
+              <div className="flex flex-col gap-7">
                 <div>
-                  <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)] mb-2">Ön Değerlendirme</p>
-                  <p className="font-body text-[14px] text-[rgba(248,246,242,0.6)] leading-relaxed">
+                  <span className="text-label text-[rgba(248,246,242,0.40)] mb-3 block">Ön Değerlendirme</span>
+                  <p className="font-body text-[14px] text-[rgba(248,246,242,0.55)] leading-[1.8]">
                     {selectedLead.patient_summary?.summary_text ??
                       'Yüklediğiniz görsel ve paylaştığınız bilgiler üzerinden yapılan ön incelemede, doktor değerlendirmesine uygun odak alanları çıkarıldı.'}
                   </p>
@@ -985,17 +994,17 @@ function ResultContent() {
                 {hasAI && aiScores.suggestions.length > 0 && (
                   <>
                     <div>
-                      <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.35)] mb-3">Estetik Tespitler</p>
-                      <div className="flex flex-col gap-2">
+                      <span className="text-label text-[rgba(248,246,242,0.30)] mb-4 block">Estetik Tespitler</span>
+                      <div className="flex flex-col gap-2.5">
                         {aiScores.suggestions.map((suggestion, i) => (
                           <div
                             key={i}
-                            className="flex gap-2.5 items-start rounded-[10px] border border-[rgba(214,185,140,0.12)] bg-[rgba(214,185,140,0.04)] px-3.5 py-2.5"
+                            className="flex gap-3 items-start rounded-[12px] border border-[rgba(214,185,140,0.08)] bg-[rgba(214,185,140,0.025)] px-4 py-3"
                           >
                             <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                             </svg>
-                            <span className="font-body text-[12px] text-[rgba(248,246,242,0.6)] leading-relaxed">{suggestion}</span>
+                            <span className="font-body text-[12px] text-[rgba(248,246,242,0.55)] leading-[1.7]">{suggestion}</span>
                           </div>
                         ))}
                       </div>
@@ -1006,12 +1015,12 @@ function ResultContent() {
 
                 {/* Focus areas */}
                 <div>
-                  <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.35)] mb-3">Odak Alanları</p>
-                  <div className="flex flex-wrap gap-2">
+                  <span className="text-label text-[rgba(248,246,242,0.30)] mb-4 block">Odak Alanları</span>
+                  <div className="flex flex-wrap gap-2.5">
                     {focusAreas.map((area) => (
                       <span
                         key={area}
-                        className="font-body text-[11px] px-3 py-1.5 rounded-full border border-[rgba(214,185,140,0.15)] text-[#D6B98C] bg-[rgba(214,185,140,0.04)]"
+                        className="font-body text-[11px] px-4 py-2 rounded-full border border-[rgba(214,185,140,0.10)] text-[rgba(214,185,140,0.65)] bg-[rgba(214,185,140,0.03)]"
                       >
                         {area}
                       </span>
@@ -1019,17 +1028,17 @@ function ResultContent() {
                   </div>
                 </div>
 
-                {/* Next step info */}
-                <div className="rounded-[12px] border border-[rgba(214,185,140,0.1)] bg-[rgba(20,18,15,0.4)] px-4 py-3">
-                  <p className="font-body text-[10px] tracking-[0.18em] uppercase text-[rgba(248,246,242,0.35)] mb-1">
+                {/* Next step info — elevated card */}
+                <div className="rounded-[16px] border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.5)] px-5 py-4">
+                  <span className="text-label-sm text-[rgba(248,246,242,0.30)] mb-2 block">
                     Sonraki Adım
-                  </p>
-                  <p className="font-body text-[14px] text-[#F8F6F2]">Doktor ön incelemesi ve randevu planlama</p>
+                  </span>
+                  <p className="font-body text-[15px] font-light text-[#F8F6F2] tracking-[0.01em]">Doktor ön incelemesi ve randevu planlama</p>
                 </div>
 
                 {/* Disclaimer */}
-                <div className="bg-[rgba(214,185,140,0.03)] border border-[rgba(214,185,140,0.08)] rounded-[10px] p-4">
-                  <p className="font-body text-[11px] text-[rgba(248,246,242,0.35)] leading-relaxed italic">
+                <div className="rounded-[12px] px-5 py-4" style={{ background: 'rgba(214,185,140,0.02)', border: '1px solid rgba(214,185,140,0.05)' }}>
+                  <p className="font-body text-[11px] text-[rgba(248,246,242,0.28)] leading-[1.7] italic">
                     Bu sistem doktor kararını destekler, yerine geçmez. Kesin tedavi planı klinik muayene ve doktor değerlendirmesi sonrasında oluşturulur.
                   </p>
                 </div>
@@ -1038,8 +1047,8 @@ function ResultContent() {
           </div>
         </div>
 
-        {/* CTA Buttons */}
-        <div className="flex flex-col gap-3 max-w-lg mx-auto w-full">
+        {/* ── CTA Buttons ─────────────────────────────── */}
+        <div className="flex flex-col gap-4 max-w-md mx-auto w-full" style={{ animation: 'sectionReveal 0.6s ease-out 0.6s both' }}>
           <a
             href={contact.whatsappBookingUrl}
             target="_blank"

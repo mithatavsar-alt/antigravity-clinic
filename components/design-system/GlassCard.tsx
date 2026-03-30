@@ -3,14 +3,15 @@ import { cn } from '@/lib/utils'
 interface GlassCardProps {
   children: React.ReactNode
   className?: string
-  padding?: 'sm' | 'md' | 'lg'
+  padding?: 'sm' | 'md' | 'lg' | 'xl'
   hover?: boolean
   strong?: boolean
+  elevated?: boolean
   rounded?: 'md' | 'lg' | 'xl'
 }
 
-const paddingMap = { sm: 'p-4', md: 'p-6', lg: 'p-8' }
-const roundedMap = { md: 'rounded-[14px]', lg: 'rounded-[16px]', xl: 'rounded-[20px]' }
+const paddingMap = { sm: 'p-4', md: 'p-6', lg: 'p-8', xl: 'p-10' }
+const roundedMap = { md: 'rounded-[16px]', lg: 'rounded-[20px]', xl: 'rounded-[24px]' }
 
 export function GlassCard({
   children,
@@ -18,15 +19,22 @@ export function GlassCard({
   padding = 'md',
   hover = false,
   strong = false,
+  elevated = false,
   rounded = 'lg',
 }: GlassCardProps) {
+  const glassClass = elevated
+    ? 'glass-elevated'
+    : strong
+      ? 'glass-strong'
+      : 'glass'
+
   return (
     <div
       className={cn(
-        strong ? 'glass-strong' : 'glass',
+        glassClass,
         roundedMap[rounded],
         paddingMap[padding],
-        hover && 'glass-hover transition-shadow duration-300 hover:shadow-[0_16px_48px_rgba(26,26,46,0.10)] cursor-pointer',
+        hover && 'glass-hover transition-all duration-300 cursor-pointer',
         className
       )}
     >

@@ -23,11 +23,11 @@ interface RadarChartSectionProps {
 
 // ─── Constants ────────────────────────────────────────────────
 
-const VB = 560
+const VB = 600
 const CX = VB / 2
 const CY = VB / 2
-const OUTER_R = 155
-const LABEL_R = OUTER_R + 42
+const OUTER_R = 170
+const LABEL_R = OUTER_R + 48
 const LEVELS = [0.25, 0.5, 0.75, 1.0]
 
 const SHORT_LABELS: Record<string, string> = {
@@ -69,13 +69,6 @@ function scoreGrade(score: number): string {
   return 'İyileştirilebilir'
 }
 
-function centerGrade(avg: number): string {
-  if (avg >= 80) return 'Mükemmel'
-  if (avg >= 65) return 'İyi'
-  if (avg >= 50) return 'Dengeli'
-  return 'Gelişime Açık'
-}
-
 // ─── Tooltip ──────────────────────────────────────────────────
 
 function Tooltip({ point, x, y, visible }: {
@@ -96,29 +89,29 @@ function Tooltip({ point, x, y, visible }: {
         pointerEvents: 'none',
       }}
     >
-      {/* Background card */}
       <foreignObject
-        x={x - 88}
-        y={y - 76}
-        width={176}
-        height={68}
+        x={x - 96}
+        y={y - 82}
+        width={192}
+        height={72}
       >
         <div
           style={{
-            background: 'rgba(12,10,8,0.92)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(214,185,140,0.15)',
-            borderRadius: '10px',
-            padding: '8px 12px',
+            background: 'rgba(10,8,6,0.94)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(214,185,140,0.12)',
+            borderRadius: '14px',
+            padding: '10px 14px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '4px',
+            gap: '5px',
+            boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{
               fontFamily: 'var(--font-body, system-ui)',
-              fontSize: '11px',
+              fontSize: '12px',
               fontWeight: 500,
               color: '#F8F6F2',
               letterSpacing: '0.02em',
@@ -127,8 +120,8 @@ function Tooltip({ point, x, y, visible }: {
             </span>
             <span style={{
               fontFamily: 'var(--font-mono, monospace)',
-              fontSize: '14px',
-              fontWeight: 400,
+              fontSize: '16px',
+              fontWeight: 300,
               color,
             }}>
               {point.score}
@@ -138,7 +131,7 @@ function Tooltip({ point, x, y, visible }: {
             <span style={{
               fontFamily: 'var(--font-body, system-ui)',
               fontSize: '8px',
-              letterSpacing: '0.08em',
+              letterSpacing: '0.1em',
               textTransform: 'uppercase' as const,
               color: catColor,
               opacity: 0.85,
@@ -149,9 +142,9 @@ function Tooltip({ point, x, y, visible }: {
               <span style={{
                 fontFamily: 'var(--font-mono, monospace)',
                 fontSize: '9px',
-                color: 'rgba(248,246,242,0.3)',
+                color: 'rgba(248,246,242,0.28)',
               }}>
-                Güven: {Math.round(point.confidence * 100)}%
+                {Math.round(point.confidence * 100)}%
               </span>
             )}
           </div>
@@ -171,7 +164,7 @@ function RadarSVG({ scores, hovered, onHover }: {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 150)
+    const t = setTimeout(() => setMounted(true), 200)
     return () => clearTimeout(t)
   }, [])
 
@@ -196,22 +189,24 @@ function RadarSVG({ scores, hovered, onHover }: {
       aria-label="Estetik analiz radar grafiği"
     >
       <defs>
-        {/* Filters */}
         <filter id="rGlowSoft" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="6" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="7" />
         </filter>
         <filter id="rCenterGlow" x="-100%" y="-100%" width="300%" height="300%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="20" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="24" />
         </filter>
         <filter id="rDotGlow" x="-200%" y="-200%" width="500%" height="500%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="5" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" />
+        </filter>
+        <filter id="rAmbient" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="40" />
         </filter>
 
-        {/* Gradients */}
-        <radialGradient id="rFill" cx="50%" cy="50%" r="55%">
-          <stop offset="0%" stopColor="rgba(214,185,140,0.16)" />
-          <stop offset="55%" stopColor="rgba(61,155,122,0.09)" />
-          <stop offset="100%" stopColor="rgba(61,155,122,0.02)" />
+        {/* Richer fill gradient */}
+        <radialGradient id="rFill" cx="50%" cy="45%" r="60%">
+          <stop offset="0%" stopColor="rgba(214,185,140,0.18)" />
+          <stop offset="40%" stopColor="rgba(61,155,122,0.10)" />
+          <stop offset="100%" stopColor="rgba(61,155,122,0.01)" />
         </radialGradient>
 
         <linearGradient id="rStroke" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -221,24 +216,33 @@ function RadarSVG({ scores, hovered, onHover }: {
         </linearGradient>
 
         <linearGradient id="rStrokeGlow" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#4AE3A7" stopOpacity="0.35" />
-          <stop offset="50%" stopColor="#D6B98C" stopOpacity="0.45" />
-          <stop offset="100%" stopColor="#4AE3A7" stopOpacity="0.35" />
+          <stop offset="0%" stopColor="#4AE3A7" stopOpacity="0.3" />
+          <stop offset="50%" stopColor="#D6B98C" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#4AE3A7" stopOpacity="0.3" />
         </linearGradient>
 
         <radialGradient id="rCenterOrb">
-          <stop offset="0%" stopColor={avgColor} stopOpacity="0.14" />
-          <stop offset="70%" stopColor={avgColor} stopOpacity="0.03" />
+          <stop offset="0%" stopColor={avgColor} stopOpacity="0.16" />
+          <stop offset="60%" stopColor={avgColor} stopOpacity="0.04" />
           <stop offset="100%" stopColor={avgColor} stopOpacity="0" />
+        </radialGradient>
+
+        {/* Ambient atmosphere */}
+        <radialGradient id="rAtmosphere" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="rgba(214,185,140,0.04)" />
+          <stop offset="100%" stopColor="transparent" />
         </radialGradient>
       </defs>
 
-      {/* ── LAYER 1: Ambient depth ring ──────────────── */}
+      {/* ── LAYER 0: Ambient atmosphere ─────────────── */}
+      <circle cx={CX} cy={CY} r={OUTER_R + 60} fill="url(#rAtmosphere)" />
+
+      {/* ── LAYER 1: Outer halo ring ────────────────── */}
       <circle
-        cx={CX} cy={CY} r={OUTER_R + 6}
+        cx={CX} cy={CY} r={OUTER_R + 8}
         fill="none"
-        stroke="rgba(248,246,242,0.025)"
-        strokeWidth={20}
+        stroke="rgba(248,246,242,0.02)"
+        strokeWidth={24}
       />
 
       {/* ── LAYER 2: Grid ────────────────────────────── */}
@@ -250,11 +254,11 @@ function RadarSVG({ scores, hovered, onHover }: {
             points={polygonPoints(n, OUTER_R * level)}
             fill="none"
             stroke={isOuter
-              ? 'rgba(248,246,242,0.12)'
-              : `rgba(248,246,242,${0.02 + level * 0.018})`
+              ? 'rgba(248,246,242,0.10)'
+              : `rgba(248,246,242,${0.015 + level * 0.015})`
             }
-            strokeWidth={isOuter ? 1.2 : 0.5}
-            strokeDasharray={isOuter ? 'none' : '2 4'}
+            strokeWidth={isOuter ? 1.0 : 0.4}
+            strokeDasharray={isOuter ? 'none' : '2 5'}
           />
         )
       })}
@@ -267,8 +271,8 @@ function RadarSVG({ scores, hovered, onHover }: {
           <line
             key={`ax-${i}`}
             x1={CX} y1={CY} x2={ox} y2={oy}
-            stroke={active ? 'rgba(248,246,242,0.10)' : 'rgba(248,246,242,0.025)'}
-            strokeWidth={active ? 0.7 : 0.4}
+            stroke={active ? 'rgba(248,246,242,0.08)' : 'rgba(248,246,242,0.02)'}
+            strokeWidth={active ? 0.6 : 0.35}
             style={{ transition: 'stroke 0.3s, stroke-width 0.3s' }}
           />
         )
@@ -276,11 +280,11 @@ function RadarSVG({ scores, hovered, onHover }: {
 
       {/* ── LAYER 3: Center orb ──────────────────────── */}
       <circle
-        cx={CX} cy={CY} r={55}
+        cx={CX} cy={CY} r={60}
         fill="url(#rCenterOrb)"
         style={{
           opacity: mounted ? 1 : 0,
-          transition: 'opacity 1s ease-out 0.5s',
+          transition: 'opacity 1.2s ease-out 0.6s',
         }}
       />
 
@@ -289,18 +293,18 @@ function RadarSVG({ scores, hovered, onHover }: {
         style={{
           transformOrigin: `${CX}px ${CY}px`,
           transform: mounted ? 'scale(1)' : 'scale(0)',
-          transition: 'transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          transition: 'transform 1.6s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
-        {/* Glow behind stroke */}
+        {/* Wide glow behind stroke */}
         <polygon
           points={dataPoints}
           fill="none"
           stroke="url(#rStrokeGlow)"
-          strokeWidth={7}
+          strokeWidth={8}
           strokeLinejoin="round"
           filter="url(#rGlowSoft)"
-          opacity={0.55}
+          opacity={0.5}
         />
 
         {/* Fill */}
@@ -315,7 +319,7 @@ function RadarSVG({ scores, hovered, onHover }: {
           points={dataPoints}
           fill="none"
           stroke="url(#rStroke)"
-          strokeWidth={1.8}
+          strokeWidth={2}
           strokeLinejoin="round"
         />
 
@@ -325,28 +329,31 @@ function RadarSVG({ scores, hovered, onHover }: {
           const [x, y] = polar(i, n, r)
           const dotColor = scoreColor(s.score)
           const active = hovered === i
-          const dotR = active ? 6.5 : 4
+          const dotR = active ? 7 : 4.5
 
           return (
             <g key={`dot-${s.key}`}>
+              {/* Glow */}
               <circle
                 cx={x} cy={y}
-                r={active ? 14 : 8}
+                r={active ? 16 : 10}
                 fill={dotColor}
                 filter="url(#rDotGlow)"
-                opacity={active ? 0.5 : 0.18}
-                style={{ transition: 'opacity 0.3s' }}
+                opacity={active ? 0.5 : 0.15}
+                style={{ transition: 'opacity 0.3s, r 0.3s' }}
               />
+              {/* Core dot */}
               <circle
                 cx={x} cy={y}
                 r={dotR}
                 fill={dotColor}
-                stroke="rgba(10,10,15,0.65)"
-                strokeWidth={1.5}
+                stroke="rgba(10,8,6,0.7)"
+                strokeWidth={1.8}
                 style={{ transition: 'r 0.25s cubic-bezier(0.34,1.56,0.64,1)' }}
               />
+              {/* Hit area */}
               <circle
-                cx={x} cy={y} r={20}
+                cx={x} cy={y} r={22}
                 fill="transparent"
                 style={{ cursor: 'pointer' }}
                 onMouseEnter={() => onHover(i)}
@@ -366,7 +373,7 @@ function RadarSVG({ scores, hovered, onHover }: {
         const cos = Math.cos(angle)
         const sin = Math.sin(angle)
         const textAnchor = cos > 0.15 ? 'start' : cos < -0.15 ? 'end' : 'middle'
-        const dy = sin > 0.3 ? 15 : sin < -0.3 ? -7 : 4
+        const dy = sin > 0.3 ? 16 : sin < -0.3 ? -8 : 4
         const shortLabel = SHORT_LABELS[s.key] ?? s.label
 
         const active = hovered === i
@@ -376,10 +383,10 @@ function RadarSVG({ scores, hovered, onHover }: {
         const labelFill = active
           ? scoreColor(s.score)
           : strong
-            ? 'rgba(248,246,242,0.62)'
+            ? 'rgba(248,246,242,0.58)'
             : weak
-              ? 'rgba(248,246,242,0.26)'
-              : 'rgba(248,246,242,0.40)'
+              ? 'rgba(248,246,242,0.22)'
+              : 'rgba(248,246,242,0.36)'
 
         return (
           <g key={`lbl-${s.key}`}>
@@ -389,8 +396,8 @@ function RadarSVG({ scores, hovered, onHover }: {
               textAnchor={textAnchor}
               fill={labelFill}
               style={{
-                fontSize: active ? '11.5px' : '10.5px',
-                fontFamily: 'var(--font-body, system-ui)',
+                fontSize: active ? '12px' : '11px',
+                fontFamily: "'Outfit', system-ui, sans-serif",
                 letterSpacing: '0.04em',
                 fontWeight: active ? 500 : 400,
                 transition: 'fill 0.3s, font-size 0.2s',
@@ -401,13 +408,13 @@ function RadarSVG({ scores, hovered, onHover }: {
             {/* Score badge on hover */}
             <text
               x={lx}
-              y={ly + dy + 14}
+              y={ly + dy + 15}
               textAnchor={textAnchor}
               fill={scoreColor(s.score)}
               style={{
                 fontSize: '10px',
-                fontFamily: 'var(--font-mono, monospace)',
-                fontWeight: 500,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 400,
                 opacity: active ? 1 : 0,
                 transition: 'opacity 0.2s',
               }}
@@ -418,33 +425,41 @@ function RadarSVG({ scores, hovered, onHover }: {
         )
       })}
 
-      {/* ── LAYER 6: Center score ────────────────────── */}
+      {/* ── LAYER 6: Center score (hero) ─────────────── */}
       <g style={{
         opacity: mounted ? 1 : 0,
-        transition: 'opacity 0.9s ease-out 0.8s',
+        transition: 'opacity 1s ease-out 0.9s',
       }}>
         {/* Subtle glow ring */}
         <circle
-          cx={CX} cy={CY} r={38}
+          cx={CX} cy={CY} r={44}
           fill="none"
           stroke={avgColor}
-          strokeWidth={0.5}
-          opacity={0.2}
+          strokeWidth={0.6}
+          opacity={0.18}
           filter="url(#rCenterGlow)"
         />
+        {/* Thin ring */}
+        <circle
+          cx={CX} cy={CY} r={44}
+          fill="none"
+          stroke={avgColor}
+          strokeWidth={0.3}
+          opacity={0.12}
+        />
 
-        {/* Score */}
+        {/* Score number */}
         <text
           x={CX}
-          y={CY - 5}
+          y={CY - 6}
           textAnchor="middle"
           dominantBaseline="central"
           fill={avgColor}
           style={{
-            fontSize: '40px',
-            fontFamily: 'var(--font-mono, monospace)',
+            fontSize: '46px',
+            fontFamily: "'Cormorant Garamond', serif",
             fontWeight: 300,
-            letterSpacing: '-0.02em',
+            letterSpacing: '-0.03em',
           }}
         >
           {avg}
@@ -453,14 +468,15 @@ function RadarSVG({ scores, hovered, onHover }: {
         {/* Label */}
         <text
           x={CX}
-          y={CY + 24}
+          y={CY + 26}
           textAnchor="middle"
-          fill="rgba(248,246,242,0.32)"
+          fill="rgba(248,246,242,0.28)"
           style={{
-            fontSize: '8.5px',
-            fontFamily: 'var(--font-body, system-ui)',
-            letterSpacing: '0.22em',
+            fontSize: '8px',
+            fontFamily: "'Outfit', system-ui, sans-serif",
+            letterSpacing: '0.28em',
             textTransform: 'uppercase' as const,
+            fontWeight: 500,
           }}
         >
           Genel Denge
@@ -478,7 +494,7 @@ function RadarSVG({ scores, hovered, onHover }: {
   )
 }
 
-// ─── Insight Row ──────────────────────────────────────────────
+// ─── Insight Row (premium card) ──────────────────────────────
 
 function InsightRow({ item, idx, variant }: {
   item: RadarDataPoint
@@ -487,13 +503,19 @@ function InsightRow({ item, idx, variant }: {
 }) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
-    const t = setTimeout(() => setMounted(true), idx * 60 + 100)
+    const t = setTimeout(() => setMounted(true), idx * 80 + 120)
     return () => clearTimeout(t)
   }, [idx])
 
   const color = scoreColor(item.score)
   const grade = scoreGrade(item.score)
   const gradFill = item.score >= 75
+    ? 'linear-gradient(180deg, #2D5F5D 0%, #4AE3A7 100%)'
+    : item.score >= 55
+      ? 'linear-gradient(180deg, #8B6B2A 0%, #D6B98C 100%)'
+      : 'linear-gradient(180deg, #6B2828 0%, #C47A7A 100%)'
+
+  const barGrad = item.score >= 75
     ? 'linear-gradient(90deg, #2D5F5D 0%, #4AE3A7 100%)'
     : item.score >= 55
       ? 'linear-gradient(90deg, #8B6B2A 0%, #D6B98C 100%)'
@@ -533,55 +555,60 @@ function InsightRow({ item, idx, variant }: {
 
   return (
     <div
-      className="relative rounded-[14px] border border-[rgba(214,185,140,0.07)] bg-[rgba(14,11,9,0.5)] overflow-hidden"
-      style={{ animation: `cardEntrance 0.45s ease-out ${idx * 55}ms both` }}
+      className="group relative overflow-hidden transition-all duration-300"
+      style={{
+        background: 'rgba(14, 12, 10, 0.45)',
+        border: '1px solid rgba(214,185,140,0.06)',
+        borderRadius: '16px',
+        animation: `cardEntrance 0.5s ease-out ${idx * 70}ms both`,
+      }}
     >
-      {/* Left accent */}
+      {/* Left accent bar */}
       <div
-        className="absolute left-0 inset-y-0 w-[3px] rounded-l-[14px]"
-        style={{ background: gradFill }}
+        className="absolute left-0 inset-y-0 w-[3px]"
+        style={{ background: gradFill, borderRadius: '16px 0 0 16px' }}
       />
 
-      <div className="pl-5 pr-4 py-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2.5">
-            <span className="font-body text-[13px] font-medium text-[#F8F6F2] leading-snug">
+      <div className="pl-6 pr-5 py-5">
+        {/* Top row: label + grade + score */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <span className="font-body text-[14px] font-medium text-[#F8F6F2] leading-snug tracking-[0.01em]">
               {item.label}
             </span>
             <span
-              className="font-body text-[7.5px] tracking-[0.12em] uppercase px-2 py-[3px] rounded-full border"
+              className="font-body text-[7px] tracking-[0.14em] uppercase px-2.5 py-[4px] rounded-full border"
               style={{
                 color,
-                backgroundColor: `${color}0C`,
-                borderColor: `${color}22`,
+                backgroundColor: `${color}0A`,
+                borderColor: `${color}1A`,
               }}
             >
               {grade}
             </span>
           </div>
           <span
-            className="font-mono text-[20px] font-light leading-none tabular-nums"
+            className="font-mono text-[22px] font-light leading-none tabular-nums tracking-tight"
             style={{ color }}
           >
             {item.score}
           </span>
         </div>
 
-        {/* Insight */}
-        <p className="font-body text-[11.5px] text-[rgba(248,246,242,0.38)] leading-relaxed mb-3">
+        {/* Insight text */}
+        <p className="font-body text-[12px] text-[rgba(248,246,242,0.36)] leading-[1.7] mb-4">
           {insight}
         </p>
 
         {/* Score bar */}
-        <div className="h-[2.5px] rounded-full bg-[rgba(248,246,242,0.04)] overflow-hidden">
+        <div className="h-[3px] rounded-full bg-[rgba(248,246,242,0.035)] overflow-hidden">
           <div
             className="h-full rounded-full"
             style={{
               width: mounted ? `${item.score}%` : '0%',
-              background: gradFill,
-              boxShadow: `0 0 8px ${color}35`,
-              transition: 'width 1.1s cubic-bezier(0.16, 1, 0.3, 1)',
+              background: barGrad,
+              boxShadow: `0 0 10px ${color}30`,
+              transition: 'width 1.2s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
           />
         </div>
@@ -596,88 +623,129 @@ export default function RadarChartSection({ scores, captureQuality, summaryText 
   const [hovered, setHovered] = useState<number | null>(null)
   const handleHover = useCallback((i: number | null) => setHovered(i), [])
 
-  const { strongest, improvement } = useMemo(() => {
+  const { strongest, improvement, avg } = useMemo(() => {
     const clamped = scores.map(s => ({
       ...s,
       score: Math.max(0, Math.min(100, s.score)),
     }))
     const sorted = [...clamped].sort((a, b) => b.score - a.score)
+    const avgVal = Math.round(clamped.reduce((sum, s) => sum + s.score, 0) / clamped.length)
     return {
       strongest: sorted.slice(0, 3),
       improvement: sorted.slice(-3).reverse(),
+      avg: avgVal,
     }
   }, [scores])
 
   if (!scores || scores.length === 0) return null
 
+  const avgColor = scoreColor(avg)
+
   return (
-    <div className="flex flex-col gap-6">
-      {/* ── Radar Chart Card ──────────────────────────── */}
+    <div
+      className="flex flex-col"
+      style={{ gap: 'clamp(1.5rem, 3.5vw, 2.5rem)', animation: 'sectionReveal 0.8s ease-out 0.1s both' }}
+    >
+      {/* ── Section header ────────────────────────────── */}
+      <div className="flex flex-col items-center gap-4 text-center">
+        <span className="text-label text-[rgba(214,185,140,0.55)]">
+          Estetik Harita
+        </span>
+        <h2
+          className="heading-display heading-display-md text-[#F8F6F2]"
+          style={{ maxWidth: '32ch' }}
+        >
+          Bölgesel Analiz Sonuçları
+        </h2>
+        {/* Editorial divider */}
+        <div className="flex items-center gap-4 mt-1">
+          <div className="h-px w-16" style={{ background: 'linear-gradient(90deg, transparent, rgba(214,185,140,0.3))', animation: 'lineExpand 0.8s ease-out 0.4s both', transformOrigin: 'right' }} />
+          <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(214,185,140,0.35)' }} />
+          <div className="h-px w-16" style={{ background: 'linear-gradient(90deg, rgba(214,185,140,0.3), transparent)', animation: 'lineExpand 0.8s ease-out 0.4s both', transformOrigin: 'left' }} />
+        </div>
+      </div>
+
+      {/* ── Hero Radar Card ───────────────────────────── */}
       <div
-        className="glass-strong rounded-[20px] p-6 sm:p-8"
-        style={{ animation: 'cardEntrance 0.5s ease-out 0.1s both' }}
+        className="glass-elevated rounded-[28px]"
+        style={{ animation: 'heroFadeUp 0.9s ease-out 0.2s both' }}
       >
-        <div className="flex flex-col gap-5">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(214,185,140,0.08)', border: '1px solid rgba(214,185,140,0.12)' }}>
-                <svg className="w-3.5 h-3.5 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
-                </svg>
+        {/* Inner padding with extra breathing room */}
+        <div className="p-6 sm:p-10 lg:p-12">
+          <div className="flex flex-col gap-8">
+
+            {/* Top bar */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(214,185,140,0.06)', border: '1px solid rgba(214,185,140,0.10)' }}
+                >
+                  <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
+                  </svg>
+                </div>
+                <span className="text-label text-[rgba(248,246,242,0.35)]">
+                  11 Bölge Analizi
+                </span>
               </div>
-              <div>
-                <p className="font-body text-[11px] tracking-[0.16em] uppercase text-[rgba(248,246,242,0.45)]">
-                  Estetik Analiz Haritası
+              {/* Average score pill */}
+              <div
+                className="flex items-center gap-2 px-4 py-2 rounded-full"
+                style={{
+                  background: `${avgColor}08`,
+                  border: `1px solid ${avgColor}18`,
+                }}
+              >
+                <span className="text-label-sm" style={{ color: `${avgColor}88` }}>Ortalama</span>
+                <span className="font-mono text-[16px] font-light" style={{ color: avgColor }}>{avg}</span>
+              </div>
+            </div>
+
+            {/* Chart — larger, more breathing room */}
+            <div className="w-full max-w-[540px] mx-auto py-2">
+              <RadarSVG scores={scores} hovered={hovered} onHover={handleHover} />
+            </div>
+
+            {/* Quality caveat */}
+            {captureQuality && captureQuality !== 'high' && (
+              <div className="rounded-[12px] px-4 py-3" style={{ background: 'rgba(214,185,140,0.025)', border: '1px solid rgba(214,185,140,0.06)' }}>
+                <p className="font-body text-[11px] text-[rgba(248,246,242,0.26)] leading-relaxed italic text-center">
+                  {captureQuality === 'low'
+                    ? 'Bu değerlendirme mevcut görüntü kalitesine göre yaklaşık olarak oluşturulmuştur.'
+                    : 'Görüntü kalitesi orta düzeydedir. Sonuçlar genel yönelimi yansıtmaktadır.'}
                 </p>
               </div>
-            </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full" style={{ background: 'rgba(214,185,140,0.05)', border: '1px solid rgba(214,185,140,0.10)' }}>
-              <span className="font-body text-[9px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.30)]">
-                11 Bölge
-              </span>
-            </div>
+            )}
           </div>
-
-          {/* Chart */}
-          <div className="w-full max-w-[500px] mx-auto">
-            <RadarSVG scores={scores} hovered={hovered} onHover={handleHover} />
-          </div>
-
-          {/* Quality caveat */}
-          {captureQuality && captureQuality !== 'high' && (
-            <div className="rounded-[10px] p-3" style={{ background: 'rgba(214,185,140,0.03)', border: '1px solid rgba(214,185,140,0.08)' }}>
-              <p className="font-body text-[10px] text-[rgba(248,246,242,0.28)] leading-relaxed italic">
-                {captureQuality === 'low'
-                  ? 'Bu değerlendirme mevcut görüntü kalitesine göre yaklaşık olarak oluşturulmuştur. Daha dengeli ışıkta tekrar analiz yapılması sonuç güvenini artırabilir.'
-                  : 'Görüntü kalitesi orta düzeydedir. Sonuçlar genel yönelimi yansıtmakta olup kesin değerlendirme doktor muayenesi gerektirir.'}
-              </p>
-            </div>
-          )}
         </div>
       </div>
 
       {/* ── Insight Panels ────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: 'clamp(1rem, 2.5vw, 1.5rem)' }}>
 
         {/* En Güçlü Alanlar */}
         <div
-          className="glass-strong rounded-[20px] p-6"
-          style={{ animation: 'cardEntrance 0.5s ease-out 0.2s both' }}
+          className="glass-elevated rounded-[24px] p-6 sm:p-8"
+          style={{ animation: 'sectionReveal 0.7s ease-out 0.3s both' }}
         >
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: 'rgba(74,227,167,0.08)', border: '1px solid rgba(74,227,167,0.15)' }}>
-                <svg className="w-3 h-3 text-[#4AE3A7]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <div className="flex flex-col gap-5">
+            {/* Panel header */}
+            <div className="flex items-center gap-3 pb-1">
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(74,227,167,0.07)', border: '1px solid rgba(74,227,167,0.12)' }}
+              >
+                <svg className="w-3.5 h-3.5 text-[#4AE3A7]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
                 </svg>
               </div>
-              <p className="font-body text-[11px] tracking-[0.16em] uppercase text-[rgba(74,227,167,0.65)]">
+              <span className="text-label" style={{ color: 'rgba(74,227,167,0.55)' }}>
                 En Güçlü Alanlar
-              </p>
+              </span>
             </div>
 
-            <div className="flex flex-col gap-2.5">
+            <div className="flex flex-col gap-3">
               {strongest.map((item, idx) => (
                 <InsightRow key={item.key} item={item} idx={idx} variant="strong" />
               ))}
@@ -687,22 +755,26 @@ export default function RadarChartSection({ scores, captureQuality, summaryText 
 
         {/* İyileştirme Potansiyeli */}
         <div
-          className="glass-strong rounded-[20px] p-6"
-          style={{ animation: 'cardEntrance 0.5s ease-out 0.3s both' }}
+          className="glass-elevated rounded-[24px] p-6 sm:p-8"
+          style={{ animation: 'sectionReveal 0.7s ease-out 0.4s both' }}
         >
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: 'rgba(196,122,122,0.08)', border: '1px solid rgba(196,122,122,0.15)' }}>
-                <svg className="w-3 h-3 text-[#C47A7A]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <div className="flex flex-col gap-5">
+            {/* Panel header */}
+            <div className="flex items-center gap-3 pb-1">
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(196,122,122,0.07)', border: '1px solid rgba(196,122,122,0.12)' }}
+              >
+                <svg className="w-3.5 h-3.5 text-[#C47A7A]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                 </svg>
               </div>
-              <p className="font-body text-[11px] tracking-[0.16em] uppercase text-[rgba(196,122,122,0.65)]">
+              <span className="text-label" style={{ color: 'rgba(196,122,122,0.55)' }}>
                 İyileştirme Potansiyeli
-              </p>
+              </span>
             </div>
 
-            <div className="flex flex-col gap-2.5">
+            <div className="flex flex-col gap-3">
               {improvement.map((item, idx) => (
                 <InsightRow key={item.key} item={item} idx={idx} variant="improve" />
               ))}
@@ -714,17 +786,17 @@ export default function RadarChartSection({ scores, captureQuality, summaryText 
       {/* ── Summary ───────────────────────────────────── */}
       {summaryText && (
         <div
-          className="rounded-[14px] p-4"
+          className="rounded-[16px] px-6 py-5 text-center max-w-2xl mx-auto w-full"
           style={{
-            background: 'rgba(214,185,140,0.025)',
-            border: '1px solid rgba(214,185,140,0.07)',
-            animation: 'cardEntrance 0.5s ease-out 0.4s both',
+            background: 'rgba(214,185,140,0.02)',
+            border: '1px solid rgba(214,185,140,0.06)',
+            animation: 'sectionReveal 0.6s ease-out 0.5s both',
           }}
         >
-          <p className="font-body text-[12px] text-[rgba(248,246,242,0.42)] leading-relaxed">
+          <p className="font-body text-[13px] text-[rgba(248,246,242,0.40)] leading-[1.8]">
             {summaryText}
           </p>
-          <p className="font-body text-[10px] text-[rgba(248,246,242,0.22)] leading-relaxed mt-2 italic">
+          <p className="font-body text-[10px] text-[rgba(248,246,242,0.20)] leading-relaxed mt-3 italic">
             Bu analiz AI destekli ön değerlendirme niteliğindedir. Kesin sonuçlar klinik muayene gerektirir.
           </p>
         </div>
