@@ -966,26 +966,30 @@ function ProcessingContent() {
 
   return (
     <div
-      className="theme-dark min-h-screen flex flex-col items-center justify-center px-4 py-8 relative"
+      className="theme-dark min-h-screen flex flex-col items-center justify-center px-5 sm:px-8 py-10 relative"
       style={{
-        background: 'linear-gradient(135deg, #0E0B09 0%, #1A1410 25%, #14181A 55%, #0B0E10 100%)',
+        background: 'linear-gradient(160deg, #0A0908 0%, #141110 20%, #0F1214 50%, #0A0B0D 100%)',
       }}
     >
-      {/* Ambient depth glow */}
-      <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 30%, rgba(214,185,140,0.025) 0%, transparent 50%)' }} />
+      {/* Ambient depth glows — cinematic */}
+      <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 60% 50% at 50% 25%, rgba(214,185,140,0.025) 0%, transparent 55%), radial-gradient(ellipse 40% 30% at 50% 75%, rgba(61,155,122,0.015) 0%, transparent 45%)' }} />
 
-      <div className="relative w-full max-w-md flex flex-col items-center gap-6">
+      <div className="relative w-full max-w-md flex flex-col items-center" style={{ gap: 'clamp(1.5rem, 3vw, 2rem)' }}>
 
-        {/* ── Photo with canvas overlay ── */}
+        {/* ── Photo with canvas overlay — cinematic frame ── */}
         <div
-          className="relative w-full overflow-hidden rounded-2xl border border-[rgba(214,185,140,0.12)]"
+          className="relative w-full overflow-hidden"
           style={{
             aspectRatio: '3 / 4',
+            borderRadius: '24px',
+            border: isDone
+              ? '1px solid rgba(61,155,122,0.20)'
+              : '1px solid rgba(214,185,140,0.08)',
             boxShadow: isDone
-              ? '0 0 30px rgba(61,155,122,0.3), 0 0 80px rgba(61,155,122,0.08)'
-              : '0 8px 40px rgba(0,0,0,0.5)',
-            animation: isDone ? 'glowPulse 2s ease-in-out infinite' : undefined,
-            transition: 'box-shadow 0.6s ease',
+              ? '0 0 40px rgba(61,155,122,0.25), 0 0 100px rgba(61,155,122,0.06), 0 24px 64px rgba(0,0,0,0.5)'
+              : '0 20px 60px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(214,185,140,0.04) inset',
+            animation: isDone ? 'glowPulse 2.5s ease-in-out infinite' : undefined,
+            transition: 'box-shadow 0.8s ease, border-color 0.8s ease',
           }}
         >
           {/* Background photo */}
@@ -1022,14 +1026,15 @@ function ProcessingContent() {
             />
           )}
 
-          {/* Stage indicator badge */}
+          {/* Stage indicator badge — premium pill */}
           {isRunning && (
             <div
-              className="absolute top-4 left-4 flex items-center gap-2 rounded-full px-3 py-1.5"
+              className="absolute top-5 left-5 flex items-center gap-2.5 rounded-full px-4 py-2"
               style={{
-                background: 'rgba(14, 11, 9, 0.75)',
-                backdropFilter: 'blur(12px)',
-                border: '1px solid rgba(214, 185, 140, 0.15)',
+                background: 'rgba(10, 8, 6, 0.80)',
+                backdropFilter: 'blur(16px)',
+                border: '1px solid rgba(214, 185, 140, 0.10)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                 animation: 'stageFadeIn 0.4s ease-out',
               }}
             >
@@ -1039,26 +1044,29 @@ function ProcessingContent() {
               >
                 {STAGES[currentStage].icon}
               </span>
-              <span className="font-body text-[11px] font-medium text-[#D6B98C] tracking-wide uppercase">
+              <span className="text-label text-[#D6B98C]" style={{ fontSize: '9px' }}>
                 {STAGES[currentStage].label}
               </span>
             </div>
           )}
 
-          {/* Done overlay */}
+          {/* Done overlay — elegant reveal */}
           {isDone && (
             <div
               className="absolute inset-0 flex items-center justify-center"
               style={{
-                background: 'rgba(14, 11, 9, 0.3)',
-                animation: 'stageFadeIn 0.3s ease-out',
+                background: 'radial-gradient(ellipse at center, rgba(10,8,6,0.2) 0%, rgba(10,8,6,0.45) 100%)',
+                animation: 'stageFadeIn 0.4s ease-out',
               }}
             >
-              <div className="flex flex-col items-center gap-2">
-                <svg className="w-12 h-12 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="font-body text-xs text-[rgba(248,246,242,0.7)] tracking-wider uppercase">
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative">
+                  <div className="absolute inset-[-8px] rounded-full" style={{ background: 'radial-gradient(circle, rgba(61,155,122,0.2) 0%, transparent 70%)' }} />
+                  <svg className="w-14 h-14 text-[#3D9B7A] relative" fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <span className="text-label text-[rgba(248,246,242,0.60)]" style={{ fontSize: '9px' }}>
                   Analiz Tamamlandı
                 </span>
               </div>
@@ -1066,11 +1074,11 @@ function ProcessingContent() {
           )}
         </div>
 
-        {/* ── Progress bar ── */}
-        <div className="w-full flex flex-col gap-2">
-          <div className="w-full h-[3px] rounded-full bg-[rgba(248,246,242,0.06)] overflow-hidden">
+        {/* ── Progress bar — refined ── */}
+        <div className="w-full flex flex-col gap-2.5">
+          <div className="w-full h-[2.5px] rounded-full bg-[rgba(248,246,242,0.04)] overflow-hidden">
             <div
-              className="h-full rounded-full transition-all duration-700 ease-out"
+              className="h-full rounded-full transition-all duration-1000 ease-out"
               style={{
                 width: `${overallProgress}%`,
                 background: isError
@@ -1078,40 +1086,44 @@ function ProcessingContent() {
                   : isDone
                     ? EMERALD
                     : `linear-gradient(90deg, ${GOLD}, ${EMERALD})`,
+                boxShadow: isError ? 'none' : isDone ? `0 0 8px ${EMERALD}40` : `0 0 6px ${GOLD}30`,
               }}
             />
           </div>
           <div className="flex items-center justify-between">
-            <span className="font-body text-[11px] text-[rgba(248,246,242,0.35)] tabular-nums">
+            <span className="font-mono text-[12px] font-light text-[rgba(248,246,242,0.30)] tabular-nums tracking-tight">
               {overallProgress}%
             </span>
             {isRunning && (
-              <span className="font-body text-[11px] text-[rgba(248,246,242,0.35)]">
+              <span className="text-label-sm text-[rgba(248,246,242,0.25)]">
                 Aşama {currentStage + 1}/5
               </span>
             )}
           </div>
         </div>
 
-        {/* ── Micro-message ── */}
+        {/* ── Micro-message — editorial ── */}
         {isRunning && (
           <p
             key={microMessage}
-            className="font-body text-[13px] text-[#D6B98C] text-center tracking-wide"
-            style={{ animation: 'microMessageFade 1.8s ease-in-out' }}
+            className="font-body text-[13px] text-[rgba(214,185,140,0.70)] text-center tracking-[0.02em] leading-relaxed"
+            style={{ animation: 'microMessageFade 1.8s ease-in-out', maxWidth: '28ch', margin: '0 auto' }}
           >
             {microMessage}
           </p>
         )}
 
-        {/* ── Stage timeline ── */}
-        <div className="w-full relative flex flex-col">
+        {/* ── Stage timeline — premium ── */}
+        <div
+          className="w-full relative flex flex-col rounded-[20px] px-5 py-4"
+          style={{ background: 'rgba(14,12,10,0.40)', border: '1px solid rgba(214,185,140,0.05)' }}
+        >
           {/* Vertical spine */}
           <div
-            className="absolute top-4 bottom-4 w-px"
+            className="absolute top-6 bottom-6 w-px"
             style={{
-              left: 15,
-              background: 'linear-gradient(to bottom, rgba(214,185,140,0.1), rgba(61,155,122,0.2), rgba(214,185,140,0.05))',
+              left: 25,
+              background: 'linear-gradient(to bottom, rgba(214,185,140,0.08), rgba(61,155,122,0.15), rgba(214,185,140,0.03))',
             }}
           />
 
@@ -1208,14 +1220,14 @@ function ProcessingContent() {
           })}
         </div>
 
-        {/* ── Error state ── */}
+        {/* ── Error state — premium ── */}
         {isError && (
           <div
-            className="w-full flex flex-col gap-4"
-            style={{ animation: 'stageFadeIn 0.3s ease-out' }}
+            className="w-full flex flex-col gap-5"
+            style={{ animation: 'sectionReveal 0.4s ease-out' }}
           >
-            <div className="rounded-xl border border-[rgba(196,122,122,0.2)] bg-[rgba(196,122,122,0.06)] px-4 py-3">
-              <p className="font-body text-[13px] text-[#C47A7A] leading-relaxed">
+            <div className="rounded-[16px] border border-[rgba(196,122,122,0.15)] bg-[rgba(196,122,122,0.04)] px-5 py-4">
+              <p className="font-body text-[13px] text-[rgba(196,122,122,0.85)] leading-[1.7]">
                 {pipelineState.message}
               </p>
             </div>
