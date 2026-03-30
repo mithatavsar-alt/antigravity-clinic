@@ -75,17 +75,23 @@ const UNLOCK_FRAMES = 6
 const VIEWPORT_ASPECT = 3 / 4 // portrait
 
 // Validation thresholds
-const CENTER_TOLERANCE = 0.12       // face center must be within 12% of frame center
+const CENTER_TOLERANCE = 0.15       // face center must be within 15% of frame center
 const MIN_FACE_RATIO = 0.22         // face must fill ≥22% of frame width
 const MAX_FACE_RATIO = 0.65         // face must fill ≤65% of frame width
-const MAX_YAW = 12                  // max head yaw degrees
-const MAX_PITCH = 10                // max head pitch degrees
+const MAX_YAW = 22                  // hard limit head yaw degrees
+const MAX_PITCH = 20                // hard limit head pitch degrees
+const MAX_ROLL = 15                 // hard limit head roll degrees
+const SOFT_YAW = 15                 // soft warning threshold
+const SOFT_PITCH = 13               // soft warning threshold
+const SOFT_ROLL = 10                // soft warning threshold
 const MIN_BRIGHTNESS = 80           // 0-255
 const MAX_BRIGHTNESS = 220
-const STABILITY_THRESHOLD = 0.015   // max inter-frame face center movement
-const VALID_FRAMES_REQUIRED = 8     // consecutive valid frames before countdown
+const STABILITY_THRESHOLD = 0.025   // max inter-frame face center movement
+const VALID_FRAMES_REQUIRED = 5     // valid frames before countdown
 const COUNTDOWN_SECONDS = 3
 const BEST_FRAME_BUFFER = 15
+const ANGLE_SMOOTHING = 0.35        // EMA factor for yaw/pitch (dampens flicker)
+const COUNTDOWN_GRACE_FRAMES = 3    // invalid frames tolerated before cancelling countdown
 
 // Guidance texts (Turkish)
 const GUIDANCE: Record<string, string> = {
@@ -94,6 +100,7 @@ const GUIDANCE: Record<string, string> = {
   tooFar: 'Biraz yaklaşın',
   tooClose: 'Biraz uzaklaşın',
   badAngle: 'Başınızı düz tutun',
+  softAngle: 'Başınızı biraz düzeltin',
   darkLight: 'Işık yetersiz, aydınlık bir alana geçin',
   brightLight: 'Çok parlak, ışığı azaltın',
   unstable: 'Sabit kalın',
@@ -155,7 +162,7 @@ function expandBBox(box: FaceBBox, margin: number, videoAspect: number): FaceBBo
   return { x, y, w, h }
 }
 
-/** Estimate head yaw from landmark asymmetry */
+/** Estimate head yaw from nose-cheek asymmetry (arcsin-based for better degree mapping) */
 function estimateYaw(landmarks: any[]): number {
   const noseTip = landmarks[1]
   const leftCheek = landmarks[234]
@@ -163,20 +170,45 @@ function estimateYaw(landmarks: any[]): number {
   if (!noseTip || !leftCheek || !rightCheek) return 0
   const leftDist = Math.abs(noseTip.x - leftCheek.x)
   const rightDist = Math.abs(noseTip.x - rightCheek.x)
-  const ratio = leftDist / (rightDist + 0.0001)
-  return (ratio - 1) * 60 // rough degrees
+  const totalWidth = leftDist + rightDist
+  if (totalWidth < 0.001) return 0
+  // asymmetry: 0 = perfectly centered, ±1 = fully to one side
+  const asymmetry = (leftDist - rightDist) / totalWidth
+  // arcsin maps asymmetry to degrees more accurately than linear scaling
+  // clamp to avoid NaN from floating-point noise
+  return Math.asin(Math.max(-1, Math.min(1, asymmetry))) * (180 / Math.PI) * 1.4
 }
 
-/** Estimate head pitch from landmark ratios */
+/**
+ * Estimate head pitch using inner-eye-corners as a stable reference.
+ * Ratio of (eye-line to nose-tip) vs (nose-tip to chin) is more stable
+ * than forehead-to-nose, because forehead landmark (10) shifts with hair/head shape.
+ */
 function estimatePitch(landmarks: any[]): number {
   const noseTip = landmarks[1]
-  const foreheadTop = landmarks[10]
+  const leftInnerEye = landmarks[133]
+  const rightInnerEye = landmarks[362]
   const chinBottom = landmarks[152]
-  if (!noseTip || !foreheadTop || !chinBottom) return 0
-  const topDist = noseTip.y - foreheadTop.y
-  const bottomDist = chinBottom.y - noseTip.y
-  const ratio = topDist / (bottomDist + 0.0001)
-  return (ratio - 0.85) * 50 // rough degrees
+  if (!noseTip || !leftInnerEye || !rightInnerEye || !chinBottom) return 0
+  const eyeMidY = (leftInnerEye.y + rightInnerEye.y) / 2
+  const eyeToNose = noseTip.y - eyeMidY
+  const noseToChin = chinBottom.y - noseTip.y
+  if (noseToChin < 0.001) return 0
+  const ratio = eyeToNose / noseToChin
+  // Neutral ratio is ~0.65-0.75 for most faces. Center on 0.70.
+  // Positive = looking down, negative = looking up
+  return (ratio - 0.70) * 70
+}
+
+/** Estimate head roll from eye-line tilt */
+function estimateRoll(landmarks: any[]): number {
+  const leftEyeOuter = landmarks[33]
+  const rightEyeOuter = landmarks[263]
+  if (!leftEyeOuter || !rightEyeOuter) return 0
+  const dx = rightEyeOuter.x - leftEyeOuter.x
+  const dy = rightEyeOuter.y - leftEyeOuter.y
+  if (Math.abs(dx) < 0.001) return 0
+  return Math.atan2(dy, dx) * (180 / Math.PI)
 }
 
 /** Estimate average brightness from canvas image data */
@@ -240,6 +272,10 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
   })
   const validFrameCountRef = useRef(0)
   const prevFaceCenterRef = useRef<{ x: number; y: number } | null>(null)
+  const smoothedYawRef = useRef(0)
+  const smoothedPitchRef = useRef(0)
+  const smoothedRollRef = useRef(0)
+  const countdownGraceRef = useRef(0)
   const guidanceRef = useRef(GUIDANCE.searching)
 
   // Countdown
@@ -403,6 +439,10 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
         }
         validFrameCountRef.current = 0
         prevFaceCenterRef.current = null
+        smoothedYawRef.current = 0
+        smoothedPitchRef.current = 0
+        smoothedRollRef.current = 0
+        countdownGraceRef.current = 0
         validationRef.current = { centered: false, sizeOk: false, angleOk: false, lightOk: false, stable: false, allPass: false }
         guidanceRef.current = GUIDANCE.searching
 
@@ -434,9 +474,19 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
       const centered = Math.abs(faceCx - 0.5) < CENTER_TOLERANCE && Math.abs(faceCy - 0.5) < CENTER_TOLERANCE
       const faceRatio = rawBox.w
       const sizeOk = faceRatio >= MIN_FACE_RATIO && faceRatio <= MAX_FACE_RATIO
-      const yaw = Math.abs(estimateYaw(landmarks))
-      const pitch = Math.abs(estimatePitch(landmarks))
-      const angleOk = yaw < MAX_YAW && pitch < MAX_PITCH
+      const rawYaw = estimateYaw(landmarks)
+      const rawPitch = estimatePitch(landmarks)
+      const rawRoll = estimateRoll(landmarks)
+      smoothedYawRef.current = smoothedYawRef.current * (1 - ANGLE_SMOOTHING) + rawYaw * ANGLE_SMOOTHING
+      smoothedPitchRef.current = smoothedPitchRef.current * (1 - ANGLE_SMOOTHING) + rawPitch * ANGLE_SMOOTHING
+      smoothedRollRef.current = smoothedRollRef.current * (1 - ANGLE_SMOOTHING) + rawRoll * ANGLE_SMOOTHING
+      const yaw = Math.abs(smoothedYawRef.current)
+      const pitch = Math.abs(smoothedPitchRef.current)
+      const roll = Math.abs(smoothedRollRef.current)
+      // Hard fail: beyond hard limits — reject frame
+      const angleOk = yaw < MAX_YAW && pitch < MAX_PITCH && roll < MAX_ROLL
+      // Soft warning: within hard limits but past soft thresholds — pass but show guidance
+      const angleSoft = yaw >= SOFT_YAW || pitch >= SOFT_PITCH || roll >= SOFT_ROLL
 
       // Brightness (sample from crop canvas after render)
       // We'll compute after drawing, but use previous frame's brightness for this check
@@ -461,14 +511,22 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
       else if (!angleOk) guidanceRef.current = GUIDANCE.badAngle
       else if (!lightOk) guidanceRef.current = validationRef.current.lightOk ? GUIDANCE.unstable : GUIDANCE.darkLight
       else if (!stable) guidanceRef.current = GUIDANCE.unstable
+      else if (angleSoft) guidanceRef.current = GUIDANCE.softAngle
       else guidanceRef.current = countdownRef.current > 0 ? GUIDANCE.capturing : GUIDANCE.ready
 
       // Valid frame counting
       if (allPass) {
         validFrameCountRef.current++
+        countdownGraceRef.current = 0
       } else {
-        validFrameCountRef.current = Math.max(0, validFrameCountRef.current - 2) // decay on invalid
-        if (countdownRef.current > 0) cancelCountdown()
+        validFrameCountRef.current = Math.max(0, validFrameCountRef.current - 1) // gentle decay
+        if (countdownRef.current > 0) {
+          countdownGraceRef.current++
+          if (countdownGraceRef.current >= COUNTDOWN_GRACE_FRAMES) {
+            cancelCountdown()
+            countdownGraceRef.current = 0
+          }
+        }
       }
 
       // Phase transitions
