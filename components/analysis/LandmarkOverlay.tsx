@@ -161,7 +161,6 @@ export function LandmarkOverlay({
         await analyzeImage(img, (lm) => {
           if (cancelled) return
           if (lm && lm.length > 0) {
-            console.log('[LandmarkOverlay] Got', lm.length, 'landmarks → mapped')
             setLandmarks(lm)
             setState('mapped')
           } else {

@@ -33,8 +33,6 @@ export async function analyzeImage(
     throw new FaceMeshError('MODEL_LOAD_FAILED', 'Human engine not initialized. Call init() first.')
   }
 
-  console.log('[FaceMesh] Analyzing image...', imageElement.naturalWidth, 'x', imageElement.naturalHeight)
-
   const ANALYZE_TIMEOUT_MS = 4000
 
   return new Promise((resolve, reject) => {
@@ -50,7 +48,6 @@ export async function analyzeImage(
         if (!detection) {
           onResult(null)
         } else {
-          console.log('[FaceMesh] Got', detection.landmarks.length, 'landmarks, confidence:', detection.confidence.toFixed(2))
           onResult(detection.landmarks)
         }
         resolve()

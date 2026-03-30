@@ -119,8 +119,6 @@ export async function init(): Promise<void> {
   })
 
   const loadPromise = (async () => {
-    console.log('[Human] Loading Human library...')
-
     // Dynamic import — only executes client-side inside init().
     // The package is marked in serverExternalPackages (next.config.ts) so SSR
     // won't try to bundle it and pull in @tensorflow/tfjs-node.
@@ -132,10 +130,8 @@ export async function init(): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const instance = new Human(config as any) as unknown as HumanInstance
 
-    console.log('[Human] Loading models...')
     await instance.load()
 
-    console.log('[Human] Warming up (first inference)...')
     try {
       await instance.warmup('full')
     } catch (err) {
@@ -143,7 +139,6 @@ export async function init(): Promise<void> {
     }
 
     humanInstance = instance
-    console.log('[Human] Initialized and ready')
   })()
 
   initPromise = Promise.race([loadPromise, timeoutPromise])
@@ -176,16 +171,6 @@ export async function detectFace(
   }
 
   const face = result.face[0]
-
-  // Log raw face result for debugging age/gender/score
-  console.log('[Human] Raw face result:', {
-    age: face.age,
-    gender: face.gender,
-    genderScore: face.genderScore,
-    score: face.score,
-    meshLength: face.mesh?.length ?? 0,
-    box: face.box,
-  })
 
   if (!face.mesh || face.mesh.length < 400) {
     console.warn('[Human] Insufficient mesh points:', face.mesh?.length ?? 0)
@@ -291,8 +276,6 @@ export async function detectFaceMultiFrame(
     .filter((d) => d.gender === bestGender)
     .reduce((s, d) => s + d.genderConf, 0) / Math.max(1, detections.filter((d) => d.gender === bestGender).length)
 
-  console.log(`[Human] Multi-frame age: ${avgAge.toFixed(1)} from ${detections.length}/${images.length} frames, conf=${avgConf.toFixed(2)}`)
-
   return {
     age: Math.round(avgAge),
     gender: bestGender,
@@ -302,7 +285,6 @@ export async function detectFaceMultiFrame(
 }
 
 export function destroy(): void {
-  console.log('[Human] Destroying instance')
   humanInstance = null
   initPromise = null
 }

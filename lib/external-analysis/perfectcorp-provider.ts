@@ -75,10 +75,7 @@ export const perfectCorpProvider: AnalysisProvider = {
   async analyze(imageBuffer: Buffer, mimeType: string): Promise<ExternalAnalysisResult> {
     const { url, init } = buildRequest(imageBuffer, mimeType)
 
-    console.log('[PerfectCorp] Calling external API:', url)
-    console.log('[PerfectCorp] Image size:', imageBuffer.length, 'bytes')
     const res = await fetch(url, init)
-    console.log('[PerfectCorp] Response status:', res.status)
 
     if (res.status === 401 || res.status === 403) {
       throw Object.assign(new Error('API kimlik doğrulama hatası'), { code: 'AUTH_ERROR' as const })
@@ -93,7 +90,6 @@ export const perfectCorpProvider: AnalysisProvider = {
     }
 
     const raw = await res.json()
-    console.log('[PerfectCorp] Response mapped successfully. Mock used: no')
 
     return {
       success: true,

@@ -39,8 +39,6 @@ export default function AnalysisConsentPage() {
     setLoading(true)
     setError(null)
 
-    console.log('[Consent] Button clicked, creating lead...')
-
     try {
       // Validate photo exists
       if (!currentLead.patient_photo_url) {
@@ -89,13 +87,9 @@ export default function AnalysisConsentPage() {
       logAuditEvent('form_completed', { lead_id: id })
       logAuditEvent('consent_granted', { lead_id: id, version: consentVersion.version })
 
-      console.log('[Consent] Lead saved:', id)
-      console.log('[Consent] currentLead before nav:', !!currentLead.full_name, !!currentLead.patient_photo_url)
-
       // DO NOT call clearCurrentLead() here.
       // Clearing currentLead triggers the step guard which races with navigation.
       // The processing page clears it after reading the lead from the persisted store.
-      console.log('[Consent] Navigating to processing...')
       router.push(`/analysis/processing?id=${id}`)
     } catch (err) {
       console.error('[Consent] Error:', err)
