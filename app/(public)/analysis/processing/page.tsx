@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react'
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useClinicStore, waitForHydration } from '@/lib/store'
 import { PremiumButton } from '@/components/design-system/PremiumButton'
 import {
@@ -88,11 +88,8 @@ const STAGES = [
 const MIN_STAGE_MS = 1500
 const PIPELINE_TIMEOUT_MS = 25_000
 
-function navigateToResult(id: string) {
-  const url = `/analysis/result?id=${id}`
-  console.log('[Pipeline] Navigating to:', url)
-  window.location.replace(url)
-}
+// Navigation is now handled via Next.js router (client-side) to preserve
+// in-memory Zustand state — avoids data loss from localStorage hydration race.
 
 // ─── Timeout utility ────────────────────────────────────────
 
@@ -560,6 +557,9 @@ async function runLocalAnalysisPipeline(
 
 function ProcessingContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const routerRef = useRef(router)
+  routerRef.current = router
   const id = searchParams.get('id')
   const ran = useRef(false)
   const abortRef = useRef(false)
@@ -709,7 +709,7 @@ function ProcessingContent() {
   // ── Main pipeline ──
   useEffect(() => {
     if (!id) {
-      window.location.replace('/analysis')
+      routerRef.current.replace('/analysis')
       return
     }
 
@@ -760,7 +760,7 @@ function ProcessingContent() {
           clearTimeout(safetyTimer)
           setPipelineState({ phase: 'done' })
           await delay(400)
-          navigateToResult(leadId)
+          routerRef.current.replace(`/analysis/result?id=${leadId}`)
           return
         }
 
@@ -855,7 +855,8 @@ function ProcessingContent() {
         setPipelineState({ phase: 'done' })
         clearTimeout(safetyTimer)
         await delay(500)
-        navigateToResult(leadId)
+        console.log('[Pipeline] Navigating to result (client-side):', leadId)
+        routerRef.current.replace(`/analysis/result?id=${leadId}`)
       } catch (err) {
         console.error('[Pipeline] Error:', err)
         clearTimeout(safetyTimer)
@@ -896,12 +897,12 @@ function ProcessingContent() {
   }, [])
 
   const handleBack = useCallback(() => {
-    window.location.replace('/analysis')
-  }, [])
+    router.replace('/analysis')
+  }, [router])
 
   const handleSkip = useCallback(() => {
-    if (id) navigateToResult(id)
-  }, [id])
+    if (id) router.replace(`/analysis/result?id=${id}`)
+  }, [id, router])
 
   // ── Render ──
 
