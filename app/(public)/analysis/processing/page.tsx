@@ -15,8 +15,12 @@ import { savePhoto } from '@/lib/photo-bridge'
 import { run as runGeometryAnalysis } from '@/lib/ai/analysis'
 import { computeFocusAreas, computeQualityScore, getSuggestedZones } from '@/lib/ai/aesthetic-scoring'
 import { generateSuggestions, generatePatientSummaryText, generateFocusAreaLabels, mapFocusAreasToRegionScores } from '@/lib/ai/result-generator'
+import { deriveRadarAnalysis } from '@/lib/ai/radar-scores'
 import { deriveDoctorAnalysis, deriveConsultationReadiness } from '@/lib/ai/derive-doctor-analysis'
-import { analyzeWrinkles } from '@/lib/ai/wrinkle-analysis'
+import { analyzeWrinkles, deriveSkinTexture } from '@/lib/ai/wrinkle-analysis'
+import { assessImageQuality } from '@/lib/ai/image-quality'
+import { estimateAge } from '@/lib/ai/age-estimation'
+import { computeSymmetryAnalysis } from '@/lib/ai/aesthetic-scoring'
 import {
   FACE_OVAL, LEFT_EYE, RIGHT_EYE, LEFT_EYEBROW, RIGHT_EYEBROW,
   NOSE_BRIDGE, UPPER_LIP, LOWER_LIP,
@@ -410,15 +414,11 @@ async function runLocalAnalysisPipeline(
   onStage: (stage: VisualStage) => void,
   onLandmarks: (landmarks: Landmark[]) => void,
 ): Promise<EnhancedAnalysisResult> {
-  console.log('[Pipeline] Starting local analysis with Human engine...')
-  const t0 = performance.now()
-
   // ── Stage 0: Face Detection ──
   onStage(0)
 
   const stage0Result = await withMinDelay(async () => {
     await initHumanEngine()
-    console.log('[Pipeline] Human engine initialized')
 
     const image = new Image()
     image.crossOrigin = 'anonymous'
@@ -431,8 +431,6 @@ async function runLocalAnalysisPipeline(
       5000,
       'Fotoğraf yükleme'
     )
-    console.log('[Pipeline] Image loaded:', image.naturalWidth, 'x', image.naturalHeight)
-
     if (image.naturalWidth < 100 || image.naturalHeight < 100) {
       throw new Error('Yüz algılanamadı. Lütfen tekrar deneyin.')
     }
@@ -442,7 +440,6 @@ async function runLocalAnalysisPipeline(
       throw new Error('Yüz algılanamadı. Lütfen tekrar deneyin.')
     }
 
-    console.log('[Pipeline] Face detected:', det.landmarks.length, 'landmarks, confidence:', det.confidence.toFixed(2), ', age:', det.age)
     onLandmarks(det.landmarks)
 
     return { image, det }
@@ -456,7 +453,6 @@ async function runLocalAnalysisPipeline(
   const stage1Result = await withMinDelay(async () => {
     const geo = runGeometryAnalysis(detection.landmarks)
     if (!geo) throw new Error('Yüz geometrisi hesaplanamadı. Lütfen tekrar deneyin.')
-    console.log('[Pipeline] Geometry computed — symmetry:', geo.scores.symmetry, ', proportion:', geo.scores.proportion)
 
     let age = detection.age
     let gender = detection.gender
@@ -476,7 +472,6 @@ async function runLocalAnalysisPipeline(
       }
       const multiResult = await detectFaceMultiFrame(imgCopies, 0.5)
       if (multiResult && multiResult.age != null) {
-        console.log(`[Pipeline] Multi-frame age: ${multiResult.age} (single-frame was: ${detection.age})`)
         age = multiResult.age
         gender = multiResult.gender
         genderConf = multiResult.genderConfidence
@@ -508,32 +503,77 @@ async function runLocalAnalysisPipeline(
       imgEl.naturalHeight
     )
     const sz = getSuggestedZones(fa, 50)
-    console.log('[Pipeline] Focus areas:', fa.length, ', suggested zones:', sz.length, ', quality:', qs)
     return { fa, qs, sz }
   }, MIN_STAGE_MS)
   const focusAreas = stage2Result.fa
   const qualityScore = stage2Result.qs
   const suggestedZones = stage2Result.sz
 
-  // ── Stage 3: Skin / Wrinkle Analysis ──
+  // ── Stage 3: Skin / Wrinkle Analysis + Image Quality + Symmetry ──
   onStage(3)
 
-  const wrinkleAnalysis = await withMinDelay(async () => {
+  const stage3Result = await withMinDelay(async () => {
+    // Image quality assessment
+    let iq = null
     try {
-      const wa = analyzeWrinkles(imgEl, detection.landmarks, finalAge)
-      if (wa) console.log('[Pipeline] Wrinkle analysis:', wa.overallScore, wa.overallLevel)
-      else console.warn('[Pipeline] Wrinkle analysis returned null')
-      return wa
+      iq = assessImageQuality(detection.landmarks, detection.confidence, imgEl)
+    } catch (err) {
+      console.warn('[Pipeline] Image quality assessment failed (non-fatal):', err)
+    }
+
+    // Wrinkle analysis (13 regions)
+    let wa = null
+    try {
+      wa = analyzeWrinkles(imgEl, detection.landmarks, finalAge)
     } catch (err) {
       console.warn('[Pipeline] Wrinkle analysis failed (non-fatal):', err)
-      return null
     }
+
+    // Skin texture profile
+    let st = null
+    if (wa) {
+      try {
+        st = deriveSkinTexture(wa)
+      } catch (err) {
+        console.warn('[Pipeline] Skin texture derivation failed (non-fatal):', err)
+      }
+    }
+
+    // Symmetry analysis
+    let sym = null
+    try {
+      sym = computeSymmetryAnalysis(detection.landmarks)
+    } catch (err) {
+      console.warn('[Pipeline] Symmetry analysis failed (non-fatal):', err)
+    }
+
+    return { iq, wa, st, sym }
   }, MIN_STAGE_MS)
 
-  // ── Stage 4: AI Prediction / Build result ──
+  const imageQuality = stage3Result.iq
+  const wrinkleAnalysis = stage3Result.wa
+  const skinTexture = stage3Result.st
+  const symmetryAnalysis = stage3Result.sym
+
+  // ── Stage 4: AI Prediction / Age Estimation / Build result ──
   onStage(4)
 
   const enhanced = await withMinDelay(async () => {
+    // Multi-signal age estimation
+    let ageEst = null
+    try {
+      ageEst = estimateAge({
+        modelAge: finalAge,
+        wrinkles: wrinkleAnalysis,
+        imageQuality,
+        skinTexture,
+        metrics: geometry.metrics,
+        detectionConfidence: detection.confidence,
+      })
+    } catch (err) {
+      console.warn('[Pipeline] Age estimation failed (non-fatal):', err)
+    }
+
     const result: EnhancedAnalysisResult = {
       geometry,
       estimatedAge: finalAge,
@@ -545,11 +585,14 @@ async function runLocalAnalysisPipeline(
       qualityScore,
       wrinkleAnalysis,
       engine: 'human',
+      imageQuality,
+      ageEstimation: ageEst,
+      skinTexture,
+      symmetryAnalysis,
     }
     return result
   }, MIN_STAGE_MS)
 
-  console.log('[Pipeline] Done in', Math.round(performance.now() - t0), 'ms')
   return enhanced
 }
 
@@ -730,7 +773,6 @@ function ProcessingContent() {
 
     async function runPipeline() {
       try {
-        console.log('[Pipeline] Waiting for store hydration...')
         await withTimeout(waitForHydration(), 3000, 'Store yükleme')
 
         if (abortRef.current) return
@@ -756,7 +798,6 @@ function ProcessingContent() {
         }
 
         if (!photo) {
-          console.log('[Pipeline] No photo — skipping AI')
           clearTimeout(safetyTimer)
           setPipelineState({ phase: 'done' })
           await delay(400)
@@ -781,11 +822,12 @@ function ProcessingContent() {
         if (abortRef.current) return
 
         // ── Save results ──
-        const { geometry, estimatedAge, focusAreas, suggestedZones, confidence, qualityScore, wrinkleAnalysis } = enhanced
+        const { geometry, estimatedAge, focusAreas, suggestedZones, confidence, qualityScore, wrinkleAnalysis, ageEstimation } = enhanced
 
         const suggestions = generateSuggestions(enhanced)
         const summaryText = generatePatientSummaryText(enhanced, lead.concern_area)
         const focusLabels = generateFocusAreaLabels(focusAreas)
+        const radarAnalysis = deriveRadarAnalysis(enhanced, lead.capture_confidence as 'high' | 'medium' | 'low' | undefined)
 
         const doctorAnalysis = deriveDoctorAnalysis(leadId, geometry, lead)
         const enhancedRegionScores = mapFocusAreasToRegionScores(focusAreas, geometry.metrics)
@@ -835,6 +877,20 @@ function ProcessingContent() {
             overallScore: wrinkleAnalysis.overallScore,
             overallLevel: wrinkleAnalysis.overallLevel,
           } : undefined,
+          age_estimation: ageEstimation ? {
+            estimatedRange: ageEstimation.estimatedRange,
+            pointEstimate: ageEstimation.pointEstimate,
+            confidence: ageEstimation.confidence,
+            confidenceScore: ageEstimation.confidenceScore,
+            drivers: ageEstimation.drivers.map((d) => ({
+              signal: d.signal,
+              label: d.label,
+              weight: d.weight,
+              description: d.description,
+            })),
+            caveat: ageEstimation.caveat,
+          } : undefined,
+          radar_analysis: radarAnalysis,
           suggested_zones: suggestedZones,
           analysis_confidence: confidence,
           quality_score: qualityScore,
@@ -848,14 +904,11 @@ function ProcessingContent() {
           status: 'analysis_ready',
         })
 
-        console.log('[Pipeline] Complete. Engine: human | Age:', estimatedAge, '| Quality:', qualityScore)
-
         // ── Final freeze 0.5s then navigate ──
         setFreeze(true)
         setPipelineState({ phase: 'done' })
         clearTimeout(safetyTimer)
         await delay(500)
-        console.log('[Pipeline] Navigating to result (client-side):', leadId)
         routerRef.current.replace(`/analysis/result?id=${leadId}`)
       } catch (err) {
         console.error('[Pipeline] Error:', err)
@@ -913,12 +966,15 @@ function ProcessingContent() {
 
   return (
     <div
-      className="theme-dark min-h-screen flex flex-col items-center justify-center px-4 py-8"
+      className="theme-dark min-h-screen flex flex-col items-center justify-center px-4 py-8 relative"
       style={{
         background: 'linear-gradient(135deg, #0E0B09 0%, #1A1410 25%, #14181A 55%, #0B0E10 100%)',
       }}
     >
-      <div className="w-full max-w-md flex flex-col items-center gap-6">
+      {/* Ambient depth glow */}
+      <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 30%, rgba(214,185,140,0.025) 0%, transparent 50%)' }} />
+
+      <div className="relative w-full max-w-md flex flex-col items-center gap-6">
 
         {/* ── Photo with canvas overlay ── */}
         <div
@@ -1048,76 +1104,105 @@ function ProcessingContent() {
           </p>
         )}
 
-        {/* ── Stage list ── */}
-        <div className="w-full flex flex-col gap-1.5">
+        {/* ── Stage timeline ── */}
+        <div className="w-full relative flex flex-col">
+          {/* Vertical spine */}
+          <div
+            className="absolute top-4 bottom-4 w-px"
+            style={{
+              left: 15,
+              background: 'linear-gradient(to bottom, rgba(214,185,140,0.1), rgba(61,155,122,0.2), rgba(214,185,140,0.05))',
+            }}
+          />
+
           {STAGES.map((stage, i) => {
             const isDoneStage = i < currentStage || isDone
-            const isActive = i === currentStage && isRunning
-            const isWaiting = i > currentStage && isRunning
+            const isActive    = i === currentStage && isRunning
+            const isWaiting   = i > currentStage && isRunning
             const isErrorStage = isError && i === currentStage
+
+            const dotColor = isDoneStage ? '#3D9B7A' : isActive ? '#D6B98C' : isErrorStage ? '#C47A7A' : 'rgba(248,246,242,0.12)'
+            const dotSize  = isActive ? 12 : isDoneStage ? 10 : 8
+            const labelColor = isDoneStage ? 'rgba(61,155,122,0.85)' : isActive ? '#D6B98C' : isErrorStage ? '#C47A7A' : isWaiting ? 'rgba(248,246,242,0.2)' : 'rgba(248,246,242,0.35)'
 
             return (
               <div
                 key={stage.label}
-                className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 transition-all duration-300"
+                className="flex items-center gap-4 py-2.5 transition-all duration-300"
                 style={{
-                  background: isActive
-                    ? 'rgba(214, 185, 140, 0.06)'
-                    : isDoneStage
-                      ? 'rgba(61, 155, 122, 0.04)'
-                      : isErrorStage
-                        ? 'rgba(196, 122, 122, 0.06)'
-                        : 'transparent',
-                  borderLeft: isActive
-                    ? '2px solid rgba(214, 185, 140, 0.5)'
-                    : isDoneStage
-                      ? '2px solid rgba(61, 155, 122, 0.3)'
-                      : isErrorStage
-                        ? '2px solid rgba(196, 122, 122, 0.4)'
-                        : '2px solid transparent',
+                  paddingLeft: 0,
+                  animation: isDoneStage ? `stageFadeIn 0.25s ease-out ${i * 40}ms both` : 'none',
                 }}
               >
-                {/* Status icon */}
-                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                  {isDoneStage ? (
-                    <svg className="w-3.5 h-3.5 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : isActive ? (
-                    <span className="w-2.5 h-2.5 rounded-full border-2 border-[#D6B98C] border-t-transparent animate-spin" />
-                  ) : isErrorStage ? (
-                    <svg className="w-3.5 h-3.5 text-[#C47A7A]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  ) : (
-                    <span className="w-2 h-2 rounded-full bg-[rgba(248,246,242,0.1)]" />
+                {/* Dot on spine */}
+                <div className="relative z-10 flex-shrink-0 flex items-center justify-center" style={{ width: 32, height: 32 }}>
+                  {/* Pulse ring for active */}
+                  {isActive && (
+                    <div
+                      className="absolute rounded-full"
+                      style={{
+                        width: 22, height: 22,
+                        border: '1px solid rgba(214,185,140,0.3)',
+                        animation: 'markerRing 1.8s ease-out infinite',
+                      }}
+                    />
                   )}
+                  <div
+                    className="rounded-full transition-all duration-500"
+                    style={{
+                      width: dotSize, height: dotSize,
+                      background: dotColor,
+                      boxShadow: isDoneStage
+                        ? '0 0 8px rgba(61,155,122,0.4)'
+                        : isActive
+                          ? '0 0 12px rgba(214,185,140,0.5)'
+                          : 'none',
+                    }}
+                  />
                 </div>
 
-                {/* Label */}
-                <span className={`font-body text-[12px] tracking-wide ${
-                  isDoneStage
-                    ? 'text-[rgba(61,155,122,0.8)]'
-                    : isActive
-                      ? 'text-[#D6B98C]'
-                      : isErrorStage
-                        ? 'text-[#C47A7A]'
-                        : isWaiting
-                          ? 'text-[rgba(248,246,242,0.2)]'
-                          : 'text-[rgba(248,246,242,0.35)]'
-                }`}>
-                  {stage.label}
-                </span>
-
-                {/* Active stage progress */}
-                {isActive && (
-                  <div className="ml-auto w-12 h-[2px] rounded-full bg-[rgba(248,246,242,0.06)] overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-[#D6B98C] transition-all duration-300"
-                      style={{ width: `${stageProgress * 100}%` }}
-                    />
+                {/* Row content */}
+                <div className="flex-1 flex items-center justify-between min-w-0">
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className="text-sm leading-none"
+                      style={{ opacity: isWaiting ? 0.3 : 0.8, transition: 'opacity 0.4s ease' }}
+                    >
+                      {stage.icon}
+                    </span>
+                    <span
+                      className="font-body text-[12px] tracking-wide transition-colors duration-400"
+                      style={{ color: labelColor }}
+                    >
+                      {stage.label}
+                    </span>
                   </div>
-                )}
+
+                  {/* Right: check / spinner / progress bar */}
+                  <div className="flex-shrink-0 ml-3">
+                    {isDoneStage && (
+                      <svg className="w-3.5 h-3.5 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                    {isActive && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-14 h-[2px] rounded-full bg-[rgba(248,246,242,0.06)] overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-[#D6B98C] transition-all duration-300"
+                            style={{ width: `${stageProgress * 100}%` }}
+                          />
+                        </div>
+                        <span className="w-2.5 h-2.5 rounded-full border-2 border-[#D6B98C] border-t-transparent animate-spin" />
+                      </div>
+                    )}
+                    {isErrorStage && (
+                      <svg className="w-3.5 h-3.5 text-[#C47A7A]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
               </div>
             )
           })}

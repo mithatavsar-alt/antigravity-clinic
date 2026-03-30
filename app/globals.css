@@ -182,6 +182,31 @@ body {
   100% { opacity: 0; transform: translateY(-4px); }
 }
 
+@keyframes cardEntrance {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes numberBloom {
+  from { opacity: 0; filter: blur(8px); transform: scale(0.78); }
+  to   { opacity: 1; filter: blur(0px); transform: scale(1); }
+}
+
+@keyframes radialReveal {
+  from { stroke-dashoffset: var(--full-dash); }
+}
+
+@keyframes spineGrow {
+  from { transform: scaleY(0); transform-origin: top; }
+  to   { transform: scaleY(1); transform-origin: top; }
+}
+
+@keyframes dotPop {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.25); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 /* ── UTILITIES ─────────────────────────── */
 .glass {
   background: var(--glass-bg);
@@ -200,17 +225,34 @@ body {
 }
 
 /* ── DARK THEME OVERRIDES ─────────────── */
-.theme-dark .glass,
+.theme-dark .glass {
+  background: rgba(16, 14, 12, 0.65);
+  -webkit-backdrop-filter: blur(24px) saturate(120%);
+  backdrop-filter: blur(24px) saturate(120%);
+  border: 1px solid rgba(214, 185, 140, 0.06);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(248, 246, 242, 0.03);
+}
+
 .theme-dark .glass-strong {
-  background: var(--color-surface);
-  -webkit-backdrop-filter: blur(24px);
-  backdrop-filter: blur(24px);
-  border: 1px solid var(--color-border);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  background: rgba(18, 16, 13, 0.78);
+  -webkit-backdrop-filter: blur(28px) saturate(130%);
+  backdrop-filter: blur(28px) saturate(130%);
+  border: 1px solid rgba(214, 185, 140, 0.08);
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(214, 185, 140, 0.04),
+    inset 0 0 0 0.5px rgba(248, 246, 242, 0.02);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
 }
 
 .theme-dark .glass-hover:hover {
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  border-color: rgba(214, 185, 140, 0.14);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(214, 185, 140, 0.06);
+  transform: translateY(-2px);
 }
 
 .theme-dark .btn-ghost {

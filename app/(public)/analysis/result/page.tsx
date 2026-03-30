@@ -13,35 +13,104 @@ import type { Lead } from '@/types/lead'
 import { getPhoto, removePhoto } from '@/lib/photo-bridge'
 import { LandmarkOverlay, type OverlayState } from '@/components/analysis/LandmarkOverlay'
 import { contact } from '@/lib/contact'
+import RadarChartSection from '@/components/analysis/RadarChart'
 
 const fallbackFocusAreas = ['Göz Çevresi', 'Orta Yüz', 'Alt Yüz', 'Cilt Görünümü']
 
 /* ── Score bar ─────────────────────────────────────────────── */
-function ScoreBar({ label, score }: { label: string; score: number }) {
-  const color = score >= 75 ? '#3D9B7A' : score >= 50 ? '#D6B98C' : '#B06060'
+function ScoreBar({ label, score, delay = 0 }: { label: string; score: number; delay?: number }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), delay + 80)
+    return () => clearTimeout(t)
+  }, [delay])
+
+  const color   = score >= 75 ? '#4AE3A7' : score >= 50 ? '#D6B98C' : '#C47A7A'
+  const grade   = score >= 80 ? 'Mükemmel' : score >= 65 ? 'İyi' : score >= 50 ? 'Orta' : 'Düşük'
+  const gradFill = score >= 75
+    ? 'linear-gradient(90deg, #2D5F5D 0%, #4AE3A7 100%)'
+    : score >= 50
+      ? 'linear-gradient(90deg, #8B6B2A 0%, #D6B98C 100%)'
+      : 'linear-gradient(90deg, #6B2828 0%, #C47A7A 100%)'
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex justify-between items-baseline">
-        <span className="font-body text-[12px] text-[rgba(248,246,242,0.45)]">{label}</span>
-        <span className="font-mono text-[16px] font-medium" style={{ color }}>
-          {score}<span className="text-[11px] text-[rgba(248,246,242,0.25)]">/100</span>
-        </span>
+    <div className="flex flex-col gap-2">
+      <div className="flex justify-between items-start">
+        <div className="flex flex-col gap-0.5">
+          <span className="font-body text-[12px] tracking-wide text-[rgba(248,246,242,0.55)]">{label}</span>
+          <span className="font-body text-[9px] tracking-[0.18em] uppercase" style={{ color: `${color}88` }}>{grade}</span>
+        </div>
+        <div className="flex items-baseline gap-0.5">
+          <span className="font-mono text-[22px] font-light leading-none" style={{ color }}>{score}</span>
+          <span className="font-mono text-[10px] text-[rgba(248,246,242,0.2)] leading-none mb-0.5">/100</span>
+        </div>
       </div>
-      <div className="h-2 rounded-full bg-[rgba(248,246,242,0.06)] overflow-hidden">
+      <div className="relative h-[3px] rounded-full bg-[rgba(248,246,242,0.06)] overflow-hidden">
         <div
-          className="h-full rounded-full transition-all duration-700 ease-out"
-          style={{ width: `${score}%`, backgroundColor: color }}
+          className="absolute inset-y-0 left-0 rounded-full"
+          style={{
+            background: gradFill,
+            width: mounted ? `${score}%` : '0%',
+            transition: 'width 1.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            boxShadow: `0 0 10px ${color}55`,
+          }}
         />
       </div>
     </div>
   )
 }
 
+/* ── Radial gauge ──────────────────────────────────────────── */
+function RadialGauge({ score, label, color }: { score: number; label: string; color: string }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 250)
+    return () => clearTimeout(t)
+  }, [])
+
+  const r = 34
+  const circ = 2 * Math.PI * r
+  const offset = circ - (mounted ? score / 100 : 0) * circ
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="relative">
+        <svg width="88" height="88" viewBox="0 0 88 88" fill="none">
+          {/* Track */}
+          <circle cx="44" cy="44" r={r} stroke="rgba(248,246,242,0.05)" strokeWidth="3.5" />
+          {/* Fill */}
+          <circle
+            cx="44" cy="44" r={r}
+            stroke={color}
+            strokeWidth="3.5"
+            strokeDasharray={circ}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            transform="rotate(-90 44 44)"
+            style={{
+              transition: 'stroke-dashoffset 1.4s cubic-bezier(0.16, 1, 0.3, 1)',
+              filter: `drop-shadow(0 0 5px ${color}70)`,
+            }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+          <span
+            className="font-mono text-[22px] font-light leading-none"
+            style={{ color, animation: mounted ? 'numberBloom 0.5s ease-out both' : 'none' }}
+          >{score}</span>
+          <span className="font-body text-[8px] text-[rgba(248,246,242,0.25)] tracking-wider uppercase">/ 100</span>
+        </div>
+      </div>
+      <span className="font-body text-[9px] tracking-[0.18em] uppercase text-center text-[rgba(248,246,242,0.4)]">{label}</span>
+    </div>
+  )
+}
+
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between items-center py-1.5">
-      <span className="font-body text-[12px] text-[rgba(248,246,242,0.45)]">{label}</span>
-      <span className="font-mono text-[13px] text-[#F8F6F2]">{value}</span>
+    <div className="flex justify-between items-center py-2.5 border-b border-[rgba(214,185,140,0.05)] last:border-b-0 group">
+      <span className="font-body text-[12px] text-[rgba(248,246,242,0.42)] group-hover:text-[rgba(248,246,242,0.6)] transition-colors duration-200">{label}</span>
+      <span className="font-mono text-[14px] font-light text-[#F8F6F2] tabular-nums tracking-tight">{value}</span>
     </div>
   )
 }
@@ -211,57 +280,68 @@ function PhotoPlaceholder() {
   )
 }
 
-/* ── Scores compact card (for desktop sidebar) ─────────────── */
+/* ── Scores compact card ───────────────────────────────────── */
 function ScoresPanel({ aiScores, qualityScore }: {
   aiScores: NonNullable<Lead['ai_scores']>
   qualityScore?: number
 }) {
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-2">
-        <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-        </svg>
-        <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Yüz Geometrisi</p>
-      </div>
+  const symColor  = aiScores.symmetry  >= 75 ? '#4AE3A7' : '#D6B98C'
+  const propColor = aiScores.proportion >= 75 ? '#4AE3A7' : '#D6B98C'
 
-      {/* Quality badge */}
-      {qualityScore != null && (
-        <div className="flex flex-wrap gap-2">
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+          </svg>
+          <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Yüz Geometrisi</p>
+        </div>
+        {qualityScore != null && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[rgba(214,185,140,0.06)] border border-[rgba(214,185,140,0.12)]">
-            <span className="font-body text-[10px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.4)]">Görüntü Kalitesi</span>
+            <span className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.4)]">Kalite</span>
             <span className="font-mono text-[13px] text-[#D6B98C]">{qualityScore}%</span>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      <ScoreBar label="Simetri Skoru" score={aiScores.symmetry} />
-      <ScoreBar label="Altın Oran Uyumu" score={aiScores.proportion} />
+      {/* Dual radial gauges */}
+      <div className="flex items-center justify-around py-2">
+        <RadialGauge score={aiScores.symmetry}   label="Simetri Skoru"   color={symColor} />
+        <div className="w-px h-20 bg-[rgba(248,246,242,0.06)]" />
+        <RadialGauge score={aiScores.proportion} label="Altın Oran Uyumu" color={propColor} />
+      </div>
 
       <ThinLine />
 
+      {/* Measurements table */}
       <div>
-        <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.35)] mb-3">Ölçümler</p>
+        <p className="font-body text-[9px] tracking-[0.22em] uppercase text-[rgba(248,246,242,0.3)] mb-3">Ölçümler</p>
         <MetricRow label="Yüz Genişlik / Uzunluk" value={aiScores.metrics.faceRatio.toFixed(2)} />
-        <MetricRow label="Göz Mesafesi Oranı" value={aiScores.metrics.eyeDistanceRatio.toFixed(2)} />
-        <MetricRow label="Burun Genişliği Oranı" value={aiScores.metrics.noseToFaceWidth.toFixed(2)} />
-        <MetricRow label="Dudak / Burun Oranı" value={aiScores.metrics.mouthToNoseWidth.toFixed(2)} />
-        <MetricRow label="Simetri Oranı" value={aiScores.metrics.symmetryRatio.toFixed(2)} />
+        <MetricRow label="Göz Mesafesi Oranı"      value={aiScores.metrics.eyeDistanceRatio.toFixed(2)} />
+        <MetricRow label="Burun Genişliği Oranı"   value={aiScores.metrics.noseToFaceWidth.toFixed(2)} />
+        <MetricRow label="Dudak / Burun Oranı"     value={aiScores.metrics.mouthToNoseWidth.toFixed(2)} />
+        <MetricRow label="Simetri Oranı"           value={aiScores.metrics.symmetryRatio.toFixed(2)} />
       </div>
     </div>
   )
 }
 
-/* ── Age Estimation panel ─────────────────────────────────── */
-function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence }: {
+/* ── Age Estimation panel (multi-signal, confidence-aware) ─── */
+function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence, ageEstimation }: {
   estimatedAge: number | null | undefined
   confidence?: number
   gender?: string | null
   genderConfidence?: number
+  ageEstimation?: Lead['age_estimation']
 }) {
-  const hasAge = estimatedAge != null
+  const hasAge = estimatedAge != null || ageEstimation != null
   const hasGender = !!gender
   const genderLabel = gender === 'male' ? 'Erkek' : gender === 'female' ? 'Kadın' : gender ?? null
+
+  const confLabel: Record<string, string> = { high: 'Yüksek', medium: 'Orta', low: 'Düşük' }
+  const confColor: Record<string, string> = { high: '#4AE3A7', medium: '#D6B98C', low: '#C47A7A' }
 
   if (!hasAge && !hasGender) {
     return (
@@ -272,9 +352,7 @@ function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence
           </svg>
           <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Yaş Tahmini</p>
         </div>
-        <p className="font-body text-[13px] text-[rgba(248,246,242,0.4)] italic">
-          Yaş tahmini yapılamadı
-        </p>
+        <p className="font-body text-[13px] text-[rgba(248,246,242,0.4)] italic">Yaş tahmini yapılamadı</p>
       </div>
     )
   }
@@ -289,21 +367,48 @@ function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence
       </div>
 
       <div className="flex items-center gap-6">
-        {/* Age display */}
-        {hasAge && (
+        {/* Age range display */}
+        {ageEstimation ? (
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-baseline gap-1">
+              <span className="font-mono text-[36px] font-light text-[#F8F6F2] leading-none tracking-tight">
+                {ageEstimation.estimatedRange[0]}
+              </span>
+              <span className="font-mono text-[20px] font-light text-[rgba(248,246,242,0.3)] leading-none">–</span>
+              <span className="font-mono text-[36px] font-light text-[#F8F6F2] leading-none tracking-tight">
+                {ageEstimation.estimatedRange[1]}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="font-body text-[10px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.35)]">
+                Tahmini Yaş Aralığı
+              </span>
+              <span
+                className="font-body text-[8px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full border"
+                style={{
+                  color: confColor[ageEstimation.confidence] ?? '#D6B98C',
+                  backgroundColor: `${confColor[ageEstimation.confidence] ?? '#D6B98C'}10`,
+                  borderColor: `${confColor[ageEstimation.confidence] ?? '#D6B98C'}25`,
+                }}
+              >
+                {confLabel[ageEstimation.confidence] ?? 'Orta'} Güven
+              </span>
+            </div>
+          </div>
+        ) : estimatedAge != null ? (
           <div className="flex flex-col items-center gap-1">
             <span className="font-mono text-[40px] font-light text-[#F8F6F2] leading-none tracking-tight">
-              {Math.round(estimatedAge)}
+              ~{Math.round(estimatedAge)}
             </span>
             <span className="font-body text-[10px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.35)]">
               Tahmini Yaş
             </span>
           </div>
-        )}
+        ) : null}
 
         {/* Divider */}
         {hasAge && hasGender && (
-          <div className="w-px h-12 bg-[rgba(214,185,140,0.12)]" />
+          <div className="w-px h-14 bg-[rgba(214,185,140,0.12)]" />
         )}
 
         {/* Gender + confidence */}
@@ -327,9 +432,27 @@ function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence
         </div>
       </div>
 
+      {/* Age drivers — what signals contributed */}
+      {ageEstimation && ageEstimation.drivers.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="font-body text-[9px] tracking-[0.22em] uppercase text-[rgba(248,246,242,0.3)]">Belirleyici Sinyaller</p>
+          <div className="flex flex-wrap gap-1.5">
+            {ageEstimation.drivers.map((d) => (
+              <span
+                key={d.signal}
+                className="font-body text-[10px] px-2.5 py-1 rounded-full bg-[rgba(214,185,140,0.06)] border border-[rgba(214,185,140,0.12)] text-[rgba(248,246,242,0.5)]"
+                title={d.description}
+              >
+                {d.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-[rgba(214,185,140,0.03)] border border-[rgba(214,185,140,0.08)] rounded-[10px] p-3">
         <p className="font-body text-[10px] text-[rgba(248,246,242,0.3)] leading-relaxed italic">
-          Yaş ve cinsiyet tahmini yapay zeka modeli tarafından yapılmıştır. Kesin değil, yaklaşık değerlerdir.
+          {ageEstimation?.caveat ?? 'Yaş tahmini birden fazla yapay zeka sinyalinin birleşimiyle oluşturulmuştur. Kesin değil, yaklaşık değerlerdir.'}
         </p>
       </div>
     </div>
@@ -349,35 +472,41 @@ function FocusAreasPanel({ focusAreas }: { focusAreas: NonNullable<Lead['focus_a
         <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Odak Bölgeleri</p>
       </div>
 
-      <div className="flex flex-col gap-3">
-        {focusAreas.map((area) => {
-          const color = area.score >= 60 ? '#D6B98C' : area.score >= 40 ? 'rgba(248,246,242,0.5)' : '#3D9B7A'
+      <div className="flex flex-col gap-2.5">
+        {focusAreas.map((area, idx) => {
+          const color = area.score >= 70 ? '#4AE3A7' : area.score >= 45 ? '#D6B98C' : '#C47A7A'
+          const gradFill = area.score >= 70
+            ? 'linear-gradient(90deg, #2D5F5D, #4AE3A7)'
+            : area.score >= 45
+              ? 'linear-gradient(90deg, #8B6B2A, #D6B98C)'
+              : 'linear-gradient(90deg, #6B2828, #C47A7A)'
           return (
             <div
               key={area.region}
-              className="rounded-[12px] border border-[rgba(214,185,140,0.1)] bg-[rgba(20,18,15,0.4)] px-4 py-3"
+              className="relative rounded-[14px] border border-[rgba(214,185,140,0.08)] bg-[rgba(14,11,9,0.55)] pl-5 pr-4 py-4 overflow-hidden"
+              style={{ animation: `cardEntrance 0.4s ease-out ${idx * 60}ms both` }}
             >
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="font-body text-[13px] font-medium text-[#F8F6F2]">{area.label}</span>
-                <div className="flex items-center gap-2">
+              {/* Left accent strip */}
+              <div
+                className="absolute left-0 inset-y-0 w-[3px] rounded-l-[14px]"
+                style={{ background: gradFill }}
+              />
+              <div className="flex items-start justify-between mb-2">
+                <span className="font-body text-[13px] font-medium text-[#F8F6F2] pr-3 leading-snug">{area.label}</span>
+                <div className="flex items-center gap-2 flex-shrink-0">
                   {area.doctorReviewRecommended && (
-                    <span className="font-body text-[8px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(214,185,140,0.1)] text-[#D6B98C] border border-[rgba(214,185,140,0.15)]">
+                    <span className="font-body text-[8px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(214,185,140,0.08)] text-[#D6B98C] border border-[rgba(214,185,140,0.15)]">
                       Doktor
                     </span>
                   )}
-                  <span className="font-mono text-[14px] font-medium" style={{ color }}>
-                    {area.score}
-                  </span>
+                  <span className="font-mono text-[18px] font-light leading-none" style={{ color }}>{area.score}</span>
                 </div>
               </div>
-              <p className="font-body text-[12px] text-[rgba(248,246,242,0.45)] leading-relaxed">
-                {area.insight}
-              </p>
-              {/* Score bar */}
-              <div className="h-1.5 rounded-full bg-[rgba(248,246,242,0.06)] overflow-hidden mt-2">
+              <p className="font-body text-[12px] text-[rgba(248,246,242,0.42)] leading-relaxed">{area.insight}</p>
+              <div className="h-[2px] rounded-full bg-[rgba(248,246,242,0.05)] overflow-hidden mt-3">
                 <div
-                  className="h-full rounded-full transition-all duration-700 ease-out"
-                  style={{ width: `${area.score}%`, backgroundColor: color }}
+                  className="h-full rounded-full"
+                  style={{ width: `${area.score}%`, background: gradFill, boxShadow: `0 0 8px ${color}40` }}
                 />
               </div>
             </div>
@@ -394,18 +523,31 @@ function FocusAreasPanel({ focusAreas }: { focusAreas: NonNullable<Lead['focus_a
   )
 }
 
-/* ── Wrinkle / Skin-Line analysis ─────────────────────────── */
+/* ── Wrinkle / Skin-Line analysis (13 regions, grouped) ───── */
 function WrinkleAnalysisPanel({ wrinkleScores }: { wrinkleScores: NonNullable<Lead['wrinkle_scores']> }) {
   const levelLabel: Record<string, string> = {
+    minimal: 'Minimal',
     low: 'Düşük',
     medium: 'Orta',
     high: 'Yüksek',
   }
   const levelColor: Record<string, string> = {
+    minimal: '#5A8A7A',
     low: '#3D9B7A',
     medium: '#D6B98C',
     high: '#B06060',
   }
+
+  // Group regions for organized display
+  const regionGroups: { title: string; regionKeys: string[] }[] = [
+    { title: 'Alın & Kaş Arası', regionKeys: ['forehead', 'glabella'] },
+    { title: 'Göz Çevresi', regionKeys: ['crow_feet_left', 'crow_feet_right', 'under_eye_left', 'under_eye_right'] },
+    { title: 'Orta Yüz', regionKeys: ['nasolabial_left', 'nasolabial_right', 'cheek_left', 'cheek_right'] },
+    { title: 'Alt Yüz', regionKeys: ['marionette_left', 'marionette_right', 'jawline'] },
+  ]
+
+  // Merge left/right pairs into single display rows
+  const mergedRegions = mergeSymmetricRegions(wrinkleScores.regions)
 
   return (
     <div className="flex flex-col gap-5">
@@ -414,74 +556,145 @@ function WrinkleAnalysisPanel({ wrinkleScores }: { wrinkleScores: NonNullable<Le
           <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
           </svg>
-          <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Cilt / Çizgi Analizi</p>
+          <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Bölgesel Cilt & Çizgi Analizi</p>
         </div>
         {/* Overall level badge */}
         <div
           className="flex items-center gap-1.5 px-3 py-1 rounded-full border"
           style={{
-            backgroundColor: `${levelColor[wrinkleScores.overallLevel]}10`,
-            borderColor: `${levelColor[wrinkleScores.overallLevel]}30`,
+            backgroundColor: `${levelColor[wrinkleScores.overallLevel] ?? '#D6B98C'}10`,
+            borderColor: `${levelColor[wrinkleScores.overallLevel] ?? '#D6B98C'}30`,
           }}
         >
           <span className="font-body text-[10px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.4)]">Genel</span>
-          <span className="font-mono text-[13px] font-medium" style={{ color: levelColor[wrinkleScores.overallLevel] }}>
+          <span className="font-mono text-[13px] font-medium" style={{ color: levelColor[wrinkleScores.overallLevel] ?? '#D6B98C' }}>
             {wrinkleScores.overallScore}
           </span>
-          <span className="font-body text-[9px] uppercase" style={{ color: levelColor[wrinkleScores.overallLevel] }}>
-            {levelLabel[wrinkleScores.overallLevel]}
+          <span className="font-body text-[9px] uppercase" style={{ color: levelColor[wrinkleScores.overallLevel] ?? '#D6B98C' }}>
+            {levelLabel[wrinkleScores.overallLevel] ?? wrinkleScores.overallLevel}
           </span>
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
-        {wrinkleScores.regions.map((region) => {
-          const color = levelColor[region.level] ?? '#D6B98C'
-          return (
-            <div
-              key={region.region}
-              className="rounded-[12px] border border-[rgba(214,185,140,0.1)] bg-[rgba(20,18,15,0.4)] px-4 py-3"
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="font-body text-[13px] font-medium text-[#F8F6F2]">{region.label}</span>
-                <div className="flex items-center gap-2">
-                  <span
-                    className="font-body text-[9px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full border"
-                    style={{
-                      color,
-                      backgroundColor: `${color}10`,
-                      borderColor: `${color}25`,
-                    }}
-                  >
-                    {levelLabel[region.level]}
-                  </span>
-                  <span className="font-mono text-[14px] font-medium" style={{ color }}>
-                    {region.score}
-                  </span>
-                </div>
-              </div>
-              <p className="font-body text-[12px] text-[rgba(248,246,242,0.45)] leading-relaxed">
-                {region.insight}
-              </p>
-              {/* Score bar */}
-              <div className="h-1.5 rounded-full bg-[rgba(248,246,242,0.06)] overflow-hidden mt-2">
+      {/* Grouped region cards */}
+      {regionGroups.map((group) => {
+        const groupRegions = mergedRegions.filter(r => group.regionKeys.includes(r.key))
+        if (groupRegions.length === 0) return null
+        return (
+          <div key={group.title} className="flex flex-col gap-2">
+            <p className="font-body text-[9px] tracking-[0.22em] uppercase text-[rgba(248,246,242,0.3)] mt-1">{group.title}</p>
+            {groupRegions.map((region, idx) => {
+              const color = levelColor[region.level] ?? '#D6B98C'
+              const stripGrad = region.level === 'minimal' || region.level === 'low'
+                ? 'linear-gradient(180deg, #2D5F5D, #4AE3A7)'
+                : region.level === 'medium'
+                  ? 'linear-gradient(180deg, #8B6B2A, #D6B98C)'
+                  : 'linear-gradient(180deg, #6B2828, #C47A7A)'
+              return (
                 <div
-                  className="h-full rounded-full transition-all duration-700 ease-out"
-                  style={{ width: `${region.score}%`, backgroundColor: color }}
-                />
-              </div>
-            </div>
-          )
-        })}
-      </div>
+                  key={region.key}
+                  className="relative rounded-[14px] border border-[rgba(214,185,140,0.08)] bg-[rgba(14,11,9,0.55)] pl-5 pr-4 py-3.5 overflow-hidden"
+                  style={{ animation: `cardEntrance 0.4s ease-out ${idx * 45}ms both` }}
+                >
+                  <div className="absolute left-0 inset-y-0 w-[3px] rounded-l-[14px]" style={{ background: stripGrad }} />
+                  <div className="flex items-start justify-between mb-1.5">
+                    <span className="font-body text-[13px] font-medium text-[#F8F6F2] pr-3 leading-snug">{region.label}</span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {region.confidence < 0.5 && (
+                        <span className="font-body text-[7px] tracking-[0.1em] uppercase px-1.5 py-0.5 rounded-full bg-[rgba(200,120,60,0.08)] text-[rgba(248,200,140,0.5)] border border-[rgba(200,120,60,0.15)]">
+                          Sınırlı
+                        </span>
+                      )}
+                      <span
+                        className="font-body text-[8px] tracking-[0.12em] uppercase px-2 py-0.5 rounded-full border"
+                        style={{ color, backgroundColor: `${color}10`, borderColor: `${color}25` }}
+                      >
+                        {levelLabel[region.level] ?? region.level}
+                      </span>
+                      <span className="font-mono text-[17px] font-light leading-none" style={{ color }}>{region.score}</span>
+                    </div>
+                  </div>
+                  <p className="font-body text-[11px] text-[rgba(248,246,242,0.40)] leading-relaxed">{region.insight}</p>
+                  <div className="h-[2px] rounded-full bg-[rgba(248,246,242,0.05)] overflow-hidden mt-2.5">
+                    <div className="h-full rounded-full" style={{ width: `${region.score}%`, background: stripGrad, boxShadow: `0 0 8px ${color}40` }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
 
       <div className="bg-[rgba(214,185,140,0.03)] border border-[rgba(214,185,140,0.08)] rounded-[10px] p-3">
         <p className="font-body text-[10px] text-[rgba(248,246,242,0.3)] leading-relaxed italic">
-          Çizgi analizi görüntü işleme tabanlı ön değerlendirmedir. Kesin sonuçlar klinik muayene gerektirir.
+          Bölgesel çizgi analizi görüntü işleme tabanlı ön değerlendirmedir. Kesin sonuçlar klinik muayene gerektirir.
         </p>
       </div>
     </div>
   )
+}
+
+/** Merge left/right symmetric regions into single display entries */
+function mergeSymmetricRegions(regions: NonNullable<Lead['wrinkle_scores']>['regions']): Array<{
+  key: string; label: string; score: number; level: string; insight: string; confidence: number
+}> {
+  const pairs: Record<string, string> = {
+    crow_feet_left: 'crow_feet_right',
+    under_eye_left: 'under_eye_right',
+    nasolabial_left: 'nasolabial_right',
+    marionette_left: 'marionette_right',
+    cheek_left: 'cheek_right',
+  }
+  const mergedLabels: Record<string, string> = {
+    crow_feet_left: 'Kaz Ayağı',
+    under_eye_left: 'Göz Altı',
+    nasolabial_left: 'Nazolabial',
+    marionette_left: 'Marionette Çizgileri',
+    cheek_left: 'Yanak Dokusu',
+  }
+
+  const used = new Set<string>()
+  const result: Array<{
+    key: string; label: string; score: number; level: string; insight: string; confidence: number
+  }> = []
+
+  for (const r of regions) {
+    if (used.has(r.region)) continue
+
+    const pairKey = pairs[r.region]
+    const pairRegion = pairKey ? regions.find(p => p.region === pairKey) : null
+
+    if (pairRegion && mergedLabels[r.region]) {
+      // Merge: average scores, use the higher-scoring insight
+      used.add(r.region)
+      used.add(pairRegion.region)
+      const avgScore = Math.round((r.score + pairRegion.score) / 2)
+      const avgConf = (r.confidence + pairRegion.confidence) / 2
+      const primary = r.score >= pairRegion.score ? r : pairRegion
+      const levelFromAvg = avgScore >= 55 ? 'high' : avgScore >= 30 ? 'medium' : avgScore >= 12 ? 'low' : 'minimal'
+      result.push({
+        key: r.region,
+        label: mergedLabels[r.region],
+        score: avgScore,
+        level: levelFromAvg,
+        insight: primary.insight.replace(/Sol |Sağ /g, ''),
+        confidence: avgConf,
+      })
+    } else if (!Object.values(pairs).includes(r.region)) {
+      // Standalone region (forehead, glabella, jawline)
+      used.add(r.region)
+      result.push({
+        key: r.region,
+        label: r.label,
+        score: r.score,
+        level: r.level,
+        insight: r.insight,
+        confidence: r.confidence,
+      })
+    }
+  }
+
+  return result
 }
 
 /* ── Skin analysis scores (PerfectCorp) ────────────────────── */
@@ -604,7 +817,11 @@ function ResultContent() {
   const estimatedGenderConfidence = selectedLead.estimated_gender_confidence
   const qualityScore = selectedLead.quality_score
   const analysisConfidence = selectedLead.analysis_confidence
+  const captureConfidence = selectedLead.capture_confidence
   const wrinkleScores = selectedLead.wrinkle_scores
+  const ageEstimation = selectedLead.age_estimation
+  const radarAnalysis = selectedLead.radar_analysis
+  const hasRadar = !!radarAnalysis && radarAnalysis.radarScores.length > 0
   const hasWrinkle = !!wrinkleScores && wrinkleScores.regions.length > 0
   const isCombined = analysisSource?.provider === 'combined'
   const isHumanLocal = analysisSource?.provider === 'human-local'
@@ -615,23 +832,58 @@ function ResultContent() {
 
   return (
     <div className="theme-dark min-h-screen py-28 px-5 relative" style={{ background: 'linear-gradient(135deg, #0E0B09 0%, #1A1410 25%, #14181A 55%, #0B0E10 100%)' }}>
-      {/* Subtle radial glow */}
-      <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 30% 40%, rgba(214,185,140,0.04) 0%, transparent 60%)' }} />
+      {/* Ambient depth glows */}
+      <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 30% 30%, rgba(214,185,140,0.04) 0%, transparent 55%), radial-gradient(ellipse at 75% 70%, rgba(61,155,122,0.025) 0%, transparent 45%)' }} />
       <div className="max-w-5xl mx-auto flex flex-col gap-8">
         {/* Header */}
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-full bg-[rgba(61,155,122,0.1)] border border-[rgba(61,155,122,0.2)] flex items-center justify-center mx-auto mb-5">
-            <svg className="w-7 h-7 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+        <div className="text-center" style={{ animation: 'cardEntrance 0.6s ease-out both' }}>
+          {/* Glow ring icon */}
+          <div className="relative w-20 h-20 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(61,155,122,0.18) 0%, transparent 70%)' }} />
+            <div className="w-full h-full rounded-full border border-[rgba(61,155,122,0.25)] flex items-center justify-center" style={{ background: 'rgba(61,155,122,0.07)' }}>
+              <svg className="w-8 h-8 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
           </div>
-          <SectionLabel className="justify-center mb-3">
+          <SectionLabel className="justify-center mb-4">
             {isHumanLocal ? 'AI Analiz Tamamlandı' : isCombined ? 'AI Analiz Tamamlandı' : isFallback ? 'Ön Değerlendirme (Sınırlı)' : hasAI || hasSkin ? 'AI Analiz Tamamlandı' : 'Ön Değerlendirme Tamamlandı'}
           </SectionLabel>
-          <h1 className="font-display text-[clamp(28px,4vw,44px)] font-light text-[#F8F6F2] tracking-[-0.02em]">
-            {selectedLead.full_name.split(' ')[0]}, analiz özetiniz hazır
+          <h1 className="font-display text-[clamp(30px,4.5vw,52px)] font-light text-[#F8F6F2] tracking-[-0.02em] leading-tight">
+            {selectedLead.full_name.split(' ')[0]},<br className="sm:hidden" />{' '}analiz özetiniz hazır
           </h1>
+          {/* Decorative hairline */}
+          <div className="flex items-center justify-center gap-3 mt-5">
+            <div className="h-px w-12 bg-gradient-to-r from-transparent to-[rgba(214,185,140,0.35)]" />
+            <div className="w-1 h-1 rounded-full bg-[rgba(214,185,140,0.4)]" />
+            <div className="h-px w-12 bg-gradient-to-l from-transparent to-[rgba(214,185,140,0.35)]" />
+          </div>
+          {/* Capture confidence notice for near-valid captures */}
+          {captureConfidence && captureConfidence !== 'high' && (
+            <div className="mt-5 mx-auto max-w-md">
+              <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-full" style={{
+                background: 'rgba(229,168,59,0.06)',
+                border: '1px solid rgba(229,168,59,0.15)',
+              }}>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#E5A83B' }} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                </svg>
+                <span className="text-[11px]" style={{ color: 'rgba(229,168,59,0.85)' }}>
+                  Fotoğraf ideal koşullar dışında çekildi — sonuçlar referans niteliğindedir
+                </span>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* ── Radar Analysis Section ────────────────────────────── */}
+        {hasRadar && radarAnalysis && (
+          <RadarChartSection
+            scores={radarAnalysis.radarScores}
+            captureQuality={radarAnalysis.analysisMeta.captureQuality}
+            summaryText={radarAnalysis.derivedInsights.summaryText}
+          />
+        )}
 
         {/* ── Hero section: Photo + Scores ─────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,2fr)_3fr] gap-6 items-start">
@@ -655,19 +907,20 @@ function ResultContent() {
           <div className="flex flex-col gap-6">
             {/* Age Estimation Card */}
             {isHumanLocal && (
-              <GlassCard strong padding="lg" rounded="xl">
+              <GlassCard strong padding="lg" rounded="xl" className="[animation:cardEntrance_0.5s_ease-out_0.1s_both]">
                 <AgeEstimationPanel
                   estimatedAge={estimatedAge}
                   confidence={analysisConfidence}
                   gender={estimatedGender}
                   genderConfidence={estimatedGenderConfidence}
+                  ageEstimation={ageEstimation}
                 />
               </GlassCard>
             )}
 
             {/* AI Scores Card */}
             {hasAI && (
-              <GlassCard strong padding="lg" rounded="xl">
+              <GlassCard strong padding="lg" rounded="xl" className="[animation:cardEntrance_0.5s_ease-out_0.2s_both]">
                 <ScoresPanel
                   aiScores={aiScores}
                   qualityScore={qualityScore}
@@ -677,21 +930,21 @@ function ResultContent() {
 
             {/* Focus Areas Card (detailed, from Human engine) */}
             {detailedFocusAreas && detailedFocusAreas.length > 0 && (
-              <GlassCard strong padding="lg" rounded="xl">
+              <GlassCard strong padding="lg" rounded="xl" className="[animation:cardEntrance_0.5s_ease-out_0.3s_both]">
                 <FocusAreasPanel focusAreas={detailedFocusAreas} />
               </GlassCard>
             )}
 
             {/* Wrinkle / Skin-Line Analysis Card */}
             {hasWrinkle && (
-              <GlassCard strong padding="lg" rounded="xl">
+              <GlassCard strong padding="lg" rounded="xl" className="[animation:cardEntrance_0.5s_ease-out_0.35s_both]">
                 <WrinkleAnalysisPanel wrinkleScores={wrinkleScores} />
               </GlassCard>
             )}
 
             {/* Skin Scores Card */}
             {hasSkin && (
-              <GlassCard strong padding="lg" rounded="xl">
+              <GlassCard strong padding="lg" rounded="xl" className="[animation:cardEntrance_0.5s_ease-out_0.4s_both]">
                 <SkinScoresPanel skinScores={skinScores} />
               </GlassCard>
             )}
@@ -784,35 +1037,6 @@ function ResultContent() {
             </GlassCard>
           </div>
         </div>
-
-        {/* Dev-mode: Analysis Source Debug Panel */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="rounded-[12px] border-2 border-dashed border-[rgba(214,185,140,0.3)] bg-[rgba(214,185,140,0.04)] p-4 font-mono text-[11px] text-[rgba(248,246,242,0.5)] flex flex-col gap-1.5">
-            <p className="font-body font-semibold text-[12px] text-[#D6B98C] tracking-[0.15em] uppercase mb-1">Debug: Analysis Source</p>
-            <p>Provider: <strong>{analysisSource?.provider ?? 'unknown'}</strong></p>
-            <p>Source: <strong>{analysisSource?.source ?? 'unknown'}</strong></p>
-            <p>FaceMesh: <strong className={analysisSource?.facemesh_ok ? 'text-[#3D9B7A]' : 'text-[#B06060]'}>{analysisSource?.facemesh_ok ? 'OK' : 'FAILED'}</strong></p>
-            <p>PerfectCorp: <strong className={analysisSource?.perfectcorp_ok ? 'text-[#3D9B7A]' : 'text-[#B06060]'}>{analysisSource?.perfectcorp_ok ? 'OK' : 'FAILED'}</strong></p>
-            <p>Analyzed at: {analysisSource?.analyzed_at ?? 'N/A'}</p>
-            <p>Lead ID: {selectedLead.id}</p>
-            <p>Photo available: {photoUrl ? 'yes' : 'no'}{photoUrl?.startsWith('data:') ? ' (data URI)' : photoUrl?.startsWith('blob:') ? ' (blob URL)' : photoUrl ? ' (URL)' : ''}</p>
-            <p>AI scores: {hasAI ? 'yes' : 'no'}</p>
-            <p>Skin scores (PerfectCorp): {hasSkin ? 'yes' : 'no'}</p>
-            <p>Estimated age: {estimatedAge != null ? Math.round(estimatedAge) : 'N/A'}</p>
-            <p>Estimated gender: {estimatedGender ?? 'N/A'}{estimatedGenderConfidence ? ` (${Math.round(estimatedGenderConfidence * 100)}%)` : ''}</p>
-            <p>Quality score: {qualityScore ?? 'N/A'}</p>
-            <p>Confidence: {analysisConfidence != null ? `${Math.round(analysisConfidence * 100)}%` : 'N/A'}</p>
-            <p>Wrinkle analysis: {hasWrinkle ? `score=${wrinkleScores.overallScore} (${wrinkleScores.overallLevel})` : 'N/A'}</p>
-            <p>Focus areas: {detailedFocusAreas?.length ?? 0}</p>
-            <p>Suggested zones: {selectedLead.suggested_zones?.join(', ') || 'none'}</p>
-            <p>Created: {selectedLead.created_at}</p>
-            {!analysisSource && (
-              <p className="text-[#B06060] font-semibold mt-1">
-                WARNING: No analysis_source field — this lead was created before source tracking was added, or analysis failed before saving source info.
-              </p>
-            )}
-          </div>
-        )}
 
         {/* CTA Buttons */}
         <div className="flex flex-col gap-3 max-w-lg mx-auto w-full">

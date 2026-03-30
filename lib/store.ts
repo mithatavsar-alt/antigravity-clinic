@@ -19,7 +19,10 @@ interface LeadAnalysisUpdate {
   focus_areas?: Lead['focus_areas']
   suggested_zones?: Lead['suggested_zones']
   analysis_confidence?: Lead['analysis_confidence']
+  capture_confidence?: Lead['capture_confidence']
   quality_score?: Lead['quality_score']
+  age_estimation?: Lead['age_estimation']
+  radar_analysis?: Lead['radar_analysis']
   analysis_source?: Lead['analysis_source']
   status?: LeadStatus
 }

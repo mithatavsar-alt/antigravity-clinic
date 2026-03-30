@@ -178,12 +178,12 @@ export interface Lead {
       label: string
       density: number
       score: number
-      level: 'low' | 'medium' | 'high'
+      level: 'minimal' | 'low' | 'medium' | 'high'
       insight: string
       confidence: number
     }>
     overallScore: number
-    overallLevel: 'low' | 'medium' | 'high'
+    overallLevel: 'minimal' | 'low' | 'medium' | 'high'
   }
 
   /** Suggested doctor-review zones */
@@ -191,6 +191,9 @@ export interface Lead {
 
   /** Detection confidence 0-1 */
   analysis_confidence?: number
+
+  /** Capture quality from camera validation (high = all checks, medium = 1 missing) */
+  capture_confidence?: 'high' | 'medium' | 'low'
 
   /** Overall quality score 0-100 */
   quality_score?: number
@@ -202,6 +205,44 @@ export interface Lead {
     facemesh_ok: boolean
     perfectcorp_ok: boolean
     analyzed_at: string
+  }
+
+  /** Radar analysis: 11-category aesthetic scores with insights */
+  radar_analysis?: {
+    analysisMeta: {
+      overallConfidence: number
+      imageQuality: number
+      captureQuality: 'high' | 'medium' | 'low'
+      generatedAt: string
+    }
+    radarScores: Array<{
+      key: string
+      label: string
+      score: number
+      confidence: number
+      category: 'botox' | 'filler' | 'structure' | 'overall'
+      insight: string
+    }>
+    derivedInsights: {
+      strongestAreas: string[]
+      improvementAreas: string[]
+      summaryText: string
+    }
+  }
+
+  /** Multi-signal age estimation (range + confidence + drivers) */
+  age_estimation?: {
+    estimatedRange: [number, number]
+    pointEstimate: number
+    confidence: 'low' | 'medium' | 'high'
+    confidenceScore: number
+    drivers: Array<{
+      signal: string
+      label: string
+      weight: number
+      description: string
+    }>
+    caveat: string | null
   }
 
   doctor_notes?: string

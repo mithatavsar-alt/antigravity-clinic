@@ -22,8 +22,13 @@ declare global {
 }
 
 /* ─── Types ─────────────────────────────────────────────────── */
+export interface CaptureMetadata {
+  confidence: 'high' | 'medium' | 'low'
+  missingCheck: string | null
+}
+
 interface FaceMeshCameraProps {
-  onCapture: (dataUrl: string) => void
+  onCapture: (dataUrl: string, meta?: CaptureMetadata) => void
   onClose: () => void
 }
 
@@ -106,6 +111,17 @@ const GUIDANCE: Record<string, string> = {
   unstable: 'Sabit kalın',
   ready: 'Mükemmel! Sabit kalın...',
   capturing: 'Fotoğraf çekiliyor...',
+}
+
+// Near-valid guidance (1 condition missing — manual capture allowed)
+const NEAR_VALID_GUIDANCE: Record<string, string> = {
+  notCentered: 'Fotoğraf çekilebilir, ancak yüzünüzü ortalamaya çalışın',
+  tooFar: 'Fotoğraf çekilebilir, ancak biraz daha yaklaşın',
+  tooClose: 'Fotoğraf çekilebilir, ancak biraz uzaklaşın',
+  badAngle: 'Fotoğraf çekilebilir, ancak başınızı düz tutun',
+  darkLight: 'Işık koşulları iyileştirilebilir, fotoğraf çekilebilir',
+  brightLight: 'Işık koşulları iyileştirilebilir, fotoğraf çekilebilir',
+  unstable: 'Daha stabil durursanız sonuçlar daha doğru olur',
 }
 
 /* ─── Helpers ───────────────────────────────────────────────── */
@@ -252,6 +268,7 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
   const [errorMsg, setErrorMsg] = useState('')
   const [fps, setFps] = useState(0)
   const [zoomLevel, setZoomLevel] = useState(1)
+  const [nearValid, setNearValid] = useState(false)
 
   // Hot-path refs (no re-renders)
   const phaseRef = useRef<Phase>('loading')
@@ -282,6 +299,11 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
   const countdownRef = useRef(0)
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Near-valid tracking (4/5 checks pass → manual capture allowed)
+  const nearValidRef = useRef(false)
+  const nearValidMissingRef = useRef<string | null>(null)
+  const captureMetaRef = useRef<CaptureMetadata>({ confidence: 'high', missingCheck: null })
+
   // Best frame buffer
   const bestFramesRef = useRef<ScoredFrame[]>([])
 
@@ -296,6 +318,7 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
     const iv = setInterval(() => {
       setValidation({ ...validationRef.current })
       setGuidance(guidanceRef.current)
+      setNearValid(nearValidRef.current)
       const crop = currentCropRef.current
       setZoomLevel(crop.w > 0.01 ? Math.round((1 / crop.w) * 10) / 10 : 1)
     }, 250)
@@ -360,6 +383,7 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
 
     setShowFlash(true)
     setTimeout(() => setShowFlash(false), 400)
+    captureMetaRef.current = { confidence: 'high', missingCheck: null }
     setPhaseSync('captured')
     bestFramesRef.current = []
   }, [setPhaseSync])
@@ -504,8 +528,26 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
       const allPass = centered && sizeOk && angleOk && lightOk && stable
       validationRef.current = { centered, sizeOk, angleOk, lightOk, stable, allPass }
 
-      // Guidance text (priority order)
-      if (!centered) guidanceRef.current = GUIDANCE.notCentered
+      // Near-valid detection: exactly 1 condition failing → manual capture allowed
+      const passCount = [centered, sizeOk, angleOk, lightOk, stable].filter(Boolean).length
+      const isNearValid = passCount >= 4 && !allPass
+      nearValidRef.current = isNearValid
+
+      if (isNearValid) {
+        // Identify the single missing check for targeted guidance
+        if (!centered) nearValidMissingRef.current = 'notCentered'
+        else if (!sizeOk) nearValidMissingRef.current = faceRatio < MIN_FACE_RATIO ? 'tooFar' : 'tooClose'
+        else if (!angleOk) nearValidMissingRef.current = 'badAngle'
+        else if (!lightOk) nearValidMissingRef.current = 'darkLight'
+        else if (!stable) nearValidMissingRef.current = 'unstable'
+      } else {
+        nearValidMissingRef.current = null
+      }
+
+      // Guidance text (priority order — softer when near-valid)
+      if (isNearValid && nearValidMissingRef.current) {
+        guidanceRef.current = NEAR_VALID_GUIDANCE[nearValidMissingRef.current] || GUIDANCE.ready
+      } else if (!centered) guidanceRef.current = GUIDANCE.notCentered
       else if (faceRatio < MIN_FACE_RATIO) guidanceRef.current = GUIDANCE.tooFar
       else if (faceRatio > MAX_FACE_RATIO) guidanceRef.current = GUIDANCE.tooClose
       else if (!angleOk) guidanceRef.current = GUIDANCE.badAngle
@@ -704,8 +746,12 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
     return () => { cancelled = true; cleanup() }
   }, [cleanup, setPhaseSync])
 
-  /* ── Manual capture fallback ── */
+  /* ── Manual capture (enabled when ≥4/5 checks pass) ── */
   const handleManualCapture = useCallback(() => {
+    const v = validationRef.current
+    const passCount = [v.centered, v.sizeOk, v.angleOk, v.lightOk, v.stable].filter(Boolean).length
+    if (passCount < 4) return // safety guard
+
     const video = videoRef.current
     const capCanvas = captureCanvasRef.current
     if (!video || !capCanvas) return
@@ -723,6 +769,12 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH)
     ctx.restore()
 
+    // Tag capture confidence based on validation state
+    captureMetaRef.current = {
+      confidence: v.allPass ? 'high' : 'medium',
+      missingCheck: nearValidMissingRef.current,
+    }
+
     setCapturedImage(capCanvas.toDataURL('image/jpeg', 0.92))
     cancelCountdown()
     setPhaseSync('captured')
@@ -736,7 +788,7 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
   }, [setPhaseSync])
 
   const handleConfirm = useCallback(() => {
-    if (capturedImage) onCapture(capturedImage)
+    if (capturedImage) onCapture(capturedImage, captureMetaRef.current)
   }, [capturedImage, onCapture])
 
   /* ─── Render ──────────────────────────────────────────────── */
@@ -905,32 +957,64 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
             </div>
           )}
 
-          {/* Manual capture button (visible but subtle when countdown isn't active) */}
-          {isLive && phase !== 'countdown' && (
-            <div className="absolute left-1/2 -translate-x-1/2" style={{ bottom: 16, zIndex: 10 }}>
-              <button
-                onClick={handleManualCapture}
-                title="Fotoğraf Çek"
-                aria-label="Fotoğraf Çek"
-                className="group relative flex items-center justify-center transition-all active:scale-95"
-                style={{
-                  width: 56, height: 56, borderRadius: '50%',
-                  background: isReady ? 'rgba(74,230,138,0.12)' : 'rgba(255,255,255,0.05)',
-                  border: `3px solid ${hexToRGBA(accentColor, isReady ? 0.6 : 0.25)}`,
-                  backdropFilter: 'blur(8px)',
-                  opacity: faceDetectedRef.current ? 1 : 0.4,
-                  transition: 'all 0.5s ease',
-                }}
-              >
-                <div className="absolute rounded-full" style={{ inset: -6, border: `1px solid ${hexToRGBA(accentColor, 0.1)}`, transition: 'all 0.5s ease' }} />
-                <div className="rounded-full transition-all" style={{
-                  width: 40, height: 40,
-                  background: isReady ? 'rgba(74,230,138,0.85)' : 'rgba(255,255,255,0.4)',
-                  transition: 'background 0.5s ease',
-                }} />
-              </button>
-            </div>
-          )}
+          {/* Manual capture button — 3 tiers: disabled (<4 checks), warning (4/5), full (5/5) */}
+          {isLive && phase !== 'countdown' && (() => {
+            const canManual = checksPassCount >= 4
+            const isPerfect = isReady
+            const isWarning = nearValid && !isPerfect
+            const COLOR_AMBER = '#E5A83B'
+
+            const btnBg = isPerfect ? 'rgba(74,230,138,0.12)'
+              : isWarning ? 'rgba(229,168,59,0.08)'
+              : 'rgba(255,255,255,0.03)'
+            const btnBorder = isPerfect ? hexToRGBA(COLOR_READY, 0.6)
+              : isWarning ? `rgba(229,168,59,0.45)`
+              : 'rgba(255,255,255,0.12)'
+            const innerBg = isPerfect ? 'rgba(74,230,138,0.85)'
+              : isWarning ? 'rgba(229,168,59,0.7)'
+              : 'rgba(255,255,255,0.15)'
+            const ringBorder = isPerfect ? hexToRGBA(COLOR_READY, 0.1)
+              : isWarning ? 'rgba(229,168,59,0.1)'
+              : 'rgba(255,255,255,0.04)'
+
+            return (
+              <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-2" style={{ bottom: 14, zIndex: 10 }}>
+                <button
+                  onClick={canManual ? handleManualCapture : undefined}
+                  disabled={!canManual}
+                  title={isPerfect ? 'Fotoğraf Çek' : isWarning ? 'Fotoğraf Çek (uyarı ile)' : 'Koşullar yetersiz'}
+                  aria-label="Fotoğraf Çek"
+                  className="group relative flex items-center justify-center transition-all"
+                  style={{
+                    width: 56, height: 56, borderRadius: '50%',
+                    background: btnBg,
+                    border: `3px solid ${btnBorder}`,
+                    backdropFilter: 'blur(8px)',
+                    opacity: canManual ? 1 : 0.3,
+                    cursor: canManual ? 'pointer' : 'not-allowed',
+                    transform: 'scale(1)',
+                    transition: 'all 0.5s ease',
+                  }}
+                >
+                  <div className="absolute rounded-full" style={{ inset: -6, border: `1px solid ${ringBorder}`, transition: 'all 0.5s ease' }} />
+                  <div className="rounded-full transition-all" style={{
+                    width: 40, height: 40,
+                    background: innerBg,
+                    transition: 'background 0.5s ease',
+                    ...(canManual ? {} : { filter: 'grayscale(0.6)' }),
+                  }} />
+                  {/* Warning pulse ring for near-valid state */}
+                  {isWarning && (
+                    <div className="absolute rounded-full" style={{
+                      inset: -3,
+                      border: '1.5px solid rgba(229,168,59,0.3)',
+                      animation: 'fm-pulse 2.5s ease-in-out infinite',
+                    }} />
+                  )}
+                </button>
+              </div>
+            )
+          })()}
 
           {/* Flash */}
           {showFlash && (
@@ -973,27 +1057,84 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
 
           {/* Captured preview */}
           {phase === 'captured' && capturedImage && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center"
-              style={{ zIndex: 30, background: 'rgba(10,10,15,0.94)', backdropFilter: 'blur(16px)' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={capturedImage} alt="Çekilen fotoğraf" className="rounded-xl"
-                style={{ maxWidth: '88%', maxHeight: '58%', border: '1px solid rgba(74,230,138,0.2)', boxShadow: '0 16px 48px rgba(0,0,0,0.5)' }} />
-              <p className="mt-3 text-[11px] font-medium uppercase tracking-wider" style={{ color: COLOR_READY }}>
-                Fotoğraf hazır
-              </p>
-              <div className="flex gap-3 mt-4">
-                <button onClick={handleRetake}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-medium uppercase tracking-[0.12em] transition-all hover:-translate-y-0.5"
-                  style={{ background: 'rgba(160,120,255,0.08)', border: '1px solid rgba(160,120,255,0.2)', color: 'rgba(255,255,255,0.8)' }}>
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center"
+              style={{
+                zIndex: 30,
+                background: 'radial-gradient(ellipse at center 40%, rgba(14,11,9,0.88) 0%, rgba(6,5,4,0.96) 100%)',
+                backdropFilter: 'blur(20px) saturate(120%)',
+                animation: 'fm-flash 0.3s ease-out reverse',
+              }}
+            >
+              {/* Photo with glow ring */}
+              <div className="relative" style={{ animation: 'countdownPop 0.4s cubic-bezier(0.16,1,0.3,1) both' }}>
+                {/* Glow halo behind photo */}
+                <div
+                  className="absolute -inset-3 rounded-2xl"
+                  style={{ background: 'radial-gradient(ellipse, rgba(74,230,138,0.12) 0%, transparent 70%)', filter: 'blur(12px)' }}
+                />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={capturedImage}
+                  alt="Çekilen fotoğraf"
+                  className="relative rounded-2xl"
+                  style={{
+                    maxWidth: '86%', maxHeight: '56%', marginLeft: 'auto', marginRight: 'auto', display: 'block',
+                    border: '1px solid rgba(74,230,138,0.15)',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(74,230,138,0.08)',
+                  }}
+                />
+                {/* Success / near-valid badge */}
+                {(() => {
+                  const isMedium = captureMetaRef.current.confidence === 'medium'
+                  const badgeColor = isMedium ? '#E5A83B' : '#4AE3A7'
+                  const badgeText = isMedium ? 'Fotoğraf Hazır (Uyarı)' : 'Fotoğraf Hazır'
+                  return (
+                    <div
+                      className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-4 py-1.5 rounded-full"
+                      style={{
+                        background: 'rgba(14,11,9,0.85)', backdropFilter: 'blur(12px)',
+                        border: `1px solid ${isMedium ? 'rgba(229,168,59,0.2)' : 'rgba(74,230,138,0.2)'}`,
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                        animation: 'stageFadeIn 0.3s ease-out 0.2s both',
+                      }}
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: badgeColor, boxShadow: `0 0 6px ${badgeColor}80` }} />
+                      <span className="text-[10px] font-medium uppercase tracking-[0.15em]" style={{ color: badgeColor }}>
+                        {badgeText}
+                      </span>
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3 mt-8" style={{ animation: 'stageFadeIn 0.3s ease-out 0.3s both' }}>
+                <button
+                  onClick={handleRetake}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-medium uppercase tracking-[0.12em] transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
+                  style={{
+                    background: 'rgba(248,246,242,0.04)',
+                    border: '1px solid rgba(248,246,242,0.12)',
+                    color: 'rgba(248,246,242,0.7)',
+                  }}
+                >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                     <path d="M1 4v6h6M23 20v-6h-6" /><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" />
                   </svg>
                   Tekrar Çek
                 </button>
-                <button onClick={handleConfirm}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-medium uppercase tracking-[0.12em] transition-all hover:-translate-y-0.5"
-                  style={{ background: 'linear-gradient(135deg, #D6B98C, #C4A35A)', color: '#0E0B09', boxShadow: '0 8px 24px rgba(214,185,140,0.3)', border: 'none' }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <button
+                  onClick={handleConfirm}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-[10px] font-medium uppercase tracking-[0.12em] transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
+                  style={{
+                    background: 'linear-gradient(135deg, #D6B98C 0%, #C4A35A 100%)',
+                    color: '#0E0B09',
+                    boxShadow: '0 8px 28px rgba(214,185,140,0.35)',
+                    border: 'none',
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                   Bu Fotoğrafı Kullan
@@ -1004,34 +1145,75 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
         </div>
 
         {/* ── Status bar ── */}
-        <div className="flex items-center justify-between px-4 py-2.5 rounded-b-2xl mx-auto"
-          style={{ width: '100%', maxWidth: 400, background: 'rgba(18,16,26,0.6)', borderTop: `1px solid ${hexToRGBA(accentColor, 0.08)}`, transition: 'border-color 0.5s ease' }}>
-          <div className="flex items-center gap-2">
-            <div className="rounded-full" style={{
-              width: 7, height: 7,
-              background: isLive ? accentColor : 'rgba(255,255,255,0.2)',
-              boxShadow: isLive && isReady ? `0 0 10px ${hexToRGBA(COLOR_READY, 0.5)}` : 'none',
-              animation: isLive && !faceDetectedRef.current ? 'fm-pulse 1.5s ease-in-out infinite' : 'none',
-              transition: 'all 0.5s ease',
-            }} />
-            <span className="text-[10px] font-medium uppercase tracking-[0.06em]" style={{
-              color: isLive ? accentColor : 'rgba(255,255,255,0.5)', transition: 'color 0.5s ease',
-            }}>
-              {phase === 'loading' ? 'Yükleniyor'
+        <div
+          className="flex items-center justify-between px-4 py-3 rounded-b-2xl mx-auto"
+          style={{
+            width: '100%', maxWidth: 400,
+            background: 'linear-gradient(to right, rgba(10,9,14,0.85), rgba(14,12,20,0.85))',
+            backdropFilter: 'blur(12px)',
+            borderTop: `1px solid ${hexToRGBA(accentColor, 0.1)}`,
+            transition: 'border-color 0.5s ease',
+          }}
+        >
+          {/* Left: status dot + label */}
+          <div className="flex items-center gap-2.5">
+            {/* Live indicator dot */}
+            <div className="relative flex items-center justify-center" style={{ width: 14, height: 14 }}>
+              {isLive && isReady && (
+                <div className="absolute rounded-full" style={{
+                  width: 14, height: 14,
+                  background: `${COLOR_READY}22`,
+                  animation: 'fm-pulse 2s ease-in-out infinite',
+                }} />
+              )}
+              <div className="rounded-full" style={{
+                width: 6, height: 6,
+                background: isLive ? accentColor : 'rgba(255,255,255,0.18)',
+                boxShadow: isLive ? `0 0 8px ${hexToRGBA(accentColor, 0.6)}` : 'none',
+                transition: 'all 0.5s ease',
+              }} />
+            </div>
+            <span
+              className="text-[10px] font-medium tracking-[0.12em] uppercase"
+              style={{ color: isLive ? accentColor : 'rgba(255,255,255,0.4)', transition: 'color 0.5s ease' }}
+            >
+              {phase === 'loading'      ? 'Yükleniyor'
                 : phase === 'initializing' ? 'Başlatılıyor'
-                : phase === 'error' ? 'Hata'
-                : phase === 'captured' ? 'Çekildi'
-                : phase === 'countdown' ? `Çekim: ${countdown}s`
-                : isReady ? 'Hazır' : faceDetectedRef.current ? 'Analiz ediliyor...' : 'Yüz aranıyor...'}
+                : phase === 'error'        ? 'Hata'
+                : phase === 'captured'     ? 'Fotoğraf Hazır'
+                : phase === 'countdown'    ? `Çekim ${countdown}s`
+                : isReady                  ? 'Hazır ✓'
+                : faceDetectedRef.current  ? 'Analiz Ediliyor'
+                :                           'Yüz Aranıyor'}
             </span>
           </div>
-          {isLive && (
-            <div className="flex items-center gap-3">
-              <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)', fontVariantNumeric: 'tabular-nums' }}>
-                {fps} FPS
+
+          {/* Right: validation chips + fps */}
+          <div className="flex items-center gap-3">
+            {isLive && faceDetectedRef.current && (
+              <div className="flex items-center gap-1">
+                {[validation.centered, validation.sizeOk, validation.angleOk, validation.lightOk, validation.stable].map((ok, i) => (
+                  <div
+                    key={i}
+                    className="rounded-full transition-all duration-400"
+                    style={{
+                      width: 4, height: 4,
+                      background: ok ? COLOR_READY : 'rgba(255,255,255,0.12)',
+                      boxShadow: ok ? `0 0 5px ${hexToRGBA(COLOR_READY, 0.5)}` : 'none',
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+            {isLive && (
+              <span
+                className="text-[10px] tabular-nums"
+                style={{ color: 'rgba(255,255,255,0.25)', fontVariantNumeric: 'tabular-nums' }}
+              >
+                {fps}fps
               </span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <canvas ref={captureCanvasRef} className="hidden" />

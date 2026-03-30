@@ -66,13 +66,34 @@ export interface EnhancedAnalysisResult {
   wrinkleAnalysis: WrinkleAnalysisResult | null
   /** Engine that produced this result */
   engine: 'human' | 'facemesh-legacy'
+  /** Image quality assessment (null if not computed) */
+  imageQuality: ImageQualityAssessment | null
+  /** Multi-signal age estimation (null if not available) */
+  ageEstimation: AgeEstimation | null
+  /** Skin texture profile (null if not computed) */
+  skinTexture: SkinTextureProfile | null
+  /** Detailed symmetry analysis (null if not computed) */
+  symmetryAnalysis: SymmetryAnalysis | null
 }
 
 // ─── Wrinkle / skin-line analysis types ─────────────────────
 
-export type WrinkleRegion = 'forehead' | 'glabella' | 'crow_feet_left' | 'crow_feet_right'
+export type WrinkleRegion =
+  | 'forehead'
+  | 'glabella'
+  | 'crow_feet_left'
+  | 'crow_feet_right'
+  | 'under_eye_left'
+  | 'under_eye_right'
+  | 'nasolabial_left'
+  | 'nasolabial_right'
+  | 'marionette_left'
+  | 'marionette_right'
+  | 'cheek_left'
+  | 'cheek_right'
+  | 'jawline'
 
-export type WrinkleLevel = 'low' | 'medium' | 'high'
+export type WrinkleLevel = 'minimal' | 'low' | 'medium' | 'high'
 
 export interface WrinkleRegionResult {
   region: WrinkleRegion
@@ -96,6 +117,89 @@ export interface WrinkleAnalysisResult {
   overallScore: number
   /** Overall classification */
   overallLevel: WrinkleLevel
+}
+
+// ─── Image quality assessment ───────────────────────────────
+
+export type QualityFlag = 'low_light' | 'overexposed' | 'blurry' | 'low_resolution' | 'strong_angle' | 'unstable' | 'partial_face'
+
+export interface ImageQualityAssessment {
+  /** Overall quality score 0–100 */
+  overallScore: number
+  /** Whether quality is sufficient for reliable analysis */
+  sufficient: boolean
+  /** Specific quality issues detected */
+  flags: QualityFlag[]
+  /** Brightness 0–1 (mean luminance) */
+  brightness: number
+  /** Contrast 0–1 (luminance std dev normalized) */
+  contrast: number
+  /** Sharpness 0–1 (Laplacian variance normalized) */
+  sharpness: number
+  /** Resolution factor 0–1 (min dimension / 720) */
+  resolution: number
+  /** Face angle deviation from frontal 0–1 (0 = perfect frontal) */
+  angleDeviation: number
+  /** Landmark detection confidence 0–1 */
+  detectionConfidence: number
+}
+
+// ─── Multi-signal age estimation ────────────────────────────
+
+export type AgeConfidence = 'low' | 'medium' | 'high'
+
+export interface AgeDriver {
+  /** Signal name (e.g., 'forehead_lines', 'skin_texture') */
+  signal: string
+  /** Display label (Turkish) */
+  label: string
+  /** How much this signal contributed (0–1) */
+  weight: number
+  /** Short Turkish explanation */
+  description: string
+}
+
+export interface AgeEstimation {
+  /** Estimated age range [min, max] */
+  estimatedRange: [number, number]
+  /** Single best estimate (midpoint, adjusted) */
+  pointEstimate: number
+  /** Confidence level */
+  confidence: AgeConfidence
+  /** Confidence score 0–1 */
+  confidenceScore: number
+  /** Signals that drove the estimation, sorted by weight */
+  drivers: AgeDriver[]
+  /** Warning text if quality is low (Turkish) */
+  caveat: string | null
+}
+
+// ─── Skin texture profile ───────────────────────────────────
+
+export interface SkinTextureProfile {
+  /** Overall skin uniformity 0–100 (higher = more uniform) */
+  uniformity: number
+  /** Overall smoothness 0–100 */
+  smoothness: number
+  /** Average texture roughness across regions 0–1 */
+  roughness: number
+  /** Confidence in texture measurements 0–1 */
+  confidence: number
+}
+
+// ─── Symmetry analysis ──────────────────────────────────────
+
+export interface SymmetryAnalysis {
+  /** Overall symmetry score 0–100 */
+  overallScore: number
+  /** Left-right eye area symmetry 0–1 */
+  eyeSymmetry: number
+  /** Left-right cheek symmetry 0–1 */
+  cheekSymmetry: number
+  /** Left-right jaw symmetry 0–1 */
+  jawSymmetry: number
+  /** Nose deviation from midline 0–1 (0 = centered) */
+  noseDeviation: number
 }
 
 // ─── Error types ────────────────────────────────────────────

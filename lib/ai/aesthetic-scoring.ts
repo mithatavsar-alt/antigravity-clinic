@@ -6,7 +6,7 @@
  * All outputs are presented as "AI-supported pre-assessment" — never diagnosis.
  */
 
-import type { Landmark, FaceMetrics, FocusArea, FocusRegion } from './types'
+import type { Landmark, FaceMetrics, FocusArea, FocusRegion, SymmetryAnalysis } from './types'
 import { distance3D, clamp } from './utils'
 
 // ─── Landmark indices (MediaPipe 468 compatible) ────────────
@@ -124,8 +124,8 @@ export function computeFocusAreas(input: AestheticInput): FocusArea[] {
     label: 'Alın / Glabella',
     score: foreheadScore,
     insight: foreheadScore > 50
-      ? 'Alın bölgesinde orantı farklılığı gözlemlendi — dolgu veya botoks değerlendirilebilir.'
-      : 'Alın oranları dengeli görünüyor.',
+      ? 'Alın bölgesinde orantısal farklılık gözlenmektedir. İstenirse bu bölge için klinik değerlendirme düşünülebilir.'
+      : 'Alın bölgesi oranları dengeli görünmektedir.',
     doctorReviewRecommended: foreheadScore > 60,
   })
 
@@ -149,8 +149,8 @@ export function computeFocusAreas(input: AestheticInput): FocusArea[] {
     label: 'Kaz Ayağı',
     score: crowScore,
     insight: crowScore > 50
-      ? 'Göz kenarı bölgesi yaşa bağlı değişim gösterebilir — botoks değerlendirilebilir.'
-      : 'Göz kenarı bölgesi geometrik olarak dengeli.',
+      ? 'Göz kenarı bölgesinde yaşa bağlı yapısal değişim belirtileri gözlenmektedir.'
+      : 'Göz kenarı bölgesi geometrik olarak dengeli görünmektedir.',
     doctorReviewRecommended: crowScore > 55,
   })
 
@@ -178,8 +178,8 @@ export function computeFocusAreas(input: AestheticInput): FocusArea[] {
     label: 'Göz Altı',
     score: underEyeScore,
     insight: underEyeScore > 50
-      ? 'Göz altı bölgesinde hacim kaybı belirtileri — dolgu değerlendirilebilir.'
-      : 'Göz altı bölgesi geometrik açıdan uyumlu.',
+      ? 'Göz altı bölgesinde hacim değişimi belirtileri gözlenmektedir. İstenirse klinik değerlendirme düşünülebilir.'
+      : 'Göz altı bölgesi geometrik açıdan uyumlu görünmektedir.',
     doctorReviewRecommended: underEyeScore > 55,
   })
 
@@ -210,8 +210,8 @@ export function computeFocusAreas(input: AestheticInput): FocusArea[] {
     label: 'Orta Yüz / Yanak',
     score: midFaceScore,
     insight: midFaceScore > 50
-      ? 'Orta yüz hacim dengesi farklılık gösteriyor — yanak dolgusu değerlendirilebilir.'
-      : 'Orta yüz hacim dengesi uyumlu görünüyor.',
+      ? 'Orta yüz bölgesinde hacim dengesi farklılığı gözlenmektedir. İstenirse hacim desteği açısından değerlendirme düşünülebilir.'
+      : 'Orta yüz hacim dengesi uyumlu görünmektedir.',
     doctorReviewRecommended: midFaceScore > 55,
   })
 
@@ -249,8 +249,8 @@ export function computeFocusAreas(input: AestheticInput): FocusArea[] {
     label: 'Dudak / Çene / Jawline',
     score: lipChinScore,
     insight: lipChinScore > 50
-      ? 'Alt yüz dengesinde orantı farklılığı — dudak dolgusu veya jawline konturlama değerlendirilebilir.'
-      : 'Alt yüz oranları dengeli görünüyor.',
+      ? 'Alt yüz bölgesinde orantısal farklılık gözlenmektedir. İstenirse bu bölge için klinik değerlendirme düşünülebilir.'
+      : 'Alt yüz oranları dengeli görünmektedir.',
     doctorReviewRecommended: lipChinScore > 55,
   })
 
@@ -271,8 +271,8 @@ export function computeFocusAreas(input: AestheticInput): FocusArea[] {
     label: 'Nazolabial',
     score: nasolabialScore,
     insight: nasolabialScore > 50
-      ? 'Nazolabial bölgede belirginlik artışı olabilir — dolgu değerlendirilebilir.'
-      : 'Nazolabial bölge geometrik olarak dengeli.',
+      ? 'Nazolabial bölgede belirginlik artışı gözlenmektedir. İstenirse hacim desteği açısından değerlendirme düşünülebilir.'
+      : 'Nazolabial bölge geometrik olarak dengeli görünmektedir.',
     doctorReviewRecommended: nasolabialScore > 60,
   })
 
@@ -290,8 +290,8 @@ export function computeFocusAreas(input: AestheticInput): FocusArea[] {
     label: 'Burun',
     score: noseScore,
     insight: noseScore > 50
-      ? 'Burun oranları yüz geneline göre farklılık gösteriyor — rhinoplasti veya burun ucu dolgusu değerlendirilebilir.'
-      : 'Burun oranları yüz geneli ile uyumlu.',
+      ? 'Burun oranlarında yüz geneline göre farklılık gözlenmektedir. İstenirse klinik değerlendirme düşünülebilir.'
+      : 'Burun oranları yüz geneli ile uyumlu görünmektedir.',
     doctorReviewRecommended: noseScore > 60,
   })
 
@@ -338,4 +338,54 @@ export function getSuggestedZones(
   return focusAreas
     .filter((area) => area.score > threshold)
     .map((area) => area.region)
+}
+
+// ─── Symmetry analysis ────────────────────────────────────────
+
+/**
+ * Compute detailed symmetry analysis from landmarks.
+ * Compares left/right pairs for eyes, cheeks, jaw, and nose deviation.
+ */
+export function computeSymmetryAnalysis(landmarks: Landmark[]): SymmetryAnalysis {
+  // Eye symmetry: compare eye openings
+  const leftEyeOpen = Math.abs(safe(landmarks, L.LEFT_EYE_TOP).y - safe(landmarks, L.LEFT_EYE_BOTTOM).y)
+  const rightEyeOpen = Math.abs(safe(landmarks, L.RIGHT_EYE_TOP).y - safe(landmarks, L.RIGHT_EYE_BOTTOM).y)
+  const maxEye = Math.max(leftEyeOpen, rightEyeOpen, 0.001)
+  const eyeSymmetry = 1 - Math.abs(leftEyeOpen - rightEyeOpen) / maxEye
+
+  // Cheek symmetry: distance from nose tip to each cheek
+  const noseTip = safe(landmarks, L.NOSE_TIP)
+  const leftCheekDist = distance3D(safe(landmarks, L.LEFT_CHEEK), noseTip)
+  const rightCheekDist = distance3D(safe(landmarks, L.RIGHT_CHEEK), noseTip)
+  const maxCheek = Math.max(leftCheekDist, rightCheekDist, 0.001)
+  const cheekSymmetry = 1 - Math.abs(leftCheekDist - rightCheekDist) / maxCheek
+
+  // Jaw symmetry: distance from chin to each jaw point
+  const chin = safe(landmarks, L.CHIN_BOTTOM)
+  const jawLeftDist = distance3D(safe(landmarks, L.JAW_LEFT), chin)
+  const jawRightDist = distance3D(safe(landmarks, L.JAW_RIGHT), chin)
+  const maxJaw = Math.max(jawLeftDist, jawRightDist, 0.001)
+  const jawSymmetry = 1 - Math.abs(jawLeftDist - jawRightDist) / maxJaw
+
+  // Nose deviation from center
+  const faceLeft = safe(landmarks, L.FACE_LEFT)
+  const faceRight = safe(landmarks, L.FACE_RIGHT)
+  const faceCenterX = (faceLeft.x + faceRight.x) / 2
+  const faceWidth = Math.abs(faceRight.x - faceLeft.x)
+  const noseDeviation = faceWidth > 0.01
+    ? Math.abs(noseTip.x - faceCenterX) / faceWidth
+    : 0
+
+  // Overall: weighted combination
+  const overallScore = clamp(Math.round(
+    (eyeSymmetry * 0.3 + cheekSymmetry * 0.25 + jawSymmetry * 0.25 + (1 - noseDeviation * 2) * 0.2) * 100
+  ), 0, 100)
+
+  return {
+    overallScore,
+    eyeSymmetry: clamp(eyeSymmetry, 0, 1),
+    cheekSymmetry: clamp(cheekSymmetry, 0, 1),
+    jawSymmetry: clamp(jawSymmetry, 0, 1),
+    noseDeviation: clamp(noseDeviation, 0, 1),
+  }
 }
