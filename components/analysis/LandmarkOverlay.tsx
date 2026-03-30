@@ -5,13 +5,13 @@ import type { Landmark } from '@/lib/ai/types'
 import { drawMesh } from './FaceGuideCapture'
 
 // ─── Single source of truth: overlay state machine ──────────
-// idle      → initial, waiting to start
+// idle      → initial, waiting for visibility trigger
 // analyzing → FaceMesh running (shows spinner)
 // mapped    → landmarks ready, canvas drawn (shows mesh)
-// error     → analysis failed or timed out (nothing shown)
-type OverlayState = 'idle' | 'analyzing' | 'mapped' | 'error'
+// error     → analysis failed or timed out
+export type OverlayState = 'idle' | 'analyzing' | 'mapped' | 'error'
 
-const ANALYSIS_TIMEOUT_MS = 8000
+const ANALYSIS_TIMEOUT_MS = 12_000
 
 interface LandmarkOverlayProps {
   src: string
@@ -19,6 +19,8 @@ interface LandmarkOverlayProps {
   visible?: boolean
   className?: string
   objectPositionY?: number
+  /** Called whenever overlay state changes — lets parent update button text */
+  onStateChange?: (state: OverlayState) => void
 }
 
 /**
@@ -87,6 +89,7 @@ export function LandmarkOverlay({
   visible = true,
   className = '',
   objectPositionY = 0.25,
+  onStateChange,
 }: LandmarkOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -98,19 +101,34 @@ export function LandmarkOverlay({
   const [landmarks, setLandmarks] = useState<Landmark[] | null>(propLandmarks ?? null)
   const [imageDims, setImageDims] = useState<{ w: number; h: number } | null>(null)
 
-  // Debug logging
-  useEffect(() => {
-    console.log('[LandmarkOverlay] state:', state, '| visible:', visible, '| landmarks:', landmarks?.length ?? 0)
-  }, [state, visible, landmarks])
+  // Ref mirror of state — read inside effects without adding `state` to deps.
+  // Prevents the effect cleanup→re-run cycle that kills ongoing analysis.
+  const stateRef = useRef(state)
+  stateRef.current = state
 
-  // ── Run FaceMesh (ONE attempt, never retries) ─────────────
+  // Stable ref for callback to avoid re-triggering effects
+  const onStateChangeRef = useRef(onStateChange)
+  onStateChangeRef.current = onStateChange
+
+  // ── Notify parent of state changes ──────────────────────────
+  useEffect(() => {
+    onStateChangeRef.current?.(state)
+  }, [state])
+
+  // ── Run FaceMesh — LAZY: only when visible + idle ───────────
+  // Analysis starts when user first toggles the overlay on.
+  // If it fails, parent can retry via key-based remount.
+  //
+  // CRITICAL: `state` is read via stateRef (not in deps) to prevent the
+  // effect cleanup→re-run cycle that would cancel the failsafe + analysis
+  // when setState('analyzing') triggers a re-render.
   useEffect(() => {
     if (propLandmarks) return
-    if (state !== 'idle') return
+    if (!visible) return                  // Don't analyze until user requests
+    if (stateRef.current !== 'idle') return  // Already started or completed
 
     let cancelled = false
     setState('analyzing')
-    console.log('[LandmarkOverlay] → analyzing')
 
     // Failsafe: never spin forever
     const failsafe = setTimeout(() => {
@@ -169,7 +187,7 @@ export function LandmarkOverlay({
       clearTimeout(failsafe)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src, propLandmarks, state])
+  }, [src, propLandmarks, visible])
 
   // ── Sync prop landmarks → mapped ──────────────────────────
   useEffect(() => {
@@ -188,9 +206,12 @@ export function LandmarkOverlay({
     img.src = src
   }, [src, propLandmarks, imageDims])
 
-  // ── Draw canvas (only when mapped) ────────────────────────
+  // ── Draw canvas — fires when mapped AND visible ─────────────
+  // Includes `visible` so toggling ON guarantees a fresh draw.
+  // ResizeObserver handles container size changes (replaces window resize).
   useEffect(() => {
     if (state !== 'mapped' || !landmarks || !imageDims) return
+    if (!visible) return
 
     const canvas = canvasRef.current
     const container = containerRef.current
@@ -201,14 +222,22 @@ export function LandmarkOverlay({
       if (rect.width === 0 || rect.height === 0) return
 
       const dpr = window.devicePixelRatio || 1
-      canvas.width = rect.width * dpr
-      canvas.height = rect.height * dpr
-      canvas.style.width = `${rect.width}px`
-      canvas.style.height = `${rect.height}px`
+      // Round to device pixels for crisp sub-pixel alignment
+      const cw = Math.round(rect.width * dpr)
+      const ch = Math.round(rect.height * dpr)
+
+      // Only resize canvas when dimensions actually change (avoids clearing)
+      if (canvas.width !== cw || canvas.height !== ch) {
+        canvas.width = cw
+        canvas.height = ch
+        canvas.style.width = `${rect.width}px`
+        canvas.style.height = `${rect.height}px`
+      }
 
       const ctx = canvas.getContext('2d')
       if (!ctx) return
-      ctx.scale(dpr, dpr)
+      // Use setTransform to avoid accumulating scale transforms
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
       const adjusted = transformLandmarks(
         landmarks, imageDims.w, imageDims.h,
@@ -217,55 +246,28 @@ export function LandmarkOverlay({
       drawMesh(ctx, adjusted, rect.width, rect.height, true, false, false, 1.0)
     }
 
+    // Initial draw
     const raf = requestAnimationFrame(draw)
-    return () => cancelAnimationFrame(raf)
-  }, [state, landmarks, imageDims, objectPositionY])
 
-  // ── Redraw on resize ──────────────────────────────────────
-  useEffect(() => {
-    if (state !== 'mapped' || !landmarks || !imageDims) return
+    // Redraw on container resize (replaces window 'resize' listener)
+    const observer = new ResizeObserver(() => requestAnimationFrame(draw))
+    observer.observe(container)
 
-    const handleResize = () => {
-      const canvas = canvasRef.current
-      const container = containerRef.current
-      if (!canvas || !container) return
-
-      const rect = container.getBoundingClientRect()
-      if (rect.width === 0 || rect.height === 0) return
-
-      const dpr = window.devicePixelRatio || 1
-      canvas.width = rect.width * dpr
-      canvas.height = rect.height * dpr
-      canvas.style.width = `${rect.width}px`
-      canvas.style.height = `${rect.height}px`
-
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-      ctx.scale(dpr, dpr)
-
-      const adjusted = transformLandmarks(
-        landmarks, imageDims.w, imageDims.h,
-        rect.width, rect.height, objectPositionY
-      )
-      drawMesh(ctx, adjusted, rect.width, rect.height, true, false, false, 1.0)
+    return () => {
+      cancelAnimationFrame(raf)
+      observer.disconnect()
     }
-
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [state, landmarks, imageDims, objectPositionY])
+  }, [state, landmarks, imageDims, objectPositionY, visible])
 
   // ── Render ────────────────────────────────────────────────
-  // RULE: spinner ONLY when state === 'analyzing'
-  // RULE: canvas ONLY when state === 'mapped'
-  // RULE: never both simultaneously
-
   const isAnalyzing = state === 'analyzing'
   const isMapped = state === 'mapped'
+  const isError = state === 'error'
 
   return (
     <div
       ref={containerRef}
-      className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${
+      className={`absolute inset-0 z-[2] pointer-events-none transition-opacity duration-300 ${
         visible ? 'opacity-100' : 'opacity-0'
       } ${className}`}
     >
@@ -277,11 +279,18 @@ export function LandmarkOverlay({
         }`}
       />
 
-      {/* Spinner — ONLY when state === analyzing AND visible */}
+      {/* Spinner — ONLY when analyzing AND visible */}
       {isAnalyzing && visible && (
         <div className="absolute bottom-3 right-3 flex items-center gap-2 px-3 py-1.5 rounded-full bg-[rgba(0,0,0,0.5)] backdrop-blur-md">
           <span className="w-2.5 h-2.5 rounded-full border-2 border-[#4AE3A7] border-t-transparent animate-spin" />
           <span className="font-body text-[9px] tracking-[0.1em] uppercase text-white/70">AI Haritalanıyor…</span>
+        </div>
+      )}
+
+      {/* Error message — ONLY when error AND visible */}
+      {isError && visible && (
+        <div className="absolute bottom-3 right-3 flex items-center gap-2 px-3 py-1.5 rounded-full bg-[rgba(0,0,0,0.5)] backdrop-blur-md">
+          <span className="font-body text-[9px] tracking-[0.1em] uppercase text-white/40">Harita oluşturulamadı</span>
         </div>
       )}
     </div>
