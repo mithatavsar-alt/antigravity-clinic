@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import Link from 'next/link'
 import { CATEGORY_COLORS, CATEGORY_LABELS } from '@/lib/ai/radar-scores'
 import type { RadarCategory } from '@/lib/ai/radar-scores'
 
@@ -21,13 +22,22 @@ interface RadarChartSectionProps {
   summaryText?: string
 }
 
-// ─── Constants ────────────────────────────────────────────────
+// ─── Proportional sizing system ──────────────────────────────
+// All chart dimensions derive from a single viewBox.
+// The SVG scales via CSS (w-full) — no hard-coded pixel sizes.
 
-const VB = 600
+const VB = 500                   // tighter viewBox → chart fills more of SVG
 const CX = VB / 2
 const CY = VB / 2
-const OUTER_R = 170
-const LABEL_R = OUTER_R + 48
+const R = VB * 0.32             // outer radius = 160 (32% of viewBox)
+const LABEL_R = R + VB * 0.085  // label distance from center
+const DOT_R = VB * 0.008        // base dot size = 4
+const DOT_R_ACTIVE = VB * 0.012 // active dot = 6
+const STROKE_W = VB * 0.003     // polygon stroke = 1.5
+const CENTER_FONT = VB * 0.10   // center score font = 50
+const CENTER_SUB = VB * 0.017   // sublabel font = 8.5
+const LABEL_FONT = VB * 0.022   // label font = 11
+const LABEL_FONT_ACTIVE = VB * 0.025
 const LEVELS = [0.25, 0.5, 0.75, 1.0]
 
 const SHORT_LABELS: Record<string, string> = {
@@ -58,15 +68,23 @@ function polygonPoints(total: number, radius: number): string {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 75) return '#4AE3A7'
-  if (score >= 55) return '#D6B98C'
+  if (score >= 70) return '#4AE3A7'
+  if (score >= 40) return '#D6B98C'
   return '#C47A7A'
 }
 
 function scoreGrade(score: number): string {
-  if (score >= 75) return 'Güçlü'
-  if (score >= 55) return 'Dengeli'
-  return 'İyileştirilebilir'
+  if (score >= 70) return 'Dengeli'
+  if (score >= 40) return 'Geliştirilebilir'
+  return 'İyileştirme Potansiyeli Yüksek'
+}
+
+/** Visual-only radius: maps score 0→25%, score 100→100% of R.
+ *  Real scores are never mutated — only the polygon shape gets a floor. */
+const MIN_VISUAL_PCT = 0.25
+function visualRadius(score: number): number {
+  const clamped = Math.max(0, Math.min(100, score)) / 100
+  return (MIN_VISUAL_PCT + clamped * (1 - MIN_VISUAL_PCT)) * R
 }
 
 // ─── Tooltip ──────────────────────────────────────────────────
@@ -90,28 +108,27 @@ function Tooltip({ point, x, y, visible }: {
       }}
     >
       <foreignObject
-        x={x - 96}
-        y={y - 82}
-        width={192}
-        height={72}
+        x={x - 88}
+        y={y - 76}
+        width={176}
+        height={66}
       >
         <div
           style={{
-            background: 'rgba(10,8,6,0.94)',
-            backdropFilter: 'blur(16px)',
-            border: '1px solid rgba(214,185,140,0.12)',
-            borderRadius: '14px',
-            padding: '10px 14px',
+            background: 'rgba(10,8,6,0.92)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(214,185,140,0.10)',
+            borderRadius: '12px',
+            padding: '8px 12px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '5px',
-            boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+            gap: '4px',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{
               fontFamily: 'var(--font-body, system-ui)',
-              fontSize: '12px',
+              fontSize: '11px',
               fontWeight: 500,
               color: '#F8F6F2',
               letterSpacing: '0.02em',
@@ -120,7 +137,7 @@ function Tooltip({ point, x, y, visible }: {
             </span>
             <span style={{
               fontFamily: 'var(--font-mono, monospace)',
-              fontSize: '16px',
+              fontSize: '14px',
               fontWeight: 300,
               color,
             }}>
@@ -141,8 +158,8 @@ function Tooltip({ point, x, y, visible }: {
             {point.confidence > 0 && (
               <span style={{
                 fontFamily: 'var(--font-mono, monospace)',
-                fontSize: '9px',
-                color: 'rgba(248,246,242,0.28)',
+                fontSize: '8px',
+                color: 'rgba(248,246,242,0.25)',
               }}>
                 {Math.round(point.confidence * 100)}%
               </span>
@@ -172,10 +189,7 @@ function RadarSVG({ scores, hovered, onHover }: {
   if (n === 0) return null
 
   const dataPoints = scores
-    .map((s, i) => {
-      const r = (Math.max(0, Math.min(100, s.score)) / 100) * OUTER_R
-      return polar(i, n, r).join(',')
-    })
+    .map((s, i) => polar(i, n, visualRadius(s.score)).join(','))
     .join(' ')
 
   const avg = Math.round(scores.reduce((sum, s) => sum + Math.max(0, Math.min(100, s.score)), 0) / n)
@@ -189,75 +203,46 @@ function RadarSVG({ scores, hovered, onHover }: {
       aria-label="Estetik analiz radar grafiği"
     >
       <defs>
-        <filter id="rGlowSoft" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="7" />
+        <filter id="rGlow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="5" />
         </filter>
-        <filter id="rCenterGlow" x="-100%" y="-100%" width="300%" height="300%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="24" />
-        </filter>
-        <filter id="rDotGlow" x="-200%" y="-200%" width="500%" height="500%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="6" />
-        </filter>
-        <filter id="rAmbient" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="40" />
+        <filter id="rDotGlow" x="-150%" y="-150%" width="400%" height="400%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
         </filter>
 
-        {/* Richer fill gradient */}
+        {/* Data polygon fill */}
         <radialGradient id="rFill" cx="50%" cy="45%" r="60%">
-          <stop offset="0%" stopColor="rgba(214,185,140,0.18)" />
-          <stop offset="40%" stopColor="rgba(61,155,122,0.10)" />
-          <stop offset="100%" stopColor="rgba(61,155,122,0.01)" />
+          <stop offset="0%" stopColor="rgba(214,185,140,0.14)" />
+          <stop offset="50%" stopColor="rgba(61,155,122,0.08)" />
+          <stop offset="100%" stopColor="rgba(61,155,122,0)" />
         </radialGradient>
 
         <linearGradient id="rStroke" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#4AE3A7" stopOpacity="0.9" />
-          <stop offset="50%" stopColor="#D6B98C" stopOpacity="1" />
-          <stop offset="100%" stopColor="#4AE3A7" stopOpacity="0.9" />
-        </linearGradient>
-
-        <linearGradient id="rStrokeGlow" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#4AE3A7" stopOpacity="0.3" />
-          <stop offset="50%" stopColor="#D6B98C" stopOpacity="0.4" />
-          <stop offset="100%" stopColor="#4AE3A7" stopOpacity="0.3" />
+          <stop offset="0%" stopColor="#4AE3A7" stopOpacity="0.8" />
+          <stop offset="50%" stopColor="#D6B98C" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#4AE3A7" stopOpacity="0.8" />
         </linearGradient>
 
         <radialGradient id="rCenterOrb">
-          <stop offset="0%" stopColor={avgColor} stopOpacity="0.16" />
-          <stop offset="60%" stopColor={avgColor} stopOpacity="0.04" />
+          <stop offset="0%" stopColor={avgColor} stopOpacity="0.12" />
+          <stop offset="60%" stopColor={avgColor} stopOpacity="0.03" />
           <stop offset="100%" stopColor={avgColor} stopOpacity="0" />
-        </radialGradient>
-
-        {/* Ambient atmosphere */}
-        <radialGradient id="rAtmosphere" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="rgba(214,185,140,0.04)" />
-          <stop offset="100%" stopColor="transparent" />
         </radialGradient>
       </defs>
 
-      {/* ── LAYER 0: Ambient atmosphere ─────────────── */}
-      <circle cx={CX} cy={CY} r={OUTER_R + 60} fill="url(#rAtmosphere)" />
-
-      {/* ── LAYER 1: Outer halo ring ────────────────── */}
-      <circle
-        cx={CX} cy={CY} r={OUTER_R + 8}
-        fill="none"
-        stroke="rgba(248,246,242,0.02)"
-        strokeWidth={24}
-      />
-
-      {/* ── LAYER 2: Grid ────────────────────────────── */}
+      {/* ── LAYER 1: Grid ────────────────────────────── */}
       {LEVELS.map((level) => {
         const isOuter = level === 1.0
         return (
           <polygon
             key={level}
-            points={polygonPoints(n, OUTER_R * level)}
+            points={polygonPoints(n, R * level)}
             fill="none"
             stroke={isOuter
-              ? 'rgba(248,246,242,0.10)'
-              : `rgba(248,246,242,${0.015 + level * 0.015})`
+              ? 'rgba(248,246,242,0.08)'
+              : `rgba(248,246,242,${0.01 + level * 0.012})`
             }
-            strokeWidth={isOuter ? 1.0 : 0.4}
+            strokeWidth={isOuter ? 0.8 : 0.35}
             strokeDasharray={isOuter ? 'none' : '2 5'}
           />
         )
@@ -265,46 +250,46 @@ function RadarSVG({ scores, hovered, onHover }: {
 
       {/* Radial axes */}
       {scores.map((_, i) => {
-        const [ox, oy] = polar(i, n, OUTER_R)
+        const [ox, oy] = polar(i, n, R)
         const active = hovered === i
         return (
           <line
             key={`ax-${i}`}
             x1={CX} y1={CY} x2={ox} y2={oy}
-            stroke={active ? 'rgba(248,246,242,0.08)' : 'rgba(248,246,242,0.02)'}
-            strokeWidth={active ? 0.6 : 0.35}
-            style={{ transition: 'stroke 0.3s, stroke-width 0.3s' }}
+            stroke={active ? 'rgba(248,246,242,0.06)' : 'rgba(248,246,242,0.015)'}
+            strokeWidth={0.35}
+            style={{ transition: 'stroke 0.3s' }}
           />
         )
       })}
 
-      {/* ── LAYER 3: Center orb ──────────────────────── */}
+      {/* ── LAYER 2: Center orb ──────────────────────── */}
       <circle
-        cx={CX} cy={CY} r={60}
+        cx={CX} cy={CY} r={R * 0.32}
         fill="url(#rCenterOrb)"
         style={{
           opacity: mounted ? 1 : 0,
-          transition: 'opacity 1.2s ease-out 0.6s',
+          transition: 'opacity 1s ease-out 0.5s',
         }}
       />
 
-      {/* ── LAYER 4: Data polygon ────────────────────── */}
+      {/* ── LAYER 3: Data polygon ────────────────────── */}
       <g
         style={{
           transformOrigin: `${CX}px ${CY}px`,
           transform: mounted ? 'scale(1)' : 'scale(0)',
-          transition: 'transform 1.6s cubic-bezier(0.16, 1, 0.3, 1)',
+          transition: 'transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
-        {/* Wide glow behind stroke */}
+        {/* Soft glow behind stroke */}
         <polygon
           points={dataPoints}
           fill="none"
-          stroke="url(#rStrokeGlow)"
-          strokeWidth={8}
+          stroke="url(#rStroke)"
+          strokeWidth={STROKE_W * 3}
           strokeLinejoin="round"
-          filter="url(#rGlowSoft)"
-          opacity={0.5}
+          filter="url(#rGlow)"
+          opacity={0.35}
         />
 
         {/* Fill */}
@@ -319,41 +304,40 @@ function RadarSVG({ scores, hovered, onHover }: {
           points={dataPoints}
           fill="none"
           stroke="url(#rStroke)"
-          strokeWidth={2}
+          strokeWidth={STROKE_W}
           strokeLinejoin="round"
         />
 
         {/* Data dots */}
         {scores.map((s, i) => {
-          const r = (Math.max(0, Math.min(100, s.score)) / 100) * OUTER_R
-          const [x, y] = polar(i, n, r)
+          const [x, y] = polar(i, n, visualRadius(s.score))
           const dotColor = scoreColor(s.score)
           const active = hovered === i
-          const dotR = active ? 7 : 4.5
+          const dr = active ? DOT_R_ACTIVE : DOT_R
 
           return (
             <g key={`dot-${s.key}`}>
               {/* Glow */}
               <circle
                 cx={x} cy={y}
-                r={active ? 16 : 10}
+                r={dr * 2.5}
                 fill={dotColor}
                 filter="url(#rDotGlow)"
-                opacity={active ? 0.5 : 0.15}
-                style={{ transition: 'opacity 0.3s, r 0.3s' }}
+                opacity={active ? 0.4 : 0.12}
+                style={{ transition: 'opacity 0.3s' }}
               />
               {/* Core dot */}
               <circle
                 cx={x} cy={y}
-                r={dotR}
+                r={dr}
                 fill={dotColor}
-                stroke="rgba(10,8,6,0.7)"
-                strokeWidth={1.8}
-                style={{ transition: 'r 0.25s cubic-bezier(0.34,1.56,0.64,1)' }}
+                stroke="rgba(10,8,6,0.6)"
+                strokeWidth={STROKE_W * 0.8}
+                style={{ transition: 'r 0.2s cubic-bezier(0.34,1.56,0.64,1)' }}
               />
               {/* Hit area */}
               <circle
-                cx={x} cy={y} r={22}
+                cx={x} cy={y} r={VB * 0.04}
                 fill="transparent"
                 style={{ cursor: 'pointer' }}
                 onMouseEnter={() => onHover(i)}
@@ -366,27 +350,27 @@ function RadarSVG({ scores, hovered, onHover }: {
         })}
       </g>
 
-      {/* ── LAYER 5: Labels ──────────────────────────── */}
+      {/* ── LAYER 4: Labels ──────────────────────────── */}
       {scores.map((s, i) => {
         const [lx, ly] = polar(i, n, LABEL_R)
         const angle = -Math.PI / 2 + (2 * Math.PI * i) / n
         const cos = Math.cos(angle)
         const sin = Math.sin(angle)
         const textAnchor = cos > 0.15 ? 'start' : cos < -0.15 ? 'end' : 'middle'
-        const dy = sin > 0.3 ? 16 : sin < -0.3 ? -8 : 4
+        const dy = sin > 0.3 ? 14 : sin < -0.3 ? -6 : 3
         const shortLabel = SHORT_LABELS[s.key] ?? s.label
 
         const active = hovered === i
         const strong = s.score >= 70
-        const weak = s.score < 45
+        const weak = s.score < 40
 
         const labelFill = active
           ? scoreColor(s.score)
           : strong
-            ? 'rgba(248,246,242,0.58)'
+            ? 'rgba(248,246,242,0.55)'
             : weak
-              ? 'rgba(248,246,242,0.22)'
-              : 'rgba(248,246,242,0.36)'
+              ? 'rgba(248,246,242,0.20)'
+              : 'rgba(248,246,242,0.34)'
 
         return (
           <g key={`lbl-${s.key}`}>
@@ -396,7 +380,7 @@ function RadarSVG({ scores, hovered, onHover }: {
               textAnchor={textAnchor}
               fill={labelFill}
               style={{
-                fontSize: active ? '12px' : '11px',
+                fontSize: `${active ? LABEL_FONT_ACTIVE : LABEL_FONT}px`,
                 fontFamily: "'Outfit', system-ui, sans-serif",
                 letterSpacing: '0.04em',
                 fontWeight: active ? 500 : 400,
@@ -405,14 +389,14 @@ function RadarSVG({ scores, hovered, onHover }: {
             >
               {shortLabel}
             </text>
-            {/* Score badge on hover */}
+            {/* Score on hover */}
             <text
               x={lx}
-              y={ly + dy + 15}
+              y={ly + dy + 14}
               textAnchor={textAnchor}
               fill={scoreColor(s.score)}
               style={{
-                fontSize: '10px',
+                fontSize: `${VB * 0.019}px`,
                 fontFamily: "'JetBrains Mono', monospace",
                 fontWeight: 400,
                 opacity: active ? 1 : 0,
@@ -425,38 +409,29 @@ function RadarSVG({ scores, hovered, onHover }: {
         )
       })}
 
-      {/* ── LAYER 6: Center score (hero) ─────────────── */}
+      {/* ── LAYER 5: Center score (hero) ─────────────── */}
       <g style={{
         opacity: mounted ? 1 : 0,
-        transition: 'opacity 1s ease-out 0.9s',
+        transition: 'opacity 0.9s ease-out 0.8s',
       }}>
-        {/* Subtle glow ring */}
+        {/* Subtle ring */}
         <circle
-          cx={CX} cy={CY} r={44}
+          cx={CX} cy={CY} r={R * 0.26}
           fill="none"
           stroke={avgColor}
-          strokeWidth={0.6}
-          opacity={0.18}
-          filter="url(#rCenterGlow)"
-        />
-        {/* Thin ring */}
-        <circle
-          cx={CX} cy={CY} r={44}
-          fill="none"
-          stroke={avgColor}
-          strokeWidth={0.3}
-          opacity={0.12}
+          strokeWidth={0.4}
+          opacity={0.10}
         />
 
         {/* Score number */}
         <text
           x={CX}
-          y={CY - 6}
+          y={CY - VB * 0.012}
           textAnchor="middle"
           dominantBaseline="central"
           fill={avgColor}
           style={{
-            fontSize: '46px',
+            fontSize: `${CENTER_FONT}px`,
             fontFamily: "'Cormorant Garamond', serif",
             fontWeight: 300,
             letterSpacing: '-0.03em',
@@ -468,13 +443,13 @@ function RadarSVG({ scores, hovered, onHover }: {
         {/* Label */}
         <text
           x={CX}
-          y={CY + 26}
+          y={CY + VB * 0.055}
           textAnchor="middle"
-          fill="rgba(248,246,242,0.28)"
+          fill="rgba(248,246,242,0.25)"
           style={{
-            fontSize: '8px',
+            fontSize: `${CENTER_SUB}px`,
             fontFamily: "'Outfit', system-ui, sans-serif",
-            letterSpacing: '0.28em',
+            letterSpacing: '0.26em',
             textTransform: 'uppercase' as const,
             fontWeight: 500,
           }}
@@ -483,11 +458,11 @@ function RadarSVG({ scores, hovered, onHover }: {
         </text>
       </g>
 
-      {/* ── LAYER 7: Tooltip ─────────────────────────── */}
+      {/* ── LAYER 6: Tooltip ─────────────────────────── */}
       {hovered !== null && scores[hovered] && (() => {
         const s = scores[hovered]
-        const r = (Math.max(0, Math.min(100, s.score)) / 100) * OUTER_R
-        const [tx, ty] = polar(hovered, n, r)
+        const rv = visualRadius(s.score)
+        const [tx, ty] = polar(hovered, n, rv)
         return <Tooltip point={s} x={tx} y={ty} visible />
       })()}
     </svg>
@@ -495,6 +470,19 @@ function RadarSVG({ scores, hovered, onHover }: {
 }
 
 // ─── Insight Row (premium card) ──────────────────────────────
+
+/** Maps radar score keys to treatment page URLs (only for improvement-relevant items) */
+const TREATMENT_LINKS: Partial<Record<string, { label: string; href: string }>> = {
+  forehead_lines: { label: 'Botoks hakkında bilgi', href: '/treatments/botox' },
+  glabella: { label: 'Botoks hakkında bilgi', href: '/treatments/botox' },
+  crow_feet: { label: 'Botoks hakkında bilgi', href: '/treatments/botox' },
+  under_eye: { label: 'Dolgu hakkında bilgi', href: '/treatments/filler' },
+  nasolabial: { label: 'Dolgu hakkında bilgi', href: '/treatments/filler' },
+  perioral: { label: 'Dolgu hakkında bilgi', href: '/treatments/filler' },
+  lower_face: { label: 'Dolgu hakkında bilgi', href: '/treatments/filler' },
+  firmness: { label: 'Mezoterapi hakkında bilgi', href: '/treatments/mesotherapy' },
+  age_appearance: { label: 'Mezoterapi hakkında bilgi', href: '/treatments/mesotherapy' },
+}
 
 function InsightRow({ item, idx, variant }: {
   item: RadarDataPoint
@@ -509,15 +497,15 @@ function InsightRow({ item, idx, variant }: {
 
   const color = scoreColor(item.score)
   const grade = scoreGrade(item.score)
-  const gradFill = item.score >= 75
+  const gradFill = item.score >= 70
     ? 'linear-gradient(180deg, #2D5F5D 0%, #4AE3A7 100%)'
-    : item.score >= 55
+    : item.score >= 40
       ? 'linear-gradient(180deg, #8B6B2A 0%, #D6B98C 100%)'
       : 'linear-gradient(180deg, #6B2828 0%, #C47A7A 100%)'
 
-  const barGrad = item.score >= 75
+  const barGrad = item.score >= 70
     ? 'linear-gradient(90deg, #2D5F5D 0%, #4AE3A7 100%)'
-    : item.score >= 55
+    : item.score >= 40
       ? 'linear-gradient(90deg, #8B6B2A 0%, #D6B98C 100%)'
       : 'linear-gradient(90deg, #6B2828 0%, #C47A7A 100%)'
 
@@ -612,6 +600,22 @@ function InsightRow({ item, idx, variant }: {
             }}
           />
         </div>
+
+        {/* Treatment info link — only for improvement items */}
+        {variant === 'improve' && TREATMENT_LINKS[item.key] && (
+          <Link
+            href={TREATMENT_LINKS[item.key]!.href}
+            className="inline-flex items-center gap-1.5 mt-3 font-body text-[11px] transition-colors duration-200"
+            style={{ color: 'rgba(214,185,140,0.40)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(214,185,140,0.70)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(214,185,140,0.40)' }}
+          >
+            {TREATMENT_LINKS[item.key]!.label}
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </Link>
+        )}
       </div>
     </div>
   )
@@ -647,7 +651,7 @@ export default function RadarChartSection({ scores, captureQuality, summaryText 
       style={{ gap: 'clamp(1.5rem, 3.5vw, 2.5rem)', animation: 'sectionReveal 0.8s ease-out 0.1s both' }}
     >
       {/* ── Section header ────────────────────────────── */}
-      <div className="flex flex-col items-center gap-4 text-center">
+      <div className="flex flex-col items-center gap-3 text-center">
         <span className="text-label text-[rgba(214,185,140,0.55)]">
           Estetik Harita
         </span>
@@ -657,60 +661,58 @@ export default function RadarChartSection({ scores, captureQuality, summaryText 
         >
           Bölgesel Analiz Sonuçları
         </h2>
-        {/* Editorial divider */}
-        <div className="flex items-center gap-4 mt-1">
-          <div className="h-px w-16" style={{ background: 'linear-gradient(90deg, transparent, rgba(214,185,140,0.3))', animation: 'lineExpand 0.8s ease-out 0.4s both', transformOrigin: 'right' }} />
-          <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(214,185,140,0.35)' }} />
-          <div className="h-px w-16" style={{ background: 'linear-gradient(90deg, rgba(214,185,140,0.3), transparent)', animation: 'lineExpand 0.8s ease-out 0.4s both', transformOrigin: 'left' }} />
+        <div className="flex items-center gap-4 mt-0.5">
+          <div className="h-px w-14" style={{ background: 'linear-gradient(90deg, transparent, rgba(214,185,140,0.25))' }} />
+          <div className="w-1 h-1 rounded-full" style={{ background: 'rgba(214,185,140,0.3)' }} />
+          <div className="h-px w-14" style={{ background: 'linear-gradient(90deg, rgba(214,185,140,0.25), transparent)' }} />
         </div>
       </div>
 
       {/* ── Hero Radar Card ───────────────────────────── */}
       <div
-        className="glass-elevated rounded-[28px]"
+        className="glass-elevated rounded-[24px] sm:rounded-[28px]"
         style={{ animation: 'heroFadeUp 0.9s ease-out 0.2s both' }}
       >
-        {/* Inner padding with extra breathing room */}
-        <div className="p-6 sm:p-10 lg:p-12">
-          <div className="flex flex-col gap-8">
+        <div className="p-4 sm:p-8 lg:p-10">
+          <div className="flex flex-col gap-5 sm:gap-6">
 
             {/* Top bar */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center"
-                  style={{ background: 'rgba(214,185,140,0.06)', border: '1px solid rgba(214,185,140,0.10)' }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(214,185,140,0.05)', border: '1px solid rgba(214,185,140,0.08)' }}
                 >
-                  <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
                   </svg>
                 </div>
-                <span className="text-label text-[rgba(248,246,242,0.35)]">
+                <span className="text-label text-[rgba(248,246,242,0.30)]">
                   11 Bölge Analizi
                 </span>
               </div>
               {/* Average score pill */}
               <div
-                className="flex items-center gap-2 px-4 py-2 rounded-full"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
                 style={{
-                  background: `${avgColor}08`,
-                  border: `1px solid ${avgColor}18`,
+                  background: `${avgColor}06`,
+                  border: `1px solid ${avgColor}14`,
                 }}
               >
-                <span className="text-label-sm" style={{ color: `${avgColor}88` }}>Ortalama</span>
-                <span className="font-mono text-[16px] font-light" style={{ color: avgColor }}>{avg}</span>
+                <span className="text-label-sm" style={{ color: `${avgColor}70` }}>Ortalama</span>
+                <span className="font-mono text-[14px] font-light" style={{ color: avgColor }}>{avg}</span>
               </div>
             </div>
 
-            {/* Chart — larger, more breathing room */}
-            <div className="w-full max-w-[540px] mx-auto py-2">
+            {/* Chart — responsive container */}
+            <div className="w-full max-w-[280px] sm:max-w-[380px] lg:max-w-[420px] mx-auto">
               <RadarSVG scores={scores} hovered={hovered} onHover={handleHover} />
             </div>
 
             {/* Quality caveat */}
             {captureQuality && captureQuality !== 'high' && (
-              <div className="rounded-[12px] px-4 py-3" style={{ background: 'rgba(214,185,140,0.025)', border: '1px solid rgba(214,185,140,0.06)' }}>
-                <p className="font-body text-[11px] text-[rgba(248,246,242,0.26)] leading-relaxed italic text-center">
+              <div className="rounded-[10px] px-3.5 py-2.5" style={{ background: 'rgba(214,185,140,0.02)', border: '1px solid rgba(214,185,140,0.05)' }}>
+                <p className="font-body text-[10px] text-[rgba(248,246,242,0.22)] leading-relaxed italic text-center">
                   {captureQuality === 'low'
                     ? 'Bu değerlendirme mevcut görüntü kalitesine göre yaklaşık olarak oluşturulmuştur.'
                     : 'Görüntü kalitesi orta düzeydedir. Sonuçlar genel yönelimi yansıtmaktadır.'}
@@ -730,7 +732,6 @@ export default function RadarChartSection({ scores, captureQuality, summaryText 
           style={{ animation: 'sectionReveal 0.7s ease-out 0.3s both' }}
         >
           <div className="flex flex-col gap-5">
-            {/* Panel header */}
             <div className="flex items-center gap-3 pb-1">
               <div
                 className="w-7 h-7 rounded-full flex items-center justify-center"
@@ -759,7 +760,6 @@ export default function RadarChartSection({ scores, captureQuality, summaryText 
           style={{ animation: 'sectionReveal 0.7s ease-out 0.4s both' }}
         >
           <div className="flex flex-col gap-5">
-            {/* Panel header */}
             <div className="flex items-center gap-3 pb-1">
               <div
                 className="w-7 h-7 rounded-full flex items-center justify-center"
@@ -786,17 +786,17 @@ export default function RadarChartSection({ scores, captureQuality, summaryText 
       {/* ── Summary ───────────────────────────────────── */}
       {summaryText && (
         <div
-          className="rounded-[16px] px-6 py-5 text-center max-w-2xl mx-auto w-full"
+          className="rounded-[14px] px-5 py-4 text-center max-w-2xl mx-auto w-full"
           style={{
             background: 'rgba(214,185,140,0.02)',
-            border: '1px solid rgba(214,185,140,0.06)',
+            border: '1px solid rgba(214,185,140,0.05)',
             animation: 'sectionReveal 0.6s ease-out 0.5s both',
           }}
         >
-          <p className="font-body text-[13px] text-[rgba(248,246,242,0.40)] leading-[1.8]">
+          <p className="font-body text-[12px] text-[rgba(248,246,242,0.35)] leading-[1.8]">
             {summaryText}
           </p>
-          <p className="font-body text-[10px] text-[rgba(248,246,242,0.20)] leading-relaxed mt-3 italic">
+          <p className="font-body text-[10px] text-[rgba(248,246,242,0.18)] leading-relaxed mt-2 italic">
             Bu analiz AI destekli ön değerlendirme niteliğindedir. Kesin sonuçlar klinik muayene gerektirir.
           </p>
         </div>
