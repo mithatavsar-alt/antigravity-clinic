@@ -283,6 +283,25 @@ export interface Lead {
     caveat: string | null
   }
 
+  /** Trust pipeline metadata — confidence gating, validation, decisions */
+  trust_pipeline?: {
+    overall_confidence: number
+    quality_gate_verdict: 'pass' | 'degrade' | 'block'
+    quality_gate_score: number
+    young_face_active: boolean
+    age_profile: 'young' | 'middle' | 'mature'
+    metrics_shown: number
+    metrics_soft: number
+    metrics_suppressed: number
+    quality_caveat: string | null
+    findings: Array<{
+      text: string
+      region: string
+      band: 'high' | 'moderate' | 'low' | 'insufficient'
+      isSoft: boolean
+    }>
+  }
+
   doctor_notes?: string
   doctor_notes_updated_at?: string
   report_url?: string

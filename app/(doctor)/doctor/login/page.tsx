@@ -45,7 +45,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
           <div className="font-display text-2xl font-light tracking-[0.06em] text-[#1A1A2E] mb-1">
-            Antigravity <span className="text-gradient-gold">AI</span>
+            Dr. Müjde Ocak <span className="text-gradient-gold">Aesthetic Clinic</span>
           </div>
           <SectionLabel>Doktor Girişi</SectionLabel>
         </div>

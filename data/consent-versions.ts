@@ -7,9 +7,9 @@ export const consentVersions: ConsentVersion[] = [
     is_active: true,
     kvkk_text: `KVKK AYDINLATMA METNİ
 
-Antigravity Dynamic Face AI™ Kliniği olarak kişisel verilerinizin güvenliği hususuna azami hassasiyet göstermekteyiz. Bu doğrultuda 6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında sizi bilgilendirmek isteriz.
+Dr. Müjde Ocak Aesthetic Clinic olarak kişisel verilerinizin güvenliği hususuna azami hassasiyet göstermekteyiz. Bu doğrultuda 6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında sizi bilgilendirmek isteriz.
 
-VERİ SORUMLUSU: Dr. Müjde Ocak Kliniği
+VERİ SORUMLUSU: Dr. Müjde Ocak Aesthetic Clinic
 
 İŞLENEN KİŞİSEL VERİLER: Ad-soyad, telefon numarası, yaş aralığı, cinsiyet, yüz fotoğrafı ve estetik tercihlerinize ilişkin bilgiler.
 
@@ -21,7 +21,7 @@ SAKLAMA SÜRESİ: Verileriniz yasal yükümlülükler çerçevesinde 5 yıl sür
 
 HAKLARINIZ: KVKK madde 11 kapsamında verilerinize erişim, düzeltme, silme ve itiraz haklarına sahipsiniz.
 
-İLETİŞİM: info@antigravityclinic.com`,
+İLETİŞİM: info@drmujdeocak.com`,
     consent_text: `AÇIK RIZA METNİ
 
 6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında hazırlanan Aydınlatma Metni'ni okudum ve anladım.

@@ -17,7 +17,7 @@ export function DoctorTopNav() {
   return (
     <header className="bg-[var(--glass-bg-strong)] backdrop-blur-sm border-b border-[var(--color-border-gold)] px-6 h-16 flex items-center justify-between sticky top-0 z-40">
       <Link href="/doctor/leads" className="font-display text-lg font-light tracking-[0.05em] text-[var(--color-text)]">
-        Antigravity <span className="text-gradient-gold">AI</span>
+        Dr. Müjde Ocak <span className="text-gradient-gold">Aesthetic Clinic</span>
         <span className="font-body text-[11px] tracking-[0.15em] uppercase text-[var(--color-text-muted)] ml-3">
           · Doktor Paneli
         </span>

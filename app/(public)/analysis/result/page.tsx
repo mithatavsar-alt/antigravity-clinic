@@ -730,6 +730,14 @@ function ResultContent() {
   const isCombined = analysisSource?.provider === 'combined'
   const isHumanLocal = analysisSource?.provider === 'human-local'
   const isFallback = analysisSource?.provider === 'mock' || (!hasAI && !hasSkin)
+
+  // ── Trust pipeline data ──
+  const trustPipeline = selectedLead.trust_pipeline
+  const hasTrust = !!trustPipeline
+  const trustFindings = trustPipeline?.findings ?? []
+  const trustCaveat = trustPipeline?.quality_caveat
+  const trustConfidence = trustPipeline?.overall_confidence ?? 0
+  const isBlocked = trustPipeline?.quality_gate_verdict === 'block'
   // Photo may have been stripped from localStorage (quota protection).
   // Recover from sessionStorage bridge if needed.
   const photoUrl = selectedLead.patient_photo_url || (id ? getPhoto(id) : null)
@@ -785,6 +793,45 @@ function ResultContent() {
             </div>
           )}
         </div>
+
+        {/* ── Trust Pipeline Quality Caveat ────────────────────── */}
+        {hasTrust && trustCaveat && (
+          <div className="max-w-2xl mx-auto w-full" style={{ animation: 'sectionReveal 0.6s ease-out 0.1s both' }}>
+            <div className="flex items-start gap-3 px-5 py-4 rounded-xl border border-[rgba(229,168,59,0.12)] bg-[rgba(229,168,59,0.04)]">
+              <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#E5A83B]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
+              </svg>
+              <div className="flex flex-col gap-1">
+                <span className="font-body text-[12px] text-[rgba(229,168,59,0.85)] leading-[1.6]">
+                  {trustCaveat}
+                </span>
+                {trustPipeline.metrics_suppressed > 0 && (
+                  <span className="font-body text-[10px] text-[rgba(229,168,59,0.50)]">
+                    {trustPipeline.metrics_suppressed} bölge yetersiz güven nedeniyle gösterilmemiştir.
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Trust Pipeline Confidence Badge ────────────────────── */}
+        {hasTrust && !isBlocked && (
+          <div className="flex justify-center" style={{ animation: 'sectionReveal 0.5s ease-out 0.15s both' }}>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[rgba(214,185,140,0.08)] bg-[rgba(214,185,140,0.03)]">
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{
+                  background: trustConfidence >= 70 ? '#3D9B7A' : trustConfidence >= 40 ? '#E5A83B' : '#A05252',
+                }}
+              />
+              <span className="font-body text-[10px] tracking-[0.12em] text-[rgba(248,246,242,0.40)]">
+                Analiz Güveni: {trustConfidence >= 70 ? 'Yüksek' : trustConfidence >= 40 ? 'Orta' : 'Düşük'}
+                {trustPipeline.young_face_active && ' · Genç Yüz Profili'}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* ── Radar Analysis Section ────────────────────────────── */}
         {hasRadar && radarAnalysis && (
@@ -894,8 +941,44 @@ function ResultContent() {
 
                 <ThinLine />
 
-                {/* AI Suggestions */}
-                {hasAI && aiScores.suggestions.length > 0 && (
+                {/* AI Suggestions — trust-gated when available */}
+                {hasTrust && trustFindings.length > 0 ? (
+                  <>
+                    <div>
+                      <span className="text-label text-[rgba(248,246,242,0.30)] mb-4 block">Estetik Tespitler</span>
+                      <div className="flex flex-col gap-2.5">
+                        {trustFindings.map((finding, i) => (
+                          <div
+                            key={i}
+                            className="flex gap-3 items-start rounded-md border px-4 py-3"
+                            style={{
+                              borderColor: finding.isSoft ? 'rgba(229,168,59,0.10)' : 'rgba(214,185,140,0.08)',
+                              background: finding.isSoft ? 'rgba(229,168,59,0.02)' : 'rgba(214,185,140,0.025)',
+                            }}
+                          >
+                            <div className="flex flex-col gap-0.5 flex-shrink-0 mt-0.5">
+                              <div
+                                className="w-2 h-2 rounded-full"
+                                style={{
+                                  background: finding.band === 'high' ? '#3D9B7A'
+                                    : finding.band === 'moderate' ? '#D6B98C'
+                                    : '#E5A83B',
+                                }}
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <span className="font-body text-[12px] text-[rgba(248,246,242,0.55)] leading-[1.7]">{finding.text}</span>
+                              {finding.isSoft && (
+                                <span className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(229,168,59,0.50)]">sınırlı güven</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <ThinLine />
+                  </>
+                ) : hasAI && aiScores.suggestions.length > 0 ? (
                   <>
                     <div>
                       <span className="text-label text-[rgba(248,246,242,0.30)] mb-4 block">Estetik Tespitler</span>
@@ -915,7 +998,7 @@ function ResultContent() {
                     </div>
                     <ThinLine />
                   </>
-                )}
+                ) : null}
 
                 {/* Focus areas */}
                 <div>
@@ -972,6 +1055,14 @@ function ResultContent() {
             </PremiumButton>
           </Link>
         </div>
+      </div>
+
+      {/* ── Trust Pipeline Disclaimer ──────────────────────── */}
+      <div className="max-w-3xl mx-auto px-5 sm:px-8 pb-8">
+        <p className="font-body text-[10px] text-[rgba(248,246,242,0.20)] leading-[1.7] text-center">
+          Bu değerlendirme AI destekli bir ön analiz olup tanı niteliği taşımamaktadır.
+          Kesin değerlendirme ve tedavi kararı yalnızca klinik muayene sonrasında uzman hekim tarafından verilir.
+        </p>
       </div>
 
       {/* Lightbox */}

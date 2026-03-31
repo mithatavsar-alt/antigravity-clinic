@@ -7,7 +7,7 @@ import { PrintButton } from '@/components/shared/PrintButton'
 import { SectionLabel } from '@/components/design-system/SectionLabel'
 
 export const metadata: Metadata = {
-  title: 'Açık Rıza Metni — Antigravity AI',
+  title: 'Açık Rıza Metni — Dr. Müjde Ocak Aesthetic Clinic',
   description:
     '6698 sayılı KVKK kapsamında kişisel veri işlenmesine ilişkin Açık Rıza Metni.',
 }
@@ -101,10 +101,10 @@ export default function ConsentPage() {
             <p className="font-body text-[11px] text-[rgba(26,26,46,0.45)] leading-relaxed">
               Rızanızı istediğiniz zaman geri alabilirsiniz. Geri alma talepleriniz için{' '}
               <a
-                href="mailto:info@antigravityclinic.com"
+                href="mailto:info@drmujdeocak.com"
                 className="text-[#2D5F5D] hover:underline underline-offset-2"
               >
-                info@antigravityclinic.com
+                info@drmujdeocak.com
               </a>{' '}
               adresine yazabilirsiniz.
             </p>
@@ -164,7 +164,7 @@ export default function ConsentPage() {
         {/* Print-only footer */}
         <div className="hidden print:block pt-8 border-t border-[rgba(196,163,90,0.15)] mt-4">
           <p className="text-[11px] text-[rgba(26,26,46,0.4)] text-center">
-            Antigravity Dynamic Face AI™ · Dr. Müjde Ocak Kliniği · v{version.version} · {effectiveDate}
+            Dr. Müjde Ocak Aesthetic Clinic · v{version.version} · {effectiveDate}
           </p>
         </div>
 

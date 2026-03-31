@@ -37,7 +37,7 @@ export const TREATMENTS: Treatment[] = [
       'Mimik kaslarını geçici olarak dinlendirerek kırışıklıkların yumuşatılmasını sağlayan, dünyada en yaygın uygulanan minimal invaziv estetik prosedürlerden biridir.',
     summary: 'Mimik çizgilerini hedef alan hassas uygulama protokolü.',
     seo: {
-      title: 'Botoks Nedir? — Antigravity Clinic',
+      title: 'Botoks Nedir? — Dr. Müjde Ocak Aesthetic Clinic',
       description:
         'Botoks uygulaması hakkında bilmeniz gerekenler: etki mekanizması, uygulama bölgeleri, etki süresi ve olası riskler. Dr. Müjde Ocak kliniğinde güvenli estetik çözümler.',
     },
@@ -107,7 +107,7 @@ export const TREATMENTS: Treatment[] = [
       'Hyalüronik asit bazlı dolgu maddeleri, yüzdeki hacim kaybını telafi ederek daha genç ve dinlenmiş bir görünüm sağlayan güvenli bir estetik uygulamadır.',
     summary: 'Yüz konturlarını yeniden şekillendiren hyalüronik asit tedavileri.',
     seo: {
-      title: 'Dolgu Uygulamaları — Antigravity Clinic',
+      title: 'Dolgu Uygulamaları — Dr. Müjde Ocak Aesthetic Clinic',
       description:
         'Hyalüronik asit dolgu uygulamaları hakkında bilgilendirme: uygulama bölgeleri, kalıcılık süresi ve doğal görünüm. Dr. Müjde Ocak kliniğinde kişiye özel estetik çözümler.',
     },
@@ -168,7 +168,7 @@ export const TREATMENTS: Treatment[] = [
       'Cilt altına mikroenjeksiyon yöntemiyle uygulanan vitamin, mineral ve amino asit kokteylleri ile cildin içten dışa yenilenmesini sağlayan destekleyici bir estetik prosedürdür.',
     summary: 'Cilt yenileme ve rejenerasyon için vitamin kokteyli tedavisi.',
     seo: {
-      title: 'Mezoterapi Nedir? — Antigravity Clinic',
+      title: 'Mezoterapi Nedir? — Dr. Müjde Ocak Aesthetic Clinic',
       description:
         'Mezoterapi uygulaması hakkında bilgilendirme: cilt yenileme, vitamin kokteylleri, uygulama alanları ve etkileri. Dr. Müjde Ocak kliniğinde kişiye özel cilt bakım çözümleri.',
     },

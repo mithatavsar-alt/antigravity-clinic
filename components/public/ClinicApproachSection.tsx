@@ -78,7 +78,7 @@ export function ClinicApproachSection() {
           </EditorialHeading>
           <ThinLine />
           <p className="font-body text-[15px] sm:text-[16px] text-[var(--color-text-secondary)] leading-[1.75]">
-            Her yüz eşsizdir. Antigravity Dynamic Face AI™ sistemi doktorun klinik sezgisini veri ile güçlendirir; doğal, kişiye özel sonuçlar elde etmenizi sağlar.
+            Her yüz eşsizdir. Dr. Müjde Ocak Aesthetic Clinic AI sistemi doktorun klinik sezgisini veri ile güçlendirir; doğal, kişiye özel sonuçlar elde etmenizi sağlar.
           </p>
           <ul className="flex flex-col gap-3.5">
             {features.map((f) => (

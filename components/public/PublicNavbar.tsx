@@ -54,12 +54,12 @@ export function PublicNavbar() {
             logoColor
           )}
         >
-          Antigravity{' '}
+          Dr. Müjde Ocak{' '}
           <span
             className={isDark ? 'text-[#D6B98C]' : ''}
             style={isDark ? undefined : { background: 'linear-gradient(135deg, #C4A35A, #D4B96A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
           >
-            AI
+            Aesthetic Clinic
           </span>
         </Link>
 

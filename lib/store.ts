@@ -24,6 +24,7 @@ interface LeadAnalysisUpdate {
   age_estimation?: Lead['age_estimation']
   radar_analysis?: Lead['radar_analysis']
   analysis_source?: Lead['analysis_source']
+  trust_pipeline?: Lead['trust_pipeline']
   status?: LeadStatus
 }
 

@@ -6,7 +6,7 @@ import { PrintButton } from '@/components/shared/PrintButton'
 import { SectionLabel } from '@/components/design-system/SectionLabel'
 
 export const metadata: Metadata = {
-  title: 'KVKK Aydınlatma Metni — Antigravity AI',
+  title: 'KVKK Aydınlatma Metni — Dr. Müjde Ocak Aesthetic Clinic',
   description:
     '6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında hazırlanan KVKK Aydınlatma Metni.',
 }
@@ -163,10 +163,10 @@ export default function PrivacyPage() {
           <p className="font-body text-[11px] text-[rgba(26,26,46,0.4)] leading-relaxed">
             Sorularınız için{' '}
             <a
-              href="mailto:info@antigravityclinic.com"
+              href="mailto:info@drmujdeocak.com"
               className="text-[#2D5F5D] hover:underline underline-offset-2"
             >
-              info@antigravityclinic.com
+              info@drmujdeocak.com
             </a>
           </p>
           <Link
@@ -185,7 +185,7 @@ export default function PrivacyPage() {
         {/* Print-only footer */}
         <div className="hidden print:block pt-8 border-t border-[rgba(196,163,90,0.15)] mt-4">
           <p className="text-[11px] text-[rgba(26,26,46,0.4)] text-center">
-            Antigravity Dynamic Face AI™ · Dr. Müjde Ocak Kliniği · v{version.version} · {effectiveDate}
+            Dr. Müjde Ocak Aesthetic Clinic · v{version.version} · {effectiveDate}
           </p>
         </div>
 

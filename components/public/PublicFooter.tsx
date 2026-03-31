@@ -7,13 +7,13 @@ export function PublicFooter() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-12 pb-12 border-b border-[rgba(255,255,255,0.06)]">
           <div className="sm:col-span-2">
             <div className="font-display text-2xl font-light tracking-[0.06em] mb-4">
-              Antigravity <span className="text-gradient-gold">AI</span>
+              Dr. Müjde Ocak <span className="text-gradient-gold">Aesthetic Clinic</span>
             </div>
             <p className="font-body text-[13px] text-[rgba(255,255,255,0.45)] leading-relaxed max-w-xs mb-6">
-              Dr. Müjde Ocak Kliniği bünyesinde yapay zeka destekli medikal estetik platformu.
+              Dr. Müjde Ocak Aesthetic Clinic bünyesinde yapay zeka destekli medikal estetik platformu.
             </p>
             <div className="font-mono text-[10px] tracking-[0.15em] text-[rgba(139,127,168,0.6)] uppercase">
-              Antigravity Dynamic Face AI™ v1.0
+              Advanced Aesthetics & Beauty · AI v1.0
             </div>
           </div>
 
@@ -46,7 +46,7 @@ export function PublicFooter() {
           <div>
             <h5 className="font-body text-[10px] tracking-[0.25em] uppercase text-[rgba(255,255,255,0.35)] mb-5">İletişim</h5>
             <ul className="flex flex-col gap-3">
-              <li className="font-body text-[12px] text-[rgba(255,255,255,0.4)]">info@antigravityclinic.com</li>
+              <li className="font-body text-[12px] text-[rgba(255,255,255,0.4)]">info@drmujdeocak.com</li>
               <li className="font-body text-[12px] text-[rgba(255,255,255,0.4)]">İstanbul, Türkiye</li>
             </ul>
           </div>
@@ -54,7 +54,7 @@ export function PublicFooter() {
 
         <div className="pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="font-mono text-[10px] tracking-[0.1em] text-[rgba(255,255,255,0.2)]">
-            © 2026 Antigravity Dynamic Face AI™. Tüm hakları saklıdır.
+            © 2026 Dr. Müjde Ocak Aesthetic Clinic. Tüm hakları saklıdır.
           </p>
           <div className="flex gap-4">
             {['KVKK', 'Gizlilik', 'Rıza'].map((item) => (

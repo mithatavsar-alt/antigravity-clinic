@@ -14,7 +14,7 @@ import {
 import { savePhoto } from '@/lib/photo-bridge'
 import { run as runGeometryAnalysis } from '@/lib/ai/analysis'
 import { computeFocusAreas, computeQualityScore, getSuggestedZones } from '@/lib/ai/aesthetic-scoring'
-import { generateSuggestions, generatePatientSummaryText, generateFocusAreaLabels, mapFocusAreasToRegionScores } from '@/lib/ai/result-generator'
+import { generateSuggestions, generateFocusAreaLabels, mapFocusAreasToRegionScores } from '@/lib/ai/result-generator'
 import { deriveRadarAnalysis } from '@/lib/ai/radar-scores'
 import { deriveDoctorAnalysis, deriveConsultationReadiness } from '@/lib/ai/derive-doctor-analysis'
 import { analyzeWrinkles, analyzeWrinklesMultiFrame, deriveSkinTexture } from '@/lib/ai/wrinkle-analysis'
@@ -29,6 +29,7 @@ import {
 } from '@/lib/ai/face-guide'
 import type { EnhancedAnalysisResult } from '@/lib/ai/types'
 import type { Landmark } from '@/lib/ai/types'
+import { runTrustPipeline, isAnalysisBlocked, getQualityCaveatText } from '@/lib/ai/pipeline'
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -821,12 +822,37 @@ function ProcessingContent() {
 
         if (abortRef.current) return
 
+        // ── Trust Pipeline: validate, filter, gate ──
+        // The image element is needed for quality gate — recreate it
+        const trustImage = new Image()
+        trustImage.crossOrigin = 'anonymous'
+        await new Promise<void>((resolve) => {
+          trustImage.onload = () => resolve()
+          trustImage.onerror = () => resolve() // non-fatal
+          trustImage.src = photo
+        })
+
+        const trustResult = runTrustPipeline(
+          enhanced,
+          landmarks ?? [],
+          trustImage,
+        )
+
+        // If quality gate blocked analysis, use trust pipeline output only
+        const analysisBlocked = isAnalysisBlocked(trustResult)
+        const qualityCaveat = getQualityCaveatText(trustResult)
+
         // ── Save results ──
         const { geometry, estimatedAge, focusAreas, suggestedZones, confidence, qualityScore, wrinkleAnalysis, ageEstimation } = enhanced
 
-        const suggestions = generateSuggestions(enhanced)
-        const summaryText = generatePatientSummaryText(enhanced, lead.concern_area)
-        const focusLabels = generateFocusAreaLabels(enhanced)
+        // Use trust-gated outputs instead of raw when available
+        const suggestions = analysisBlocked
+          ? trustResult.findings.map(f => f.text)
+          : generateSuggestions(enhanced)
+        const summaryText = trustResult.patientSummary
+        const focusLabels = trustResult.focusLabels.length > 0
+          ? trustResult.focusLabels
+          : generateFocusAreaLabels(enhanced)
         const radarAnalysis = deriveRadarAnalysis(enhanced, lead.capture_confidence as 'high' | 'medium' | 'low' | undefined)
 
         const doctorAnalysis = deriveDoctorAnalysis(leadId, geometry, lead)
@@ -904,6 +930,24 @@ function ProcessingContent() {
             analyzed_at: new Date().toISOString(),
           },
           status: 'analysis_ready',
+          // ── Trust pipeline metadata ──
+          trust_pipeline: {
+            overall_confidence: trustResult.overallConfidence,
+            quality_gate_verdict: trustResult.qualityGate.verdict,
+            quality_gate_score: trustResult.qualityGate.score,
+            young_face_active: trustResult.youngFaceProfile.active,
+            age_profile: trustResult.youngFaceProfile.ageProfile,
+            metrics_shown: trustResult.findings.filter(f => !f.isSoft).length,
+            metrics_soft: trustResult.softCount,
+            metrics_suppressed: trustResult.suppressedCount,
+            quality_caveat: qualityCaveat,
+            findings: trustResult.findings.map(f => ({
+              text: f.text,
+              region: f.region,
+              band: f.band,
+              isSoft: f.isSoft,
+            })),
+          },
         })
 
         // ── Final freeze 0.5s then navigate ──

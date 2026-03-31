@@ -76,7 +76,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         {/* Header */}
         <div className="flex justify-between items-start mb-8 pb-6 border-b-2 border-[#1A1A2E]">
           <div>
-            <h1 className="text-[24px] font-light tracking-tight text-[#1A1A2E]">Antigravity Clinic</h1>
+            <h1 className="text-[24px] font-light tracking-tight text-[#1A1A2E]">Dr. Müjde Ocak Aesthetic Clinic</h1>
             <p className="text-[11px] text-[rgba(26,26,46,0.4)] tracking-[0.2em] uppercase mt-1">AI Destekli Yüz Analiz Raporu</p>
           </div>
           <div className="text-right">
@@ -237,7 +237,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] text-[rgba(26,26,46,0.4)]">Antigravity Dynamic Face AI™</p>
+              <p className="text-[10px] text-[rgba(26,26,46,0.4)]">Dr. Müjde Ocak Aesthetic Clinic · AI</p>
               <p className="text-[9px] text-[rgba(26,26,46,0.3)]">v1.0.0 · {formatDate(new Date().toISOString())}</p>
             </div>
           </div>

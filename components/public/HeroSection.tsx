@@ -59,7 +59,7 @@ export function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease }}
           >
-            <SectionLabel>ANTIGRAVITY CLINIC</SectionLabel>
+            <SectionLabel>DR. MÜJDE OCAK AESTHETIC CLINIC</SectionLabel>
           </motion.div>
 
           <motion.div
