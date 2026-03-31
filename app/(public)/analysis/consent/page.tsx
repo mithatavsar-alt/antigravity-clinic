@@ -58,6 +58,7 @@ export default function AnalysisConsentPage() {
         age_range: (currentLead.age_range as Lead['age_range']) ?? '25-34',
         phone: currentLead.phone ?? '',
         concern_area: (currentLead.concern_area as Lead['concern_area']) ?? 'genel_yuz_dengesi',
+        concern_sub_areas: currentLead.concern_sub_areas,
         desired_result_style: (currentLead.desired_result_style as Lead['desired_result_style']) ?? 'emin_degil',
         prior_treatment: currentLead.prior_treatment ?? false,
         consultation_timing: (currentLead.consultation_timing as Lead['consultation_timing']) ?? 'bilgi_almak',

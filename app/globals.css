@@ -263,6 +263,57 @@ body {
   to   { transform: scaleX(1); }
 }
 
+@keyframes radarDotPulse {
+  0%, 100% { opacity: 0.12; transform: scale(1); }
+  50%      { opacity: 0.28; transform: scale(1.6); }
+}
+
+@keyframes radarGlowPulse {
+  0%, 100% { opacity: 0.10; }
+  50%      { opacity: 0.25; }
+}
+
+@keyframes polygonBreathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.008); opacity: 0.96; }
+}
+
+@keyframes polygonGlow {
+  0%, 100% { opacity: 0.30; }
+  50%      { opacity: 0.45; }
+}
+
+@keyframes centerLabelIn {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes centerLabelOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-3px); }
+}
+
+@keyframes insightPanelFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-radar-dot-pulse {
+  animation: radarDotPulse 2.4s ease-in-out infinite;
+}
+
+.animate-radar-glow-pulse {
+  animation: radarGlowPulse 2.4s ease-in-out infinite;
+}
+
+.animate-polygon-breathe {
+  animation: polygonBreathe 4s ease-in-out infinite;
+}
+
+.animate-polygon-glow {
+  animation: polygonGlow 4s ease-in-out infinite;
+}
+
 /* ── UTILITIES ─────────────────────────── */
 .glass {
   background: var(--glass-bg);

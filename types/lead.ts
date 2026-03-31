@@ -8,11 +8,25 @@ export type LeadStatus =
   | 'archived'
 
 export type ConcernArea =
+  | 'yuz_hatlari'
+  | 'cizgiler_kirisiklik'
+  | 'cilt'
+  // Legacy values (backwards compat)
   | 'goz_cevresi'
   | 'dudak'
   | 'alt_yuz_jawline'
   | 'cilt_gorunumu'
   | 'genel_yuz_dengesi'
+
+export type ConcernSubArea =
+  | 'dudak'
+  | 'cene_hatti'
+  | 'yanak'
+  | 'alin'
+  | 'kas_arasi'
+  | 'kaz_ayagi'
+  | 'nazolabial'
+  | 'cilt_kalitesi'
 
 export type DesiredResultStyle =
   | 'cok_dogal'
@@ -35,12 +49,33 @@ export type UpsellPotential = 'low' | 'medium' | 'high'
 export type LeadSource = 'website' | 'instagram' | 'referral' | 'whatsapp'
 
 export const concernAreaLabels: Record<ConcernArea, string> = {
+  yuz_hatlari: 'Yüz Hatları',
+  cizgiler_kirisiklik: 'Çizgiler & Kırışıklık',
+  cilt: 'Cilt',
+  // Legacy
   goz_cevresi: 'Göz Çevresi',
   dudak: 'Dudak',
   alt_yuz_jawline: 'Alt Yüz / Jawline',
   cilt_gorunumu: 'Cilt Görünümü',
   genel_yuz_dengesi: 'Genel Yüz Dengesi',
 }
+
+export const concernSubAreaLabels: Record<ConcernSubArea, string> = {
+  dudak: 'Dudak',
+  cene_hatti: 'Çene Hattı',
+  yanak: 'Yanak',
+  alin: 'Alın',
+  kas_arasi: 'Kaş Arası',
+  kaz_ayagi: 'Kaz Ayağı',
+  nazolabial: 'Nazolabial',
+  cilt_kalitesi: 'Cilt Kalitesi',
+}
+
+export const CONCERN_GROUPS: { key: ConcernArea; label: string; subs: ConcernSubArea[] }[] = [
+  { key: 'yuz_hatlari', label: 'Yüz Hatları', subs: ['dudak', 'cene_hatti', 'yanak'] },
+  { key: 'cizgiler_kirisiklik', label: 'Çizgiler & Kırışıklık', subs: ['alin', 'kas_arasi', 'kaz_ayagi', 'nazolabial'] },
+  { key: 'cilt', label: 'Cilt', subs: ['cilt_kalitesi'] },
+]
 
 export const desiredResultLabels: Record<DesiredResultStyle, string> = {
   cok_dogal: 'Çok Doğal',
@@ -102,6 +137,7 @@ export interface Lead {
   phone: string
   city?: string
   concern_area: ConcernArea
+  concern_sub_areas?: ConcernSubArea[]
   expectation_note?: string
   desired_result_style: DesiredResultStyle
   prior_treatment: boolean
