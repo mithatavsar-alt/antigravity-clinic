@@ -16,7 +16,7 @@ export function PublicNavbar() {
     // so check the first child of <main> for the theme class
     const main = document.querySelector('main')
     const firstChild = main?.firstElementChild
-    setIsDark(firstChild?.classList.contains('theme-dark') ?? false)
+    setIsDark(firstChild?.classList.contains('theme-dark') ?? false) // eslint-disable-line react-hooks/set-state-in-effect -- DOM read on mount
 
     const onScroll = () => setScrolled(window.scrollY > 40)
     window.addEventListener('scroll', onScroll)

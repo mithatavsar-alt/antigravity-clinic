@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- Legacy MediaPipe CDN globals use untyped APIs */
+
 import { useEffect, useRef, useState, useCallback } from 'react'
 
 /* ─── MediaPipe CDN globals ─────────────────────────────────── */
@@ -273,7 +275,7 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
   // Hot-path refs (no re-renders)
   const phaseRef = useRef<Phase>('loading')
   const fpsFramesRef = useRef(0)
-  const fpsLastRef = useRef(performance.now())
+  const fpsLastRef = useRef(0) // initialized in effect
   const faceDetectedRef = useRef(false)
 
   // Face lock + crop
@@ -338,10 +340,10 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
 
       if (countdownRef.current <= 0) {
         // Countdown complete — auto capture
-        cancelCountdown()
+        cancelCountdown() // eslint-disable-line react-hooks/immutability -- forward ref safe in timer callback
         guidanceRef.current = GUIDANCE.capturing
         setGuidance(GUIDANCE.capturing)
-        doAutoCapture()
+        doAutoCapture() // eslint-disable-line react-hooks/immutability -- forward ref safe in timer callback
       }
     }, 1000)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -962,8 +964,6 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
             const canManual = checksPassCount >= 4
             const isPerfect = isReady
             const isWarning = nearValid && !isPerfect
-            const COLOR_AMBER = '#E5A83B'
-
             const btnBg = isPerfect ? 'rgba(74,230,138,0.12)'
               : isWarning ? 'rgba(229,168,59,0.08)'
               : 'rgba(255,255,255,0.03)'

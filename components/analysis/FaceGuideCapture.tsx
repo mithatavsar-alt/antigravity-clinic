@@ -116,7 +116,7 @@ export function drawMesh(
   h: number,
   _allOk: boolean,
   mirror = true,
-  _clipOval = true,   // kept for signature compat — ignored
+  _clipOval = true,   // eslint-disable-line @typescript-eslint/no-unused-vars -- kept for signature compat
   qualityScore = 0,
 ) {
   ctx.clearRect(0, 0, w, h)
@@ -444,7 +444,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
     const mc = meshCanvasRef.current
 
     if (!video || !engineReadyRef.current || !bc || !mc || processingRef.current || video.readyState < 2) {
-      animFrameRef.current = requestAnimationFrame(processFrame)
+      animFrameRef.current = requestAnimationFrame(processFrame) // eslint-disable-line react-hooks/immutability -- rAF self-ref
       return
     }
 

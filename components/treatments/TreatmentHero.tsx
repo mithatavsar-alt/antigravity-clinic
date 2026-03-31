@@ -10,7 +10,7 @@ interface TreatmentHeroProps {
 
 export function TreatmentHero({ label, title, subtitle }: TreatmentHeroProps) {
   const [mounted, setMounted] = useState(false)
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => { setMounted(true) }, []) // eslint-disable-line react-hooks/set-state-in-effect -- one-time mount trigger
 
   return (
     <section className="relative overflow-hidden" style={{ paddingTop: 'clamp(100px, 18vw, 160px)', paddingBottom: 'clamp(60px, 10vw, 100px)' }}>

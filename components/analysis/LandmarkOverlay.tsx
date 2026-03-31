@@ -185,7 +185,6 @@ export function LandmarkOverlay({
       cancelled = true
       clearTimeout(failsafe)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src, propLandmarks, visible])
 
   // ── Sync prop landmarks → mapped ──────────────────────────
