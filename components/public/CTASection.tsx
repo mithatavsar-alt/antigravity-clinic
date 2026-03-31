@@ -31,26 +31,26 @@ export function CTASection() {
                 sizes="(max-width: 1024px) 100vw, 50vw"
                 fallbackIcon="face"
               />
-              {/* Dark tint to match card tone */}
+              {/* Dark tint to match card tone — lighter on mobile */}
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  background: 'rgba(26,26,46,0.35)',
+                  background: 'rgba(26,26,46,0.20)',
                   mixBlendMode: 'multiply',
                 }}
               />
-              {/* Gradient blend into dark side */}
+              {/* Gradient blend into dark side — desktop only */}
               <div
-                className="absolute inset-0 pointer-events-none"
+                className="absolute inset-0 pointer-events-none hidden lg:block"
                 style={{
                   background: 'linear-gradient(90deg, transparent 25%, rgba(26,26,46,0.95) 100%)',
                 }}
               />
-              {/* Bottom fade for mobile */}
+              {/* Bottom fade for mobile — gentler so image stays visible */}
               <div
                 className="absolute inset-0 pointer-events-none lg:hidden"
                 style={{
-                  background: 'linear-gradient(180deg, transparent 30%, rgba(26,26,46,0.95) 100%)',
+                  background: 'linear-gradient(180deg, transparent 40%, rgba(26,26,46,0.75) 100%)',
                 }}
               />
             </div>

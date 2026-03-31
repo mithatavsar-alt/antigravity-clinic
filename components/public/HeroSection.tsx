@@ -29,6 +29,29 @@ export function HeroSection() {
       />
 
       <div className="relative z-10 container-main grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-12 items-center py-24 lg:py-0">
+        {/* Mobile hero portrait — visible only below lg */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, ease }}
+          className="lg:hidden relative w-full max-w-xs mx-auto aspect-[3/4] rounded-2xl overflow-hidden"
+        >
+          <ImageWithFallback
+            src="/images/Hero/home.png"
+            alt="Doğal güzellik — medikal estetik"
+            className="object-cover object-top"
+            sizes="(max-width: 1024px) 320px, 0vw"
+            priority
+            fallbackIcon="face"
+          />
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: 'linear-gradient(180deg, transparent 55%, rgba(245,230,211,0.2) 100%)',
+            }}
+          />
+        </motion.div>
+
         {/* Left — Text content */}
         <div className="flex flex-col items-start text-left">
           <motion.div
@@ -110,7 +133,7 @@ export function HeroSection() {
           {/* Image container with elegant crop */}
           <div className="relative w-full max-w-[520px] aspect-[3/4] rounded-3xl overflow-hidden group">
             <ImageWithFallback
-              src="/images/hero/home.png"
+              src="/images/Hero/home.png"
               alt="Doğal güzellik — medikal estetik"
               className="object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.03]"
               sizes="(max-width: 1024px) 0vw, 520px"
