@@ -14,8 +14,6 @@ import { LandmarkOverlay, type OverlayState } from '@/components/analysis/Landma
 import { contact } from '@/lib/contact'
 import RadarChartSection from '@/components/analysis/RadarChart'
 
-const fallbackFocusAreas = ['Göz Çevresi', 'Orta Yüz', 'Alt Yüz', 'Cilt Görünümü']
-
 /* ── Radial gauge ──────────────────────────────────────────── */
 function RadialGauge({ score, label, color }: { score: number; label: string; color: string }) {
   const [mounted, setMounted] = useState(false)
@@ -284,7 +282,7 @@ function ScoresPanel({ aiScores, qualityScore }: {
   )
 }
 
-/* ── Age Estimation panel (multi-signal, confidence-aware) ─── */
+/* ── Age Estimation panel ─────────────────────────────────── */
 function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence, ageEstimation }: {
   estimatedAge: number | null | undefined
   confidence?: number
@@ -292,125 +290,64 @@ function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence
   genderConfidence?: number
   ageEstimation?: Lead['age_estimation']
 }) {
-  const hasAge = estimatedAge != null || ageEstimation != null
+  const ageValue = ageEstimation?.pointEstimate ?? (estimatedAge != null ? Math.round(estimatedAge) : null)
   const hasGender = !!gender
   const genderLabel = gender === 'male' ? 'Erkek' : gender === 'female' ? 'Kadın' : gender ?? null
 
-  const confLabel: Record<string, string> = { high: 'Yüksek', medium: 'Orta', low: 'Düşük' }
-  const confColor: Record<string, string> = { high: '#4AE3A7', medium: '#D6B98C', low: '#C47A7A' }
-
-  if (!hasAge && !hasGender) {
+  if (ageValue == null && !hasGender) {
     return (
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-          </svg>
-          <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Yaş Tahmini</p>
-        </div>
-        <p className="font-body text-[13px] text-[rgba(248,246,242,0.4)] italic">Yaş tahmini yapılamadı</p>
+      <div className="flex flex-col gap-3">
+        <p className="font-body text-[9px] tracking-[0.22em] uppercase text-[rgba(248,246,242,0.4)]">Yaş Tahmini</p>
+        <p className="font-body text-[12px] text-[rgba(248,246,242,0.35)] italic">Yaş tahmini yapılamadı</p>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-2">
-        <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-        </svg>
-        <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Yaş Tahmini</p>
-      </div>
+    <div className="flex flex-col gap-4">
+      {/* Section label */}
+      <p className="font-body text-[9px] tracking-[0.22em] uppercase text-[rgba(248,246,242,0.4)]">Yaş Tahmini</p>
 
-      <div className="flex items-center gap-6">
-        {/* Age range display */}
-        {ageEstimation ? (
-          <div className="flex flex-col items-center gap-1">
-            <div className="flex items-baseline gap-1">
-              <span className="font-mono text-[36px] font-light text-[#F8F6F2] leading-none tracking-tight">
-                {ageEstimation.estimatedRange[0]}
-              </span>
-              <span className="font-mono text-[20px] font-light text-[rgba(248,246,242,0.3)] leading-none">–</span>
-              <span className="font-mono text-[36px] font-light text-[#F8F6F2] leading-none tracking-tight">
-                {ageEstimation.estimatedRange[1]}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="font-body text-[10px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.35)]">
-                Tahmini Yaş Aralığı
-              </span>
-              <span
-                className="font-body text-[8px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full border"
-                style={{
-                  color: confColor[ageEstimation.confidence] ?? '#D6B98C',
-                  backgroundColor: `${confColor[ageEstimation.confidence] ?? '#D6B98C'}10`,
-                  borderColor: `${confColor[ageEstimation.confidence] ?? '#D6B98C'}25`,
-                }}
-              >
-                {confLabel[ageEstimation.confidence] ?? 'Orta'} Güven
-              </span>
-            </div>
-          </div>
-        ) : estimatedAge != null ? (
-          <div className="flex flex-col items-center gap-1">
-            <span className="font-mono text-[40px] font-light text-[#F8F6F2] leading-none tracking-tight">
-              ~{Math.round(estimatedAge)}
+      {/* Content row */}
+      <div className="flex items-center justify-between">
+        {/* Left: hero age number */}
+        {ageValue != null && (
+          <div className="flex flex-col gap-1">
+            <span className="font-display text-[48px] sm:text-[56px] font-semibold text-[#F8F6F2] leading-none tracking-tight">
+              {ageValue}
             </span>
-            <span className="font-body text-[10px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.35)]">
-              Tahmini Yaş
+            <span className="font-body text-[10px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.35)]">
+              AI tahmini
             </span>
           </div>
-        ) : null}
-
-        {/* Divider */}
-        {hasAge && hasGender && (
-          <div className="w-px h-14 bg-[rgba(214,185,140,0.12)]" />
         )}
 
-        {/* Gender + confidence */}
-        <div className="flex flex-col gap-2">
-          {hasGender && (
-            <div className="flex items-center gap-2">
-              <span className="font-body text-[14px] text-[#F8F6F2]">{genderLabel}</span>
-              {genderConfidence != null && genderConfidence > 0 && (
-                <span className="font-mono text-[11px] text-[rgba(248,246,242,0.3)]">
-                  ({Math.round(genderConfidence * 100)}%)
-                </span>
-              )}
-            </div>
-          )}
-          {confidence != null && confidence > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="font-body text-[11px] text-[rgba(248,246,242,0.35)]">Algılama Güveni:</span>
-              <span className="font-mono text-[12px] text-[#D6B98C]">{Math.round(confidence * 100)}%</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Age drivers — what signals contributed */}
-      {ageEstimation && ageEstimation.drivers.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="font-body text-[9px] tracking-[0.22em] uppercase text-[rgba(248,246,242,0.3)]">Belirleyici Sinyaller</p>
-          <div className="flex flex-wrap gap-1.5">
-            {ageEstimation.drivers.map((d) => (
-              <span
-                key={d.signal}
-                className="font-body text-[10px] px-2.5 py-1 rounded-full bg-[rgba(214,185,140,0.06)] border border-[rgba(214,185,140,0.12)] text-[rgba(248,246,242,0.5)]"
-                title={d.description}
-              >
-                {d.label}
+        {/* Right: gender + confidence */}
+        {(hasGender || (confidence != null && confidence > 0)) && (
+          <div className="flex flex-col items-end gap-1.5">
+            {hasGender && (
+              <span className="font-body text-[13px] text-[rgba(248,246,242,0.6)]">
+                {genderLabel}
+                {genderConfidence != null && genderConfidence > 0 && (
+                  <span className="font-mono text-[11px] text-[rgba(248,246,242,0.25)] ml-1.5">
+                    %{Math.round(genderConfidence * 100)}
+                  </span>
+                )}
               </span>
-            ))}
+            )}
+            {confidence != null && confidence > 0 && (
+              <span className="font-mono text-[10px] text-[rgba(248,246,242,0.25)]">
+                Güven %{Math.round(confidence * 100)}
+              </span>
+            )}
           </div>
-        </div>
-      )}
-
-      <div className="bg-[rgba(214,185,140,0.03)] border border-[rgba(214,185,140,0.08)] rounded-[10px] p-3">
-        <p className="font-body text-[10px] text-[rgba(248,246,242,0.3)] leading-relaxed italic">
-          {ageEstimation?.caveat ?? 'Yaş tahmini birden fazla yapay zeka sinyalinin birleşimiyle oluşturulmuştur. Kesin değil, yaklaşık değerlerdir.'}
-        </p>
+        )}
       </div>
+
+      {/* Caveat */}
+      <p className="font-body text-[10px] text-[rgba(248,246,242,0.22)] leading-relaxed">
+        Yapay zeka destekli ön değerlendirmedir.
+      </p>
     </div>
   )
 }
@@ -760,7 +697,7 @@ function ResultContent() {
     )
   }
 
-  const focusAreas = selectedLead.patient_summary?.focus_areas ?? fallbackFocusAreas
+  const focusAreas = selectedLead.patient_summary?.focus_areas ?? ['Genel Yüz Dengesi']
   const photoQuality = selectedLead.patient_summary?.photo_quality
   const aiScores = selectedLead.ai_scores
   const skinScores = selectedLead.skin_scores

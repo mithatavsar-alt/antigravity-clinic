@@ -825,7 +825,7 @@ function ProcessingContent() {
 
         const suggestions = generateSuggestions(enhanced)
         const summaryText = generatePatientSummaryText(enhanced, lead.concern_area)
-        const focusLabels = generateFocusAreaLabels(focusAreas)
+        const focusLabels = generateFocusAreaLabels(enhanced)
         const radarAnalysis = deriveRadarAnalysis(enhanced, lead.capture_confidence as 'high' | 'medium' | 'low' | undefined)
 
         const doctorAnalysis = deriveDoctorAnalysis(leadId, geometry, lead)

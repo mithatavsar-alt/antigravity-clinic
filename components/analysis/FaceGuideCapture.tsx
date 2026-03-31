@@ -610,16 +610,24 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
   })()
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center select-none" style={{ background: 'radial-gradient(ellipse at 50% 40%, #0E0B09 0%, #060609 60%, #030305 100%)' }}>
+    <div
+      className="fixed inset-0 z-50 flex flex-col select-none"
+      style={{
+        background: 'radial-gradient(ellipse at 50% 40%, #0E0B09 0%, #060609 60%, #030305 100%)',
+        height: '100dvh',
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      }}
+    >
       <canvas ref={captureCanvasRef} className="hidden" />
       <canvas ref={brightnessCanvasRef} className="hidden" />
 
-      {/* ─── Top bar ─────────────────────────────────────── */}
-      <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-[env(safe-area-inset-top,12px)] pb-2">
-        <div className="flex items-center justify-between pt-3 mb-2">
+      {/* ═══ SECTION 1: Header ═══════════════════════════════ */}
+      <div className="flex-none px-4 pt-3 pb-1 sm:pt-4 sm:pb-2">
+        <div className="flex items-center justify-between">
           <button
             onClick={onClose}
-            className="w-10 h-10 rounded-full bg-[rgba(255,255,255,0.06)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] flex items-center justify-center text-white/50 hover:text-white hover:bg-[rgba(255,255,255,0.12)] transition-all active:scale-95"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[rgba(255,255,255,0.06)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] flex items-center justify-center text-white/50 hover:text-white hover:bg-[rgba(255,255,255,0.12)] transition-all active:scale-95"
             aria-label="Kapat" type="button"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -645,142 +653,145 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
               ))}
             </div>
           ) : (
-            <div className="w-10 h-10" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10" />
           )}
         </div>
       </div>
 
-      {/* ─── Camera card — video + canvas perfectly aligned ── */}
-      <div className="relative w-[75vw] max-w-[340px] sm:w-[62vw] sm:max-w-[300px] aspect-[3/4] rounded-[24px] sm:rounded-[28px] overflow-hidden border border-[rgba(214,185,140,0.12)] shadow-[0_0_80px_rgba(0,0,0,0.6),0_0_0_1px_rgba(214,185,140,0.05)]">
-        {/* Loading */}
-        {initState === 'loading' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-[#060609]">
-            <div className="relative w-16 h-16">
-              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#C4A35A] border-r-[#2D5F5D] animate-spin" />
-              <div className="absolute inset-3 rounded-full border border-[rgba(196,163,90,0.12)]" />
+      {/* ═══ SECTION 2: Camera preview (flex-1, fills available space) ═══ */}
+      <div className="flex-1 min-h-0 flex items-center justify-center px-4 py-2 sm:py-4">
+        <div
+          className="relative w-full max-w-[min(88vw,400px)] sm:max-w-[340px] rounded-[20px] sm:rounded-[28px] overflow-hidden border border-[rgba(214,185,140,0.12)] shadow-[0_0_60px_rgba(0,0,0,0.5),0_0_0_1px_rgba(214,185,140,0.05)]"
+          style={{ aspectRatio: '3/4', maxHeight: '100%' }}
+        >
+          {/* Loading */}
+          {initState === 'loading' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#060609]">
+              <div className="relative w-14 h-14 sm:w-16 sm:h-16">
+                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#C4A35A] border-r-[#2D5F5D] animate-spin" />
+                <div className="absolute inset-3 rounded-full border border-[rgba(196,163,90,0.12)]" />
+              </div>
+              <div className="text-center px-4">
+                <p className="font-body text-[12px] sm:text-[13px] text-white/60 tracking-wide">AI modeli yükleniyor</p>
+                <p className="font-body text-[10px] text-white/25 mt-1">İlk kullanımda biraz sürebilir</p>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="font-body text-[13px] text-white/60 tracking-wide">AI modeli yükleniyor</p>
-              <p className="font-body text-[10px] text-white/25 mt-1">İlk kullanımda biraz sürebilir</p>
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* Error */}
-        {initState === 'error' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 bg-[#060609]">
-            <div className="w-12 h-12 rounded-full bg-[rgba(160,82,82,0.12)] flex items-center justify-center">
-              <svg className="w-6 h-6 text-[#E07070]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-              </svg>
-            </div>
-            <p className="font-body text-[12px] text-white/60 text-center leading-relaxed">{initError}</p>
-            <button type="button" onClick={onClose} className="mt-1 font-body text-[10px] tracking-[0.15em] uppercase text-[#C4A35A] hover:text-[#D4B96A] transition-colors">
-              Kapat
-            </button>
-          </div>
-        )}
-
-        {/* Live camera + Face Mesh canvas — NO static overlays */}
-        {(initState === 'ready' || initState === 'loading') && !preview && (
-          <>
-            <video
-              ref={videoRef}
-              autoPlay playsInline muted
-              className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
-            />
-            {/* Mesh canvas — same position/size as video, draws only real landmarks */}
-            <canvas
-              ref={meshCanvasRef}
-              className="absolute inset-0 w-full h-full pointer-events-none"
-            />
-
-            {/* Soft vignette edge — cosmetic only, not a face template */}
-            <div className="absolute inset-0 pointer-events-none" style={{
-              background: 'radial-gradient(ellipse 70% 65% at 50% 45%, transparent 50%, rgba(3,3,5,0.7) 100%)',
-            }} />
-
-            {/* Stabilization progress ring */}
-            {phase === 'stabilizing' && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-                <svg width="100" height="100" viewBox="0 0 100 100" className="opacity-60">
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
-                  <circle
-                    cx="50" cy="50" r="42" fill="none"
-                    stroke="rgba(0,220,130,0.7)"
-                    strokeWidth="3" strokeLinecap="round"
-                    strokeDasharray={`${validationProgress * 264} 264`}
-                    transform="rotate(-90 50 50)"
-                    style={{ transition: 'stroke-dasharray 0.15s ease-out' }}
-                  />
+          {/* Error */}
+          {initState === 'error' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 bg-[#060609]">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[rgba(160,82,82,0.12)] flex items-center justify-center">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#E07070]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                 </svg>
               </div>
-            )}
+              <p className="font-body text-[11px] sm:text-[12px] text-white/60 text-center leading-relaxed">{initError}</p>
+              <button type="button" onClick={onClose} className="mt-1 font-body text-[10px] tracking-[0.15em] uppercase text-[#C4A35A] hover:text-[#D4B96A] transition-colors">
+                Kapat
+              </button>
+            </div>
+          )}
 
-            {/* Validated success */}
-            {(phase === 'validated' || phase === 'advancing') && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none animate-[fadeIn_0.3s_ease]">
-                <div className="w-16 h-16 rounded-full bg-[rgba(0,220,130,0.15)] backdrop-blur-md border border-[rgba(0,220,130,0.4)] flex items-center justify-center">
-                  <svg className="w-8 h-8 text-[#00DC82]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          {/* Live camera + Face Mesh canvas */}
+          {(initState === 'ready' || initState === 'loading') && !preview && (
+            <>
+              <video
+                ref={videoRef}
+                autoPlay playsInline muted
+                className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+              />
+              <canvas
+                ref={meshCanvasRef}
+                className="absolute inset-0 w-full h-full pointer-events-none"
+              />
+
+              {/* Soft vignette */}
+              <div className="absolute inset-0 pointer-events-none" style={{
+                background: 'radial-gradient(ellipse 70% 65% at 50% 45%, transparent 50%, rgba(3,3,5,0.7) 100%)',
+              }} />
+
+              {/* Stabilization ring */}
+              {phase === 'stabilizing' && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+                  <svg width="90" height="90" viewBox="0 0 100 100" className="opacity-60">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+                    <circle
+                      cx="50" cy="50" r="42" fill="none"
+                      stroke="rgba(0,220,130,0.7)"
+                      strokeWidth="3" strokeLinecap="round"
+                      strokeDasharray={`${validationProgress * 264} 264`}
+                      transform="rotate(-90 50 50)"
+                      style={{ transition: 'stroke-dasharray 0.15s ease-out' }}
+                    />
                   </svg>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Flash */}
-            {showFlash && (
-              <div className="absolute inset-0 z-30 bg-white animate-[flashFade_0.35s_ease-out_forwards] pointer-events-none" />
-            )}
-          </>
-        )}
+              {/* Validated success */}
+              {(phase === 'validated' || phase === 'advancing') && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none animate-[fadeIn_0.3s_ease]">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[rgba(0,220,130,0.15)] backdrop-blur-md border border-[rgba(0,220,130,0.4)] flex items-center justify-center">
+                    <svg className="w-7 h-7 sm:w-8 sm:h-8 text-[#00DC82]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  </div>
+                </div>
+              )}
 
-        {/* Preview */}
-        {preview && (
-          <div className="absolute inset-0 animate-[fadeIn_0.5s_ease]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={preview} alt="Önizleme" className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
-            {isMulti && (
-              <div className="absolute top-4 left-0 right-0 flex justify-center">
-                <span className="px-3 py-1 rounded-full bg-[rgba(0,0,0,0.5)] backdrop-blur-md text-[10px] font-medium tracking-[0.15em] uppercase text-white/80">
-                  {currentStepLabel} — Fotoğraf {stepNumber}/3
+              {/* Flash */}
+              {showFlash && (
+                <div className="absolute inset-0 z-30 bg-white animate-[flashFade_0.35s_ease-out_forwards] pointer-events-none" />
+              )}
+            </>
+          )}
+
+          {/* Preview */}
+          {preview && (
+            <div className="absolute inset-0 animate-[fadeIn_0.5s_ease]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={preview} alt="Önizleme" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+              {isMulti && (
+                <div className="absolute top-3 left-0 right-0 flex justify-center">
+                  <span className="px-3 py-1 rounded-full bg-[rgba(0,0,0,0.5)] backdrop-blur-md text-[9px] sm:text-[10px] font-medium tracking-[0.15em] uppercase text-white/80">
+                    {currentStepLabel} — Fotoğraf {stepNumber}/3
+                  </span>
+                </div>
+              )}
+              <div className="absolute bottom-3 left-3 right-3 flex justify-center pointer-events-none">
+                <span className="px-3.5 py-1.5 rounded-full bg-[rgba(0,220,130,0.15)] backdrop-blur-md border border-[rgba(0,220,130,0.3)] text-[9px] sm:text-[10px] font-medium tracking-[0.1em] uppercase text-[#7CE8B2] whitespace-nowrap">
+                  ✓ Çekim tamamlandı
                 </span>
               </div>
-            )}
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
-              <span className="px-4 py-1.5 rounded-full bg-[rgba(0,220,130,0.15)] backdrop-blur-md border border-[rgba(0,220,130,0.3)] text-[10px] font-medium tracking-[0.1em] uppercase text-[#7CE8B2]">
-                ✓ Çekim tamamlandı
-              </span>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Status badges — derived from real landmark calculations */}
-        {initState === 'ready' && !preview && phase !== 'validated' && phase !== 'advancing' && (
-          <div className="absolute bottom-3 left-0 right-0 z-10 flex justify-center gap-1">
-            <Badge category="distance" value={status.distance} />
-            <Badge category="lighting" value={status.lighting} />
-            <Badge category="angle" value={status.angle} />
-            <Badge category="forehead" value={status.foreheadVisible ? 'ok' : 'hidden'} />
-          </div>
-        )}
+          {/* Status badges */}
+          {initState === 'ready' && !preview && phase !== 'validated' && phase !== 'advancing' && (
+            <div className="absolute bottom-2.5 left-2 right-2 z-10 flex justify-center gap-1 flex-wrap">
+              <Badge category="distance" value={status.distance} />
+              <Badge category="lighting" value={status.lighting} />
+              <Badge category="angle" value={status.angle} />
+              <Badge category="forehead" value={status.foreheadVisible ? 'ok' : 'hidden'} />
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ─── Below-container guidance + controls ─────────── */}
-      <div className="flex flex-col items-center gap-3 mt-7 px-6">
+      {/* ═══ SECTION 3: Controls (flex-none, never overflows) ═══ */}
+      <div className="flex-none px-5 pb-3 sm:pb-5">
+        {/* Guidance text */}
         {initState === 'ready' && !preview && (
-          <div className="flex flex-col items-center gap-1.5">
+          <div className="flex flex-col items-center gap-1 mb-2.5 sm:mb-3">
             {isMulti && (
-              <span className="px-3 py-1 rounded-full bg-[rgba(196,163,90,0.1)] border border-[rgba(196,163,90,0.15)] text-[9px] font-medium tracking-[0.15em] uppercase text-[#D4B96A]">
+              <span className="px-3 py-0.5 rounded-full bg-[rgba(196,163,90,0.1)] border border-[rgba(196,163,90,0.15)] text-[9px] font-medium tracking-[0.15em] uppercase text-[#D4B96A]">
                 {currentStepLabel} — {stepNumber}/3
               </span>
             )}
-
-            <p className={`font-display text-[18px] font-light tracking-[-0.01em] text-center transition-all duration-500 ${messageColor}`}>
+            <p className={`font-display text-[16px] sm:text-[18px] font-light tracking-[-0.01em] text-center transition-all duration-500 ${messageColor}`}>
               {phaseMessage}
             </p>
-
             {phase === 'tracking' && status.faceDetected && (
               <p className="font-body text-[10px] text-white/30 text-center animate-[fadeIn_0.4s_ease]" key={tipIndex}>
                 {TIPS[tipIndex]}
@@ -794,12 +805,14 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
           </div>
         )}
 
-        <div className="pb-[env(safe-area-inset-bottom,16px)] flex flex-col items-center gap-2">
+        {/* Action area */}
+        <div className="flex flex-col items-center gap-1.5 sm:gap-2">
           {!preview ? (
             <>
+              {/* Quality bar */}
               {status.faceDetected && phase !== 'validated' && phase !== 'advancing' && (
-                <div className="flex items-center gap-2.5 mb-1">
-                  <div className="w-28 h-[5px] rounded-full bg-white/[0.06] overflow-hidden backdrop-blur-sm">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <div className="w-24 sm:w-28 h-[4px] sm:h-[5px] rounded-full bg-white/[0.06] overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-700 ease-out"
                       style={{
@@ -812,7 +825,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
                       }}
                     />
                   </div>
-                  <span className={`font-body text-[10px] tabular-nums w-8 transition-colors duration-500 ${
+                  <span className={`font-body text-[10px] tabular-nums w-7 transition-colors duration-500 ${
                     status.qualityScore >= 0.8 ? 'text-[#00DC82]/60' : status.qualityScore >= 0.5 ? 'text-[#D4B96A]/50' : 'text-white/25'
                   }`}>
                     {Math.round(status.qualityScore * 100)}
@@ -820,35 +833,45 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
                 </div>
               )}
 
+              {/* Capture button / status */}
               {failsafeActive && status.faceDetected && phase !== 'validated' && phase !== 'advancing' ? (
-                <>
+                <div className="flex flex-col items-center gap-1.5">
                   <button type="button" onClick={takeSnapshot} className="group relative" aria-label="Fotoğraf çek">
-                    <div className="w-[76px] h-[76px] rounded-full border-[3px] border-[rgba(196,163,90,0.4)] shadow-[0_0_20px_rgba(196,163,90,0.15)] transition-all duration-500 flex items-center justify-center">
-                      <div className="w-[62px] h-[62px] rounded-full bg-[rgba(255,255,255,0.12)] group-hover:bg-[rgba(255,255,255,0.22)] group-active:scale-90 transition-all duration-300" />
+                    <div className="w-[64px] h-[64px] sm:w-[76px] sm:h-[76px] rounded-full border-[3px] border-[rgba(196,163,90,0.4)] shadow-[0_0_16px_rgba(196,163,90,0.12)] transition-all duration-500 flex items-center justify-center">
+                      <div className="w-[52px] h-[52px] sm:w-[62px] sm:h-[62px] rounded-full bg-[rgba(255,255,255,0.12)] group-hover:bg-[rgba(255,255,255,0.22)] group-active:scale-90 transition-all duration-300" />
                     </div>
                   </button>
-                  <p className="font-body text-[9px] text-white/20 tracking-[0.15em] uppercase">Manuel çekim yapabilirsiniz</p>
-                </>
+                  <p className="font-body text-[9px] text-white/20 tracking-[0.12em] uppercase">Manuel çekim</p>
+                </div>
               ) : phase === 'validated' || phase === 'advancing' ? (
-                <p className="font-body text-[11px] text-[#00DC82] tracking-[0.1em] uppercase">Çekim tamamlandı</p>
+                <p className="font-body text-[11px] text-[#00DC82] tracking-[0.1em] uppercase py-2">Çekim tamamlandı</p>
               ) : (
-                <>
-                  <div className="w-[76px] h-[76px] rounded-full border-[3px] border-[rgba(255,255,255,0.06)] flex items-center justify-center">
-                    <div className="w-[62px] h-[62px] rounded-full bg-[rgba(255,255,255,0.04)]" />
+                <div className="flex flex-col items-center gap-1.5">
+                  <div className="w-[64px] h-[64px] sm:w-[76px] sm:h-[76px] rounded-full border-[3px] border-[rgba(255,255,255,0.06)] flex items-center justify-center">
+                    <div className="w-[52px] h-[52px] sm:w-[62px] sm:h-[62px] rounded-full bg-[rgba(255,255,255,0.04)]" />
                   </div>
-                  <p className="font-body text-[9px] text-white/20 tracking-[0.15em] uppercase">
-                    {phase === 'stabilizing' ? 'Doğrulanıyor...' : 'Otomatik çekim yapılacak'}
+                  <p className="font-body text-[9px] text-white/20 tracking-[0.12em] uppercase">
+                    {phase === 'stabilizing' ? 'Doğrulanıyor...' : 'Otomatik çekim'}
                   </p>
-                </>
+                </div>
               )}
             </>
           ) : (
-            <div className="flex gap-3 w-full max-w-xs">
-              <button type="button" onClick={retake} className="flex-1 font-body text-[12px] font-medium tracking-[0.1em] uppercase py-3.5 rounded-[14px] border border-white/12 text-white/50 hover:text-white hover:border-white/25 transition-all active:scale-[0.98]">
-                Yeniden Çek
+            /* ─── Preview action buttons ─── */
+            <div className="flex flex-col gap-2.5 w-full max-w-[300px] sm:max-w-xs">
+              <button
+                type="button"
+                onClick={isMulti ? confirmMulti : confirmSingle}
+                className="w-full font-body text-[12px] font-medium tracking-[0.1em] uppercase py-3 sm:py-3.5 rounded-[14px] bg-gradient-to-br from-[#00905A] to-[#00B864] text-white hover:shadow-[0_4px_24px_rgba(0,184,100,0.35)] transition-all active:scale-[0.98]"
+              >
+                {isMulti && multiStep !== 'right' ? 'Sonraki Açı' : 'Bu Fotoğrafı Kullan'}
               </button>
-              <button type="button" onClick={isMulti ? confirmMulti : confirmSingle} className="flex-1 font-body text-[12px] font-medium tracking-[0.1em] uppercase py-3.5 rounded-[14px] bg-gradient-to-br from-[#00905A] to-[#00B864] text-white hover:shadow-[0_4px_24px_rgba(0,184,100,0.35)] transition-all active:scale-[0.98]">
-                {isMulti && multiStep !== 'right' ? 'Sonraki' : 'Kullan'}
+              <button
+                type="button"
+                onClick={retake}
+                className="w-full font-body text-[11px] font-medium tracking-[0.1em] uppercase py-2.5 sm:py-3 rounded-[12px] border border-white/10 text-white/40 hover:text-white/70 hover:border-white/20 transition-all active:scale-[0.98]"
+              >
+                Yeniden Çek
               </button>
             </div>
           )}

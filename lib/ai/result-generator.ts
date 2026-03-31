@@ -8,7 +8,7 @@
  * clearly state that doctor review is recommended.
  */
 
-import type { EnhancedAnalysisResult, FocusArea, AgeEstimation, ImageQualityAssessment } from './types'
+import type { EnhancedAnalysisResult, FocusArea } from './types'
 import type { ConcernArea } from '@/types/lead'
 import { concernAreaLabels } from '@/types/lead'
 
@@ -61,47 +61,26 @@ export function generatePatientSummaryText(
   return parts.join(' ')
 }
 
-// ─── Focus area labels for patient ──────────────────────────
+// ─── Internal candidate builder (shared by suggestions + focus labels) ───
 
-export function generateFocusAreaLabels(focusAreas: FocusArea[]): string[] {
-  return focusAreas
-    .filter((a) => a.score > 35)
-    .slice(0, 4)
-    .map((a) => a.label)
-}
+interface Finding { text: string; priority: number; region: string }
 
-// ─── Suggestions (patient-safe, observation-first) ──────────
-
-/**
- * Generates "Estetik Tespitler" — observation-first findings with optional
- * soft advisories. Includes wrinkle analysis findings (especially forehead),
- * balances across all facial regions, and limits to top 3–5 findings.
- *
- * Tone: clinical, calm, non-commercial. Never prescriptive.
- */
-export function generateSuggestions(
-  result: EnhancedAnalysisResult
-): string[] {
+function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
   const { geometry, focusAreas, wrinkleAnalysis } = result
-
-  // Collect all candidate findings with a priority score
-  interface Finding { text: string; priority: number; region: string }
   const candidates: Finding[] = []
 
   // ── 1. Wrinkle-based findings (highest value — directly observed signals) ──
   if (wrinkleAnalysis) {
-    // Forehead: always include if lines are detected (score ≥ 12 = 'low' or above)
     const forehead = wrinkleAnalysis.regions.find((r) => r.region === 'forehead')
     if (forehead && forehead.score >= 12 && forehead.confidence >= 0.3) {
       const intensity = forehead.score >= 55 ? 'belirgin' : forehead.score >= 30 ? 'orta düzey' : 'hafif'
       candidates.push({
         text: `Alın bölgesinde ${intensity} yatay çizgi belirginliği gözlenmektedir.${forehead.score >= 30 ? ' İstenirse bu bölgeye yönelik mimik çizgisi uygulamaları değerlendirilebilir.' : ''}`,
-        priority: forehead.score + 10, // +10 boost: forehead is critical for user trust
+        priority: forehead.score + 10,
         region: 'forehead',
       })
     }
 
-    // Glabella
     const glabella = wrinkleAnalysis.regions.find((r) => r.region === 'glabella')
     if (glabella && glabella.score >= 20 && glabella.confidence >= 0.3) {
       const intensity = glabella.score >= 55 ? 'belirgin' : glabella.score >= 30 ? 'orta düzey' : 'hafif'
@@ -112,7 +91,6 @@ export function generateSuggestions(
       })
     }
 
-    // Crow's feet (merge L/R into one finding)
     const crowL = wrinkleAnalysis.regions.find((r) => r.region === 'crow_feet_left')
     const crowR = wrinkleAnalysis.regions.find((r) => r.region === 'crow_feet_right')
     const crowMax = Math.max(crowL?.score ?? 0, crowR?.score ?? 0)
@@ -125,7 +103,6 @@ export function generateSuggestions(
       })
     }
 
-    // Under-eye (merge L/R)
     const ueL = wrinkleAnalysis.regions.find((r) => r.region === 'under_eye_left')
     const ueR = wrinkleAnalysis.regions.find((r) => r.region === 'under_eye_right')
     const ueMax = Math.max(ueL?.score ?? 0, ueR?.score ?? 0)
@@ -138,7 +115,6 @@ export function generateSuggestions(
       })
     }
 
-    // Nasolabial (merge L/R)
     const nlL = wrinkleAnalysis.regions.find((r) => r.region === 'nasolabial_left')
     const nlR = wrinkleAnalysis.regions.find((r) => r.region === 'nasolabial_right')
     const nlMax = Math.max(nlL?.score ?? 0, nlR?.score ?? 0)
@@ -151,7 +127,6 @@ export function generateSuggestions(
       })
     }
 
-    // Jawline
     const jawline = wrinkleAnalysis.regions.find((r) => r.region === 'jawline')
     if (jawline && jawline.score >= 25 && jawline.confidence >= 0.3) {
       const intensity = jawline.score >= 55 ? 'belirgin' : jawline.score >= 30 ? 'orta düzey' : 'hafif'
@@ -163,7 +138,7 @@ export function generateSuggestions(
     }
   }
 
-  // ── 2. Geometry-based findings (observation tone, no treatment names) ──
+  // ── 2. Geometry-based findings ──
   if (geometry.metrics.symmetryRatio < 0.85) {
     candidates.push({
       text: 'Yüz simetrisi standart aralığın altında gözlenmektedir. Klinik değerlendirme ile desteklenebilir.',
@@ -180,14 +155,13 @@ export function generateSuggestions(
     })
   }
 
-  // ── 3. Focus area insights (only for regions not already covered by wrinkle findings) ──
+  // ── 3. Focus area insights (only for uncovered regions) ──
   const coveredRegions = new Set(candidates.map((c) => c.region))
   const topFocusAreas = focusAreas
     .filter((a) => a.score > 55 && a.doctorReviewRecommended)
     .slice(0, 3)
 
   for (const area of topFocusAreas) {
-    // Map focus area regions to wrinkle regions to avoid duplicates
     const regionKey = area.region === 'forehead_glabella' ? 'forehead'
       : area.region === 'crow_feet' ? 'crow_feet'
       : area.region === 'under_eye' ? 'under_eye'
@@ -203,24 +177,87 @@ export function generateSuggestions(
     }
   }
 
-  // ── 4. Sort by priority, limit to top 5, ensure region diversity ──
-  candidates.sort((a, b) => b.priority - a.priority)
+  return candidates
+}
 
-  const suggestions: string[] = []
+/** Select top findings with region diversity */
+function selectTopFindings(candidates: Finding[], limit: number): Finding[] {
+  const sorted = [...candidates].sort((a, b) => b.priority - a.priority)
+  const selected: Finding[] = []
   const usedRegions = new Set<string>()
-  for (const c of candidates) {
-    if (suggestions.length >= 5) break
+  for (const c of sorted) {
+    if (selected.length >= limit) break
     if (usedRegions.has(c.region)) continue
-    suggestions.push(c.text)
+    selected.push(c)
     usedRegions.add(c.region)
   }
+  return selected
+}
 
-  // ── 5. Fallback if no significant findings ──
+// ─── Suggestions (patient-safe, observation-first) ──────────
+
+/**
+ * Generates "Estetik Tespitler" — observation-first findings with optional
+ * soft advisories. Includes wrinkle analysis findings (especially forehead),
+ * balances across all facial regions, and limits to top 3–5 findings.
+ *
+ * Tone: clinical, calm, non-commercial. Never prescriptive.
+ */
+export function generateSuggestions(
+  result: EnhancedAnalysisResult
+): string[] {
+  const candidates = buildCandidates(result)
+  const top = selectTopFindings(candidates, 5)
+  const suggestions = top.map((c) => c.text)
+
   if (suggestions.length === 0) {
     suggestions.push('Yüz oranları genel olarak dengeli görünmektedir. Detaylı değerlendirme için klinik görüşme önerilir.')
   }
 
   return suggestions
+}
+
+// ─── Focus area labels derived from the same findings ───────
+
+/** Region → clean patient-facing Turkish label */
+const REGION_LABEL_MAP: Record<string, string> = {
+  forehead: 'Alın Çizgileri',
+  glabella: 'Kaş Arası',
+  crow_feet: 'Kaz Ayağı',
+  under_eye: 'Göz Altı',
+  nasolabial: 'Nazolabial Hat',
+  jawline: 'Alt Yüz Hattı',
+  symmetry: 'Yüz Simetrisi',
+  nose: 'Burun Oranı',
+  mid_face: 'Orta Yüz',
+  lip_chin_jawline: 'Alt Yüz Hattı',
+}
+
+/**
+ * Derives "Odak Alanları" labels from the same candidate pool as
+ * "Estetik Tespitler", ensuring perfect consistency between the two sections.
+ * Returns 2–4 clean Turkish labels for the top findings.
+ */
+export function generateFocusAreaLabels(
+  resultOrFocusAreas: EnhancedAnalysisResult | FocusArea[]
+): string[] {
+  // Support both new (EnhancedAnalysisResult) and legacy (FocusArea[]) call signatures
+  if (Array.isArray(resultOrFocusAreas)) {
+    // Legacy path: plain FocusArea[] — map labels directly (backward compat)
+    return resultOrFocusAreas
+      .filter((a) => a.score > 35)
+      .slice(0, 4)
+      .map((a) => a.label)
+  }
+
+  const candidates = buildCandidates(resultOrFocusAreas)
+  const top = selectTopFindings(candidates, 4)
+
+  const labels = top
+    .map((c) => REGION_LABEL_MAP[c.region])
+    .filter((label): label is string => !!label)
+
+  return labels.length > 0 ? labels : ['Genel Yüz Dengesi']
 }
 
 // ─── Doctor-facing region score mapping ─────────────────────
