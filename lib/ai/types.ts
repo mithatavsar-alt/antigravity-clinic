@@ -109,6 +109,10 @@ export interface WrinkleRegionResult {
   insight: string
   /** Confidence in the measurement 0–1 (low = unreliable region quality) */
   confidence: number
+  /** Whether detection is texture-backed (true) or inferred/suppressed (false) */
+  detected: boolean
+  /** Strength of image evidence supporting this result: 'strong' | 'moderate' | 'weak' | 'insufficient' */
+  evidenceStrength: 'strong' | 'moderate' | 'weak' | 'insufficient'
 }
 
 export interface WrinkleAnalysisResult {
@@ -121,7 +125,7 @@ export interface WrinkleAnalysisResult {
 
 // ─── Image quality assessment ───────────────────────────────
 
-export type QualityFlag = 'low_light' | 'overexposed' | 'blurry' | 'low_resolution' | 'strong_angle' | 'unstable' | 'partial_face'
+export type QualityFlag = 'low_light' | 'overexposed' | 'blurry' | 'low_resolution' | 'strong_angle' | 'unstable' | 'partial_face' | 'smoothing_detected'
 
 export interface ImageQualityAssessment {
   /** Overall quality score 0–100 */

@@ -4,6 +4,7 @@ import { useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useClinicStore } from '@/lib/store'
 import { GlassCard } from '@/components/design-system/GlassCard'
+import { EditorialHeading } from '@/components/design-system/EditorialHeading'
 import { AnalysisStepBar } from '@/components/analysis/AnalysisStepBar'
 import { FaceMeshCamera, type CaptureMetadata } from '@/components/analysis/FaceMeshCamera'
 
@@ -40,10 +41,8 @@ export default function AnalysisMediaPage() {
 
       <div className="relative max-w-2xl mx-auto">
         <div className="text-center mb-10" style={{ animation: 'cardEntrance 0.5s ease-out both' }}>
-          <p className="font-body text-[10px] tracking-[0.25em] uppercase text-[#D6B98C] mb-3">Adım 2 / 3</p>
-          <h1 className="font-display text-[clamp(32px,5vw,48px)] font-light text-[#F8F6F2] tracking-[-0.02em]">
-            Yüz Tarama
-          </h1>
+          <p className="font-body text-[10px] tracking-[0.25em] uppercase text-[var(--color-gold)] mb-3">Adım 2 / 3</p>
+          <EditorialHeading as="h1" light>Yüz Tarama</EditorialHeading>
           <div className="flex items-center justify-center gap-3 mt-4">
             <div className="h-px w-10 bg-gradient-to-r from-transparent to-[rgba(214,185,140,0.3)]" />
             <div className="w-1 h-1 rounded-full bg-[rgba(214,185,140,0.35)]" />
@@ -54,7 +53,7 @@ export default function AnalysisMediaPage() {
         <GlassCard strong padding="lg" rounded="xl" className="[animation:cardEntrance_0.5s_ease-out_0.15s_both]">
           <AnalysisStepBar currentStep={2} labels={['Kişisel Bilgiler', 'Yüz Tarama', 'Onay']} />
 
-          <p className="font-body text-[12px] text-[rgba(248,246,242,0.45)] mb-5 leading-relaxed text-center">
+          <p className="font-body text-[12px] text-[var(--color-text-secondary)] mb-5 leading-relaxed text-center">
             Yüzünüzü kameraya gösterin. AI otomatik olarak en iyi kareyi seçecektir.
           </p>
 
@@ -62,10 +61,10 @@ export default function AnalysisMediaPage() {
         </GlassCard>
 
         <div className="flex items-center justify-center gap-2 mt-6" style={{ animation: 'cardEntrance 0.4s ease-out 0.3s both' }}>
-          <svg className="w-3.5 h-3.5 text-[rgba(248,246,242,0.2)]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
           </svg>
-          <p className="font-body text-[11px] text-[rgba(248,246,242,0.22)] leading-relaxed">
+          <p className="font-body text-[11px] text-[var(--color-text-muted)] leading-relaxed">
             Fotoğraflarınız yalnızca cihazınızda işlenir. Sunucuya yüklenmez.
           </p>
         </div>

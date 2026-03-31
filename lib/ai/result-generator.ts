@@ -70,10 +70,22 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
   const candidates: Finding[] = []
 
   // ── 1. Wrinkle-based findings (highest value — directly observed signals) ──
+  // Only include regions with sufficient evidence strength. Insufficient evidence
+  // regions get a generic low-confidence caveat instead of false claims.
   if (wrinkleAnalysis) {
+    /** Helper: check if a region's evidence is strong enough to make claims */
+    const isReliable = (r: { evidenceStrength?: string; confidence: number }) =>
+      r.evidenceStrength !== 'insufficient' && r.confidence >= 0.3
+
+    /** Intensity qualifier — soften for weak evidence */
+    const getIntensity = (score: number, evidence?: string) => {
+      if (evidence === 'weak') return score >= 55 ? 'olası belirgin' : score >= 30 ? 'olası orta düzey' : 'hafif'
+      return score >= 55 ? 'belirgin' : score >= 30 ? 'orta düzey' : 'hafif'
+    }
+
     const forehead = wrinkleAnalysis.regions.find((r) => r.region === 'forehead')
-    if (forehead && forehead.score >= 12 && forehead.confidence >= 0.3) {
-      const intensity = forehead.score >= 55 ? 'belirgin' : forehead.score >= 30 ? 'orta düzey' : 'hafif'
+    if (forehead && forehead.score >= 12 && isReliable(forehead)) {
+      const intensity = getIntensity(forehead.score, forehead.evidenceStrength)
       candidates.push({
         text: `Alın bölgesinde ${intensity} yatay çizgi belirginliği gözlenmektedir.${forehead.score >= 30 ? ' İstenirse bu bölgeye yönelik mimik çizgisi uygulamaları değerlendirilebilir.' : ''}`,
         priority: forehead.score + 10,
@@ -82,8 +94,8 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
     }
 
     const glabella = wrinkleAnalysis.regions.find((r) => r.region === 'glabella')
-    if (glabella && glabella.score >= 20 && glabella.confidence >= 0.3) {
-      const intensity = glabella.score >= 55 ? 'belirgin' : glabella.score >= 30 ? 'orta düzey' : 'hafif'
+    if (glabella && glabella.score >= 20 && isReliable(glabella)) {
+      const intensity = getIntensity(glabella.score, glabella.evidenceStrength)
       candidates.push({
         text: `Kaş arası bölgede ${intensity} mimik çizgileri gözlenmektedir.`,
         priority: glabella.score,
@@ -93,9 +105,10 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
 
     const crowL = wrinkleAnalysis.regions.find((r) => r.region === 'crow_feet_left')
     const crowR = wrinkleAnalysis.regions.find((r) => r.region === 'crow_feet_right')
-    const crowMax = Math.max(crowL?.score ?? 0, crowR?.score ?? 0)
-    if (crowMax >= 20) {
-      const intensity = crowMax >= 55 ? 'belirgin' : crowMax >= 30 ? 'orta düzey' : 'hafif'
+    const bestCrow = [crowL, crowR].filter(Boolean).sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0))[0]
+    const crowMax = bestCrow?.score ?? 0
+    if (crowMax >= 20 && bestCrow && isReliable(bestCrow)) {
+      const intensity = getIntensity(crowMax, bestCrow.evidenceStrength)
       candidates.push({
         text: `Göz kenarı bölgesinde ${intensity} kaz ayağı çizgileri dikkat çekmektedir.`,
         priority: crowMax,
@@ -105,9 +118,10 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
 
     const ueL = wrinkleAnalysis.regions.find((r) => r.region === 'under_eye_left')
     const ueR = wrinkleAnalysis.regions.find((r) => r.region === 'under_eye_right')
-    const ueMax = Math.max(ueL?.score ?? 0, ueR?.score ?? 0)
-    if (ueMax >= 25) {
-      const intensity = ueMax >= 55 ? 'belirgin' : ueMax >= 30 ? 'orta düzey' : 'hafif'
+    const bestUe = [ueL, ueR].filter(Boolean).sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0))[0]
+    const ueMax = bestUe?.score ?? 0
+    if (ueMax >= 25 && bestUe && isReliable(bestUe)) {
+      const intensity = getIntensity(ueMax, bestUe.evidenceStrength)
       candidates.push({
         text: `Göz altı dokusunda ${intensity} tekstür değişimi gözlenmektedir.${ueMax >= 40 ? ' İstenirse bu bölge için klinik değerlendirme düşünülebilir.' : ''}`,
         priority: ueMax,
@@ -117,9 +131,10 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
 
     const nlL = wrinkleAnalysis.regions.find((r) => r.region === 'nasolabial_left')
     const nlR = wrinkleAnalysis.regions.find((r) => r.region === 'nasolabial_right')
-    const nlMax = Math.max(nlL?.score ?? 0, nlR?.score ?? 0)
-    if (nlMax >= 25) {
-      const intensity = nlMax >= 55 ? 'belirgin' : nlMax >= 30 ? 'orta düzey' : 'hafif'
+    const bestNl = [nlL, nlR].filter(Boolean).sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0))[0]
+    const nlMax = bestNl?.score ?? 0
+    if (nlMax >= 25 && bestNl && isReliable(bestNl)) {
+      const intensity = getIntensity(nlMax, bestNl.evidenceStrength)
       candidates.push({
         text: `Nazolabial bölgede ${intensity} kıvrım derinliği gözlenmektedir.${nlMax >= 40 ? ' İstenirse hacim desteği açısından değerlendirme düşünülebilir.' : ''}`,
         priority: nlMax,
@@ -128,12 +143,24 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
     }
 
     const jawline = wrinkleAnalysis.regions.find((r) => r.region === 'jawline')
-    if (jawline && jawline.score >= 25 && jawline.confidence >= 0.3) {
-      const intensity = jawline.score >= 55 ? 'belirgin' : jawline.score >= 30 ? 'orta düzey' : 'hafif'
+    if (jawline && jawline.score >= 25 && isReliable(jawline)) {
+      const intensity = getIntensity(jawline.score, jawline.evidenceStrength)
       candidates.push({
         text: `Çene hattında ${intensity} kontur değişimi gözlenmektedir.`,
         priority: jawline.score,
         region: 'jawline',
+      })
+    }
+
+    // If most regions have insufficient evidence, add a quality caveat
+    const insufficientCount = wrinkleAnalysis.regions.filter(
+      (r) => r.evidenceStrength === 'insufficient'
+    ).length
+    if (insufficientCount > wrinkleAnalysis.regions.length * 0.5) {
+      candidates.push({
+        text: 'Görüntü kalitesi bazı bölgelerde güvenilir değerlendirme için yetersiz — daha net ışıkta tekrar analiz önerilir.',
+        priority: 5,
+        region: 'quality_caveat',
       })
     }
   }

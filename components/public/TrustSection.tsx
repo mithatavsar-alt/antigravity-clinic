@@ -1,9 +1,9 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { GlassCard } from '@/components/design-system/GlassCard'
 import { SectionLabel } from '@/components/design-system/SectionLabel'
 import { EditorialHeading } from '@/components/design-system/EditorialHeading'
+import { GlassCard } from '@/components/design-system/GlassCard'
 import { tokens } from '@/lib/design-tokens'
 
 const ease = tokens.motion.easing
@@ -40,21 +40,21 @@ const items = [
 
 export function TrustSection() {
   return (
-    <section className="py-[100px] px-10 bg-[#0E0B09]">
+    <section className="py-20 sm:py-28 px-6 sm:px-10 bg-[var(--color-bg-secondary)]">
       <div className="container-main">
-        <div className="text-center mb-14">
+        <div className="text-center mb-12">
           <motion.div
             whileInView={{ opacity: 1, y: 0 }}
             initial={{ opacity: 0, y: 20 }}
             transition={{ duration: 0.7, ease }}
             viewport={{ once: true }}
           >
-            <SectionLabel className="justify-center mb-4">Güven</SectionLabel>
-            <EditorialHeading light>Mahremiyet & Güvenlik</EditorialHeading>
+            <SectionLabel className="mb-4">Güven</SectionLabel>
+            <EditorialHeading as="h2">Mahremiyet & Güvenlik</EditorialHeading>
           </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-7">
           {items.map(({ icon, title, desc }, i) => (
             <motion.div
               key={title}
@@ -63,12 +63,12 @@ export function TrustSection() {
               transition={{ duration: 0.7, delay: i * tokens.motion.staggerGap, ease }}
               viewport={{ once: true }}
             >
-              <GlassCard className="flex flex-col gap-4 h-full">
-                <div className="w-10 h-10 rounded-full bg-[rgba(214,185,140,0.06)] border border-[rgba(214,185,140,0.15)] flex items-center justify-center text-[#D6B98C]">
+              <GlassCard strong className="flex flex-col gap-5 h-full shadow-soft">
+                <div className="w-12 h-12 rounded-full bg-[rgba(45,95,93,0.06)] flex items-center justify-center text-medical-trust">
                   {icon}
                 </div>
-                <h3 className="font-display text-[20px] font-light text-[#F8F6F2]">{title}</h3>
-                <p className="font-body text-[13px] text-[rgba(248,246,242,0.5)] leading-relaxed">{desc}</p>
+                <h3 className="font-display text-[22px] font-light text-[var(--color-text)]">{title}</h3>
+                <p className="font-body text-[14px] text-[var(--color-text-muted)] leading-[1.7]">{desc}</p>
               </GlassCard>
             </motion.div>
           ))}

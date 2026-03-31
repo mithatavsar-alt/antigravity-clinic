@@ -3,13 +3,12 @@ import { cn } from '@/lib/utils'
 interface ThinLineProps {
   className?: string
   width?: number
-  light?: boolean
 }
 
-export function ThinLine({ className, width = 60, light = false }: ThinLineProps) {
+export function ThinLine({ className, width = 60 }: ThinLineProps) {
   return (
     <div
-      className={cn('thin-line h-px', light ? 'bg-[rgba(196,163,90,0.4)]' : 'bg-[#C4A35A]', className)}
+      className={cn('thin-line h-px', className)}
       style={{ width }}
     />
   )

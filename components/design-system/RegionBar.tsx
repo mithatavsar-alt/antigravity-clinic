@@ -11,9 +11,9 @@ interface RegionBarProps {
 }
 
 function getColor(score: number): string {
-  if (score < 0.3) return '#3D7A5F'
-  if (score < 0.6) return '#C4883A'
-  return '#A05252'
+  if (score < 0.3) return 'var(--status-success, #3D7A5F)'
+  if (score < 0.6) return 'var(--status-warning, #C4883A)'
+  return 'var(--status-error, #A05252)'
 }
 
 const regionLabels: Record<string, string> = {
@@ -54,7 +54,7 @@ export function RegionBar({ label, score, className, showScore = true }: RegionB
   return (
     <div ref={ref} className={cn('flex flex-col gap-1.5', className)}>
       <div className="flex justify-between items-center">
-        <span className="font-body text-[12px] text-[rgba(26,26,46,0.5)]">
+        <span className="font-body text-[12px] text-[var(--color-text-muted)]">
           {regionLabels[label] ?? label}
         </span>
         {showScore && (
@@ -66,7 +66,7 @@ export function RegionBar({ label, score, className, showScore = true }: RegionB
           </span>
         )}
       </div>
-      <div className="h-1 bg-[rgba(196,163,90,0.12)] rounded-full overflow-hidden">
+      <div className="h-1 bg-[var(--color-gold-glow)] rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-[1500ms] ease-[cubic-bezier(0.16,1,0.3,1)]"
           style={{

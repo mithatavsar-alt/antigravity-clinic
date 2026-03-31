@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { Landmark } from '@/lib/ai/types'
+import type { Landmark, WrinkleRegionResult } from '@/lib/ai/types'
 import { drawMesh } from './FaceGuideCapture'
+import type { OverlayRegionHighlight } from './FaceGuideCapture'
 
 // ─── Single source of truth: overlay state machine ──────────
 // idle      → initial, waiting for visibility trigger
@@ -21,6 +22,8 @@ interface LandmarkOverlayProps {
   objectPositionY?: number
   /** Called whenever overlay state changes — lets parent update button text */
   onStateChange?: (state: OverlayState) => void
+  /** Optional: wrinkle region results to highlight detected regions */
+  wrinkleRegions?: WrinkleRegionResult[]
 }
 
 /**
@@ -90,6 +93,7 @@ export function LandmarkOverlay({
   className = '',
   objectPositionY = 0.25,
   onStateChange,
+  wrinkleRegions,
 }: LandmarkOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -241,7 +245,12 @@ export function LandmarkOverlay({
         landmarks, imageDims.w, imageDims.h,
         rect.width, rect.height, objectPositionY
       )
-      drawMesh(ctx, adjusted, rect.width, rect.height, true, false, false, 1.0)
+      // Build detected region highlights from wrinkle analysis — only real detections
+      const highlights: OverlayRegionHighlight[] | undefined = wrinkleRegions
+        ?.filter(r => r.detected)
+        .map(r => ({ region: r.region, score: r.score, detected: r.detected }))
+
+      drawMesh(ctx, adjusted, rect.width, rect.height, true, false, false, 1.0, highlights)
     }
 
     // Initial draw
@@ -255,7 +264,7 @@ export function LandmarkOverlay({
       cancelAnimationFrame(raf)
       observer.disconnect()
     }
-  }, [state, landmarks, imageDims, objectPositionY, visible])
+  }, [state, landmarks, imageDims, objectPositionY, visible, wrinkleRegions])
 
   // ── Render ────────────────────────────────────────────────
   const isAnalyzing = state === 'analyzing'

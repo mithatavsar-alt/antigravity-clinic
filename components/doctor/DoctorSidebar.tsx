@@ -20,7 +20,7 @@ export function DoctorSidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="hidden lg:flex flex-col w-56 bg-[rgba(255,254,249,0.95)] border-r border-[rgba(196,163,90,0.1)] min-h-screen pt-8 px-4">
+    <aside className="hidden lg:flex flex-col w-56 bg-[var(--glass-bg-strong)] border-r border-[var(--color-border-gold)] min-h-screen pt-8 px-4">
       <nav className="flex flex-col gap-1">
         {navItems.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + '/')
@@ -29,10 +29,10 @@ export function DoctorSidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-[10px] font-body text-[13px] transition-all',
+                'flex items-center gap-3 px-3 py-2.5 rounded-sm font-body text-[13px] transition-all',
                 active
-                  ? 'text-[#2D5F5D] bg-[rgba(45,95,93,0.06)] border-l-2 border-[#2D5F5D] -ml-0.5'
-                  : 'text-[#78716C] hover:text-[#1A1A2E] hover:bg-[rgba(196,163,90,0.05)]'
+                  ? 'text-medical-trust bg-[rgba(45,95,93,0.06)] border-l-2 border-medical-trust -ml-0.5'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-gold-glow)]'
               )}
             >
               {item.icon}
@@ -42,8 +42,8 @@ export function DoctorSidebar() {
         })}
       </nav>
 
-      <div className="mt-auto pb-8 pt-4 border-t border-[rgba(196,163,90,0.1)]">
-        <p className="font-mono text-[9px] text-[rgba(26,26,46,0.25)] tracking-[0.12em] uppercase">
+      <div className="mt-auto pb-8 pt-4 border-t border-[var(--color-border-gold)]">
+        <p className="font-mono text-[9px] text-[var(--color-text-muted)] tracking-[0.12em] uppercase">
           v1.0 · Mock Mod
         </p>
       </div>

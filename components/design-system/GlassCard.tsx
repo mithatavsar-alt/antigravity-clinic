@@ -11,7 +11,7 @@ interface GlassCardProps {
 }
 
 const paddingMap = { sm: 'p-4', md: 'p-6', lg: 'p-8', xl: 'p-10' }
-const roundedMap = { md: 'rounded-[16px]', lg: 'rounded-[20px]', xl: 'rounded-[24px]' }
+const roundedMap = { md: 'rounded-lg', lg: 'rounded-xl', xl: 'rounded-2xl' }
 
 export function GlassCard({
   children,

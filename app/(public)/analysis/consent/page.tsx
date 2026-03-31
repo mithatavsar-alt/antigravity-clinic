@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useClinicStore } from '@/lib/store'
 import { GlassCard } from '@/components/design-system/GlassCard'
 import { ThinLine } from '@/components/design-system/ThinLine'
+import { EditorialHeading } from '@/components/design-system/EditorialHeading'
 import { AnalysisStepBar } from '@/components/analysis/AnalysisStepBar'
 import { ConsentForm } from '@/components/analysis/ConsentForm'
 import { buildPatientSummary } from '@/lib/lead-helpers'
@@ -103,12 +104,10 @@ export default function AnalysisConsentPage() {
     <div className="theme-dark min-h-screen py-28 px-5" style={{ background: 'linear-gradient(160deg, #0E0B09 0%, #14110E 40%, #0B0E10 100%)' }}>
       <div className="max-w-xl mx-auto">
         <div className="text-center mb-10">
-          <p className="font-body text-[10px] tracking-[0.25em] uppercase text-[#D6B98C] mb-3">Adım 3 / 3</p>
-          <h1 className="font-display text-[clamp(32px,5vw,48px)] font-light text-[#F8F6F2] tracking-[-0.02em]">
-            Onay
-          </h1>
+          <p className="font-body text-[10px] tracking-[0.25em] uppercase text-[var(--color-gold)] mb-3">Adım 3 / 3</p>
+          <EditorialHeading as="h1" light>Onay</EditorialHeading>
           <div className="flex justify-center mt-4">
-            <ThinLine width={48} light />
+            <ThinLine width={48} />
           </div>
         </div>
 
@@ -122,12 +121,12 @@ export default function AnalysisConsentPage() {
         </GlassCard>
 
         {error && (
-          <div className="mt-4 rounded-[14px] border border-[rgba(160,82,82,0.25)] bg-[rgba(160,82,82,0.1)] px-5 py-4">
+          <div className="mt-4 rounded-lg border border-[rgba(160,82,82,0.25)] bg-[rgba(160,82,82,0.1)] px-5 py-4">
             <p className="font-body text-[13px] text-[#C47A7A] leading-relaxed">{error}</p>
           </div>
         )}
 
-        <p className="text-center font-body text-[11px] text-[rgba(248,246,242,0.25)] mt-6 leading-relaxed">
+        <p className="text-center font-body text-[11px] text-[var(--color-text-muted)] mt-6 leading-relaxed">
           Verileriniz KVKK kapsamında korunmaktadır.
         </p>
       </div>

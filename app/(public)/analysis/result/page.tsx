@@ -81,7 +81,7 @@ function PhotoLightbox({ src, onClose }: { src: string; onClose: () => void }) {
         <img
           src={src}
           alt="Analiz görseli — büyük önizleme"
-          className="max-w-full max-h-[85vh] rounded-[20px] shadow-[0_32px_80px_rgba(0,0,0,0.5)] object-contain"
+          className="max-w-full max-h-[85vh] rounded-xl shadow-[0_32px_80px_rgba(0,0,0,0.5)] object-contain"
         />
         <button
           type="button"
@@ -99,7 +99,7 @@ function PhotoLightbox({ src, onClose }: { src: string; onClose: () => void }) {
 }
 
 /* ── Hero photo card with landmark overlay ─────────────────── */
-function AnalysisPhoto({ src, onClick, hasAI }: { src: string; onClick: () => void; hasAI: boolean }) {
+function AnalysisPhoto({ src, onClick, hasAI, wrinkleRegions }: { src: string; onClick: () => void; hasAI: boolean; wrinkleRegions?: Array<{ region: string; score: number; detected?: boolean }> }) {
   const [showMesh, setShowMesh] = useState(false)
   const [overlayState, setOverlayState] = useState<OverlayState>('idle')
   const [retryKey, setRetryKey] = useState(0)
@@ -129,7 +129,7 @@ function AnalysisPhoto({ src, onClick, hasAI }: { src: string; onClick: () => vo
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative rounded-[24px] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.50)]" style={{ border: '1px solid rgba(214,185,140,0.06)' }}>
+      <div className="relative rounded-2xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.50)]" style={{ border: '1px solid rgba(214,185,140,0.06)' }}>
         <button
           type="button"
           onClick={onClick}
@@ -150,6 +150,17 @@ function AnalysisPhoto({ src, onClick, hasAI }: { src: string; onClick: () => vo
               src={src}
               visible={showMesh}
               onStateChange={handleOverlayState}
+              wrinkleRegions={wrinkleRegions?.map(r => ({
+                region: r.region as import('@/lib/ai/types').WrinkleRegion,
+                label: '',
+                density: 0,
+                score: r.score,
+                level: 'minimal' as const,
+                insight: '',
+                confidence: 0.5,
+                detected: r.detected ?? false,
+                evidenceStrength: 'moderate' as const,
+              }))}
             />
           )}
           {/* Hover overlay */}
@@ -223,7 +234,7 @@ function AnalysisPhoto({ src, onClick, hasAI }: { src: string; onClick: () => vo
 /* ── No-photo placeholder ──────────────────────────────────── */
 function PhotoPlaceholder() {
   return (
-    <div className="aspect-[4/5] w-full rounded-[20px] bg-gradient-to-br from-[rgba(20,18,15,0.5)] to-[rgba(20,18,15,0.3)] flex flex-col items-center justify-center gap-3 shadow-[0_12px_40px_rgba(0,0,0,0.4)]">
+    <div className="aspect-[4/5] w-full rounded-xl bg-gradient-to-br from-[rgba(20,18,15,0.5)] to-[rgba(20,18,15,0.3)] flex flex-col items-center justify-center gap-3 shadow-[0_12px_40px_rgba(0,0,0,0.4)]">
       <div className="w-16 h-16 rounded-full bg-[rgba(248,246,242,0.05)] flex items-center justify-center">
         <svg className="w-8 h-8 text-[rgba(248,246,242,0.2)]" fill="none" stroke="currentColor" strokeWidth={1} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
@@ -376,7 +387,7 @@ function FocusAreasPanel({ focusAreas }: { focusAreas: NonNullable<Lead['focus_a
           return (
             <div
               key={area.region}
-              className="relative rounded-[14px] border border-[rgba(214,185,140,0.08)] bg-[rgba(14,11,9,0.55)] pl-5 pr-4 py-4 overflow-hidden"
+              className="relative rounded-lg border border-[rgba(214,185,140,0.08)] bg-[rgba(14,11,9,0.55)] pl-5 pr-4 py-4 overflow-hidden"
               style={{ animation: `cardEntrance 0.4s ease-out ${idx * 60}ms both` }}
             >
               {/* Left accent strip */}
@@ -407,7 +418,7 @@ function FocusAreasPanel({ focusAreas }: { focusAreas: NonNullable<Lead['focus_a
         })}
       </div>
 
-      <div className="bg-[rgba(214,185,140,0.03)] border border-[rgba(214,185,140,0.08)] rounded-[10px] p-3">
+      <div className="bg-[rgba(214,185,140,0.03)] border border-[rgba(214,185,140,0.08)] rounded-sm p-3">
         <p className="font-body text-[10px] text-[rgba(248,246,242,0.3)] leading-relaxed italic">
           Puanlar geometrik analiz ve yaş tahminine dayalıdır. Cilt durumu değerlendirmesi dahil değildir.
         </p>
@@ -486,7 +497,7 @@ function WrinkleAnalysisPanel({ wrinkleScores }: { wrinkleScores: NonNullable<Le
               return (
                 <div
                   key={region.key}
-                  className="relative rounded-[14px] border border-[rgba(214,185,140,0.08)] bg-[rgba(14,11,9,0.55)] pl-5 pr-4 py-3.5 overflow-hidden"
+                  className="relative rounded-lg border border-[rgba(214,185,140,0.08)] bg-[rgba(14,11,9,0.55)] pl-5 pr-4 py-3.5 overflow-hidden"
                   style={{ animation: `cardEntrance 0.4s ease-out ${idx * 45}ms both` }}
                 >
                   <div className="absolute left-0 inset-y-0 w-[3px] rounded-l-[14px]" style={{ background: stripGrad }} />
@@ -518,7 +529,7 @@ function WrinkleAnalysisPanel({ wrinkleScores }: { wrinkleScores: NonNullable<Le
         )
       })}
 
-      <div className="bg-[rgba(214,185,140,0.03)] border border-[rgba(214,185,140,0.08)] rounded-[10px] p-3">
+      <div className="bg-[rgba(214,185,140,0.03)] border border-[rgba(214,185,140,0.08)] rounded-sm p-3">
         <p className="font-body text-[10px] text-[rgba(248,246,242,0.3)] leading-relaxed italic">
           Bölgesel çizgi analizi görüntü işleme tabanlı ön değerlendirmedir. Kesin sonuçlar klinik muayene gerektirir.
         </p>
@@ -792,7 +803,7 @@ function ResultContent() {
           {/* Left: Photo — cinematic frame */}
           <div className="flex flex-col gap-5 lg:sticky lg:top-24">
             {photoUrl ? (
-              <AnalysisPhoto src={photoUrl} onClick={() => setLightboxOpen(true)} hasAI={hasAI} />
+              <AnalysisPhoto src={photoUrl} onClick={() => setLightboxOpen(true)} hasAI={hasAI} wrinkleRegions={wrinkleScores?.regions} />
             ) : (
               <PhotoPlaceholder />
             )}
@@ -892,7 +903,7 @@ function ResultContent() {
                         {aiScores.suggestions.map((suggestion, i) => (
                           <div
                             key={i}
-                            className="flex gap-3 items-start rounded-[12px] border border-[rgba(214,185,140,0.08)] bg-[rgba(214,185,140,0.025)] px-4 py-3"
+                            className="flex gap-3 items-start rounded-md border border-[rgba(214,185,140,0.08)] bg-[rgba(214,185,140,0.025)] px-4 py-3"
                           >
                             <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
@@ -922,7 +933,7 @@ function ResultContent() {
                 </div>
 
                 {/* Next step info — elevated card */}
-                <div className="rounded-[16px] border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.5)] px-5 py-4">
+                <div className="rounded-lg border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.5)] px-5 py-4">
                   <span className="text-label-sm text-[rgba(248,246,242,0.30)] mb-2 block">
                     Sonraki Adım
                   </span>
@@ -930,7 +941,7 @@ function ResultContent() {
                 </div>
 
                 {/* Disclaimer */}
-                <div className="rounded-[12px] px-5 py-4" style={{ background: 'rgba(214,185,140,0.02)', border: '1px solid rgba(214,185,140,0.05)' }}>
+                <div className="rounded-md px-5 py-4" style={{ background: 'rgba(214,185,140,0.02)', border: '1px solid rgba(214,185,140,0.05)' }}>
                   <p className="font-body text-[11px] text-[rgba(248,246,242,0.28)] leading-[1.7] italic">
                     Bu sistem doktor kararını destekler, yerine geçmez. Kesin tedavi planı klinik muayene ve doktor değerlendirmesi sonrasında oluşturulur.
                   </p>

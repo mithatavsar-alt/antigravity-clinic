@@ -217,6 +217,8 @@ export interface Lead {
       level: 'minimal' | 'low' | 'medium' | 'high'
       insight: string
       confidence: number
+      detected?: boolean
+      evidenceStrength?: 'strong' | 'moderate' | 'weak' | 'insufficient'
     }>
     overallScore: number
     overallLevel: 'minimal' | 'low' | 'medium' | 'high'

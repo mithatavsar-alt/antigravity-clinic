@@ -98,6 +98,12 @@ export function assessImageQuality(
     if (brightness < 0.2) flags.push('low_light')
     if (brightness > 0.85) flags.push('overexposed')
     if (sharpness < 0.15) flags.push('blurry')
+
+    // Smoothing detection: high brightness + very low sharpness + low contrast
+    // indicates beautify filter. Also check Laplacian variance directly.
+    if (sharpness < 0.08 && contrast < 0.35 && brightness > 0.35) {
+      flags.push('smoothing_detected')
+    }
   }
 
   // ── Face angle deviation ──

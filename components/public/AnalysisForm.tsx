@@ -7,6 +7,8 @@ import { FormStepPersonal } from './form/FormStepPersonal'
 import { FormStepReadiness } from './form/FormStepReadiness'
 import { FormStepPhotoConsent } from './form/FormStepPhotoConsent'
 import { ThinLine } from '@/components/design-system/ThinLine'
+import { EditorialHeading } from '@/components/design-system/EditorialHeading'
+import Image from 'next/image'
 
 const ease = tokens.motion.easing
 
@@ -108,35 +110,47 @@ export function AnalysisForm() {
 
   return (
     <div
-      className="theme-dark min-h-screen py-28 px-5"
+      className="theme-dark min-h-screen py-28 px-5 relative overflow-hidden"
       style={{
         background: 'linear-gradient(160deg, #0E0B09 0%, #14110E 40%, #0B0E10 100%)',
       }}
     >
-      <div className="max-w-xl mx-auto">
+      {/* Ambient AI portrait background */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="relative w-[700px] h-[470px] opacity-[0.07]">
+          <Image
+            src="/images/AIAnaliz/AIAnaliz.png"
+            alt=""
+            fill
+            className="object-cover object-center"
+            sizes="700px"
+            aria-hidden="true"
+          />
+        </div>
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(ellipse at center, transparent 10%, #0E0B09 65%)',
+          }}
+        />
+      </div>
+      <div className="max-w-xl mx-auto relative z-10">
         {/* Header */}
         <div className="text-center mb-10">
-          <p className="font-body text-[11px] font-medium tracking-[0.25em] uppercase text-[#D6B98C] mb-3">
+          <p className="font-body text-[11px] font-medium tracking-[0.25em] uppercase text-[var(--color-gold)] mb-3">
             Adım {formStep} / 3
           </p>
-          <h1 className="font-display text-[clamp(32px,5vw,48px)] font-light text-[#F8F6F2] tracking-[-0.02em]">
+          <EditorialHeading as="h1" light>
             Ön Değerlendirme
-          </h1>
+          </EditorialHeading>
           <div className="flex justify-center mt-4">
-            <ThinLine width={48} light />
+            <ThinLine width={48} />
           </div>
         </div>
 
         {/* Form card */}
         <div
-          className="rounded-[20px] p-8 sm:p-10"
-          style={{
-            background: 'rgba(20, 18, 15, 0.7)',
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
-            border: '1px solid rgba(214, 185, 140, 0.1)',
-            boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3)',
-          }}
+          className="rounded-xl p-8 sm:p-10 glass-strong border border-[var(--color-border-gold)] shadow-dark"
         >
           <PremiumStepper step={formStep} />
 
@@ -177,7 +191,7 @@ export function AnalysisForm() {
           </AnimatePresence>
         </div>
 
-        <p className="text-center font-body text-[11px] text-[rgba(248,246,242,0.25)] mt-6 leading-relaxed">
+        <p className="text-center font-body text-[11px] text-[var(--color-text-muted)] mt-6 leading-relaxed">
           Verileriniz KVKK kapsamında korunmaktadır. Herhangi bir ücret talep edilmez.
         </p>
       </div>

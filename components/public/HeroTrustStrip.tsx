@@ -41,13 +41,13 @@ export function HeroTrustStrip() {
       {trustItems.map((item, i) => (
         <div key={item.label} className="flex items-center gap-x-8">
           <div className="flex items-center gap-2">
-            <span className="text-[rgba(214,185,140,0.3)]">{item.icon}</span>
-            <span className="font-body text-[11px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.4)]">
+            <span className="text-[rgba(196,163,90,0.45)]">{item.icon}</span>
+            <span className="font-body text-[11px] tracking-[0.12em] uppercase text-[rgba(26,26,46,0.35)]">
               {item.label}
             </span>
           </div>
           {i < trustItems.length - 1 && (
-            <span className="text-[rgba(248,246,242,0.15)] hidden sm:inline">·</span>
+            <span className="text-[rgba(26,26,46,0.12)] hidden sm:inline">·</span>
           )}
         </div>
       ))}

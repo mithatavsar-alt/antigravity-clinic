@@ -109,6 +109,13 @@ function Badge({ category, value }: { category: string; value: string }) {
 // Only real Face Mesh data rendered as premium contour lines.
 // ════════════════════════════════════════════════════════════
 
+/** Detected region info for overlay highlighting — only regions with real detections */
+export interface OverlayRegionHighlight {
+  region: string
+  score: number
+  detected: boolean
+}
+
 export function drawMesh(
   ctx: CanvasRenderingContext2D,
   landmarks: Landmark[],
@@ -118,6 +125,8 @@ export function drawMesh(
   mirror = true,
   _clipOval = true,   // eslint-disable-line @typescript-eslint/no-unused-vars -- kept for signature compat
   qualityScore = 0,
+  /** Optional: wrinkle regions with real detections for subtle highlight overlay */
+  detectedRegions?: OverlayRegionHighlight[],
 ) {
   ctx.clearRect(0, 0, w, h)
   ctx.save()
@@ -187,6 +196,76 @@ export function drawMesh(
   drawContour(LOWER_LIP, purple.line, 0.6, 1.1, null, 0)
 
   // ════════════════════════════════════════════════════════════
+  // TRIANGULATED MESH — premium medical-grade overlay
+  // Denser in forehead, glabella, and periorbital zones.
+  // Very thin lines that don't obscure skin texture.
+  // PURELY VISUAL — does NOT affect analysis scores.
+  // ════════════════════════════════════════════════════════════
+  const drawLink = (a: number, b: number, opacity: number, lineW: number, glowBlur = 0) => {
+    const la = landmarks[a], lb = landmarks[b]
+    if (!la || !lb) return
+    ctx.beginPath()
+    ctx.lineWidth = lineW
+    ctx.strokeStyle = `${gold.stroke}${(opacity * baseOpacity).toFixed(3)})`
+    if (glowBlur > 0) {
+      ctx.shadowColor = `${gold.glow}${(0.12 * baseOpacity).toFixed(3)})`
+      ctx.shadowBlur = glowBlur
+    }
+    ctx.moveTo(toX(la), toY(la))
+    ctx.lineTo(toX(lb), toY(lb))
+    ctx.stroke()
+    if (glowBlur > 0) { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0 }
+  }
+
+  // Forehead mesh — dense horizontal + vertical + cross (premium scanning feel)
+  const foreheadH: [number, number][] = [
+    [54, 103], [103, 67], [67, 109], [109, 10], [10, 338], [338, 297], [297, 332], [332, 284],
+    [63, 105], [105, 66], [66, 107], [107, 9], [9, 336], [336, 296], [296, 334], [334, 293],
+  ]
+  const foreheadV: [number, number][] = [
+    [54, 63], [103, 105], [67, 66], [109, 107], [10, 9], [338, 336], [297, 296], [332, 334], [284, 293],
+  ]
+  const foreheadX: [number, number][] = [
+    [54, 105], [103, 66], [67, 107], [109, 9], [10, 336], [338, 296], [297, 334], [332, 293],
+  ]
+  // Glabella mesh — vertical guide lines between brows
+  const glabellaMesh: [number, number][] = [
+    [55, 8], [8, 285], [66, 9], [9, 296], [107, 151], [151, 336],
+    [65, 55], [55, 285], [285, 295],
+  ]
+  // Periorbital mesh — radial connections around eye areas
+  const periorbitalMesh: [number, number][] = [
+    [130, 247], [247, 30], [30, 29], [29, 27], [27, 28], [28, 56],
+    [359, 467], [467, 260], [260, 259], [259, 257], [257, 258], [258, 286],
+    [111, 117], [117, 118], [118, 119], [119, 120], [120, 121],
+    [340, 346], [346, 347], [347, 348], [348, 349], [349, 350],
+  ]
+  // Midface + nose radial mesh — sparse, elegant
+  const midfaceMesh: [number, number][] = [
+    [234, 93], [93, 132], [132, 58], [454, 323], [323, 361], [361, 288],
+    [168, 107], [168, 336], [168, 55], [168, 285],
+    [1, 33], [1, 263], [1, 61], [1, 291],
+  ]
+  // Draw each mesh zone — forehead densest, midface sparsest
+  for (const [a, b] of foreheadH) drawLink(a, b, 0.28, 0.5, 4)
+  for (const [a, b] of foreheadV) drawLink(a, b, 0.22, 0.4, 3)
+  for (const [a, b] of foreheadX) drawLink(a, b, 0.15, 0.35, 2)
+  for (const [a, b] of glabellaMesh) drawLink(a, b, 0.22, 0.45, 3)
+  for (const [a, b] of periorbitalMesh) drawLink(a, b, 0.20, 0.4, 3)
+  for (const [a, b] of midfaceMesh) drawLink(a, b, 0.12, 0.3, 0)
+
+  // Mesh node dots — tiny points at mesh intersections
+  const meshNodes = [103, 67, 109, 10, 338, 297, 332, 105, 66, 107, 9, 336, 296, 334, 8, 151, 55, 285, 168]
+  for (const idx of meshNodes) {
+    const lm = landmarks[idx]
+    if (!lm) continue
+    ctx.fillStyle = `${gold.stroke}${(0.18 * baseOpacity).toFixed(3)})`
+    ctx.beginPath()
+    ctx.arc(toX(lm), toY(lm), 1.2, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  // ════════════════════════════════════════════════════════════
   // ANCHOR DOTS — key landmarks as small glowing points
   // ════════════════════════════════════════════════════════════
   const anchors = [
@@ -211,6 +290,55 @@ export function drawMesh(
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0
     ctx.fillStyle = `rgba(255,255,255,${(0.6 * baseOpacity).toFixed(3)})`
     ctx.beginPath(); ctx.arc(x, y, 0.7, 0, Math.PI * 2); ctx.fill()
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // DETECTED REGION HIGHLIGHTS — subtle glow ONLY on real detections
+  // No highlight = no detection. Never creates false heatmaps.
+  // ════════════════════════════════════════════════════════════
+  if (detectedRegions && detectedRegions.length > 0) {
+    /** Map region keys to landmark-based center points */
+    const regionCenters: Record<string, number[]> = {
+      forehead: [10, 151, 9, 8],
+      glabella: [9, 107, 336],
+      crow_feet_left: [33, 130, 226],
+      crow_feet_right: [263, 359, 446],
+      under_eye_left: [33, 7, 163, 144],
+      under_eye_right: [362, 382, 381, 380],
+      nasolabial_left: [98, 240, 64],
+      nasolabial_right: [327, 460, 294],
+      marionette_left: [61, 146, 91],
+      marionette_right: [291, 375, 321],
+      jawline: [152, 148, 377],
+    }
+    for (const region of detectedRegions) {
+      if (!region.detected || region.score < 15) continue
+      const centerLandmarks = regionCenters[region.region]
+      if (!centerLandmarks) continue
+
+      // Compute region center from landmarks
+      let cx = 0, cy = 0, count = 0
+      for (const idx of centerLandmarks) {
+        const lm = landmarks[idx]
+        if (!lm) continue
+        cx += toX(lm); cy += toY(lm); count++
+      }
+      if (count === 0) continue
+      cx /= count; cy /= count
+
+      // Very subtle warm glow — intensity scales with score, max 0.08 alpha
+      const intensity = Math.min(0.08, (region.score / 100) * 0.10)
+      const radius = Math.max(w, h) * 0.06
+
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius)
+      grad.addColorStop(0, `rgba(220,170,100,${intensity.toFixed(3)})`)
+      grad.addColorStop(0.6, `rgba(220,170,100,${(intensity * 0.4).toFixed(3)})`)
+      grad.addColorStop(1, 'rgba(220,170,100,0)')
+      ctx.fillStyle = grad
+      ctx.beginPath()
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+      ctx.fill()
+    }
   }
 
   // ════════════════════════════════════════════════════════════

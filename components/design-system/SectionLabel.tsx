@@ -3,18 +3,16 @@ import { cn } from '@/lib/utils'
 interface SectionLabelProps {
   children: React.ReactNode
   className?: string
-  light?: boolean
 }
 
-export function SectionLabel({ children, className, light = false }: SectionLabelProps) {
+/**
+ * Section overline label — consistent gold micro text.
+ * Uses the .section-label CSS class (backed by --color-gold variable).
+ * Theme-responsive: gold on both light and dark surfaces.
+ */
+export function SectionLabel({ children, className }: SectionLabelProps) {
   return (
-    <p
-      className={cn(
-        'section-label font-body text-[11px] font-medium tracking-[0.2em] uppercase',
-        light ? 'text-[#A89BC4]' : 'text-[#8B7FA8]',
-        className
-      )}
-    >
+    <p className={cn('section-label', className)}>
       {children}
     </p>
   )

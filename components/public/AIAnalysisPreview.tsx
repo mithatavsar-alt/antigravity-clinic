@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
+import { REGION_INSIGHTS } from '@/data/treatments'
 import { SectionLabel } from '@/components/design-system/SectionLabel'
 import { EditorialHeading, GoldItalic } from '@/components/design-system/EditorialHeading'
-import { REGION_INSIGHTS } from '@/data/treatments'
 import { tokens } from '@/lib/design-tokens'
 
 const ease = tokens.motion.easing
@@ -47,8 +48,8 @@ function hexPath(radius: number) {
 }
 
 function scoreColor(s: number) {
-  if (s < 40) return '#3D7A5F'
-  if (s < 70) return '#C4883A'
+  if (s < 40) return '#3D9B7A'
+  if (s < 70) return '#C4A35A'
   return '#A05252'
 }
 
@@ -70,11 +71,7 @@ function InsightPanel({ regionKey, color }: { regionKey: string; color: string }
 
   return (
     <div
-      className="rounded-[14px] px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-4 transition-all duration-300"
-      style={{
-        background: 'rgba(214,185,140,0.03)',
-        border: '1px solid rgba(214,185,140,0.08)',
-      }}
+      className="rounded-lg px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-4 transition-all duration-300 bg-[rgba(214,185,140,0.03)] border border-[rgba(214,185,140,0.08)]"
     >
       {/* Color accent */}
       <div className="flex-shrink-0 flex items-center gap-3 sm:flex-col sm:items-start sm:gap-1.5">
@@ -151,13 +148,46 @@ export function AIAnalysisPreview() {
   const activeColor = scoreColor(activeArea.score)
 
   return (
-    <section id="ai-analysis" className="py-20 sm:py-[100px] px-5 sm:px-10 bg-[#0B0E10] relative overflow-hidden">
-      {/* Ambient glow */}
-      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 45%, rgba(214,185,140,0.06) 0%, transparent 60%)' }} />
+    <section
+      id="ai-analysis"
+      className="theme-dark relative overflow-hidden"
+      style={{ background: 'linear-gradient(180deg, #0E0B09 0%, #0B0E10 50%, #0E0B09 100%)' }}
+    >
+      {/* Ambient glow — shifted right */}
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 65% 45%, rgba(214,185,140,0.06) 0%, transparent 55%)' }} />
 
-      <div className="max-w-5xl mx-auto relative z-10">
+      {/* Left portrait — full section height, hidden on mobile */}
+      <div className="absolute left-0 top-0 bottom-0 w-[42%] hidden lg:block">
+        <Image
+          src="/images/AIAnaliz/AIAnaliz.png"
+          alt="AI Yüz Analizi"
+          fill
+          className="object-cover object-center"
+          sizes="42vw"
+          priority
+        />
+        {/* Right-edge gradient fade into dark background */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `
+              linear-gradient(90deg, transparent 30%, #0E0B09 90%),
+              linear-gradient(180deg, rgba(14,11,9,0.2) 0%, transparent 10%, transparent 90%, rgba(14,11,9,0.2) 100%)
+            `,
+          }}
+        />
+        {/* Subtle gold accent along the fade edge */}
+        <div
+          className="absolute top-0 bottom-0 right-0 w-px pointer-events-none"
+          style={{ background: 'linear-gradient(180deg, transparent, rgba(214,185,140,0.06) 50%, transparent)' }}
+        />
+      </div>
+
+      <div className="relative z-10 py-20 sm:py-28 px-6 sm:px-10">
+        <div className="container-main lg:flex lg:justify-end">
+          <div className="lg:w-[55%]">
         {/* Section header */}
-        <div className="text-center mb-12 sm:mb-16">
+        <div className="text-center mb-10 sm:mb-14">
           <motion.div
             whileInView={{ opacity: 1, y: 0 }}
             initial={{ opacity: 0, y: 20 }}
@@ -165,10 +195,9 @@ export function AIAnalysisPreview() {
             viewport={{ once: true }}
             className="flex flex-col items-center gap-4"
           >
-            <SectionLabel light>AI Analiz Sistemi</SectionLabel>
-            <EditorialHeading light>
-              <GoldItalic>AI Destekli</GoldItalic> Yüz<br />
-              Analizi
+            <SectionLabel className="text-techAccent-softPurple">AI Analiz Sistemi</SectionLabel>
+            <EditorialHeading as="h2" light>
+              <GoldItalic>AI Destekli</GoldItalic> Yüz Analizi
             </EditorialHeading>
           </motion.div>
         </div>
@@ -195,8 +224,8 @@ export function AIAnalysisPreview() {
                 <svg viewBox={`0 0 ${VB} ${VB}`} className="w-full h-full" role="img" aria-label="AI yüz analizi radar grafiği">
                   <defs>
                     <linearGradient id="hp-rf" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#3D7A5F" />
-                      <stop offset="50%" stopColor="#C4883A" />
+                      <stop offset="0%" stopColor="#3D9B7A" />
+                      <stop offset="50%" stopColor="#C4A35A" />
                       <stop offset="100%" stopColor="#A05252" />
                     </linearGradient>
                     <radialGradient id="hp-cg">
@@ -307,6 +336,8 @@ export function AIAnalysisPreview() {
             <InsightPanel regionKey={activeArea.key} color={activeColor} />
           </div>
         </motion.div>
+          </div>
+        </div>
       </div>
     </section>
   )

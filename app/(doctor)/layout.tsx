@@ -12,7 +12,7 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF6F1]">
+    <div className="min-h-screen bg-[var(--color-bg)]">
       <DoctorTopNav />
       <div className="flex">
         <DoctorSidebar />

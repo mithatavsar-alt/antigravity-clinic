@@ -31,9 +31,9 @@ export default function LeadsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <SectionLabel className="mb-1">Hasta Yönetimi</SectionLabel>
-          <h1 className="font-display text-[28px] font-light text-[#1A1A2E]">Lead Listesi</h1>
+          <h1 className="font-display text-[28px] font-light text-[var(--color-text)]">Lead Listesi</h1>
         </div>
-        <div className="font-mono text-[11px] text-[rgba(26,26,46,0.35)] tracking-[0.1em]">
+        <div className="font-mono text-[11px] text-[var(--color-text-muted)] tracking-[0.1em]">
           {filtered.length} / {leads.length} kayıt
         </div>
       </div>
@@ -70,12 +70,12 @@ export default function LeadsPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-[14px] border border-[rgba(196,163,90,0.15)] bg-[rgba(255,254,249,0.6)]">
+      <div className="overflow-x-auto rounded-lg border border-[var(--color-border-gold)] bg-[var(--glass-bg)]">
         <table className="w-full min-w-[900px]">
           <thead>
-            <tr className="bg-[rgba(255,254,249,0.8)] border-b border-[rgba(196,163,90,0.12)]">
+            <tr className="bg-[var(--glass-bg-strong)] border-b border-[var(--color-border-gold)]">
               {['ID', 'Ad Soyad', 'Yaş / Cinsiyet', 'Telefon', 'İlgi Alanı', 'Statü', 'Readiness', 'Tarih', ''].map((h) => (
-                <th key={h} className="px-4 py-3 text-left font-body text-[10px] tracking-[0.18em] uppercase text-[rgba(26,26,46,0.4)]">
+                <th key={h} className="px-4 py-3 text-left font-body text-[10px] tracking-[0.18em] uppercase text-[var(--color-text-muted)]">
                   {h}
                 </th>
               ))}
@@ -84,32 +84,32 @@ export default function LeadsPage() {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-12 text-center font-body text-[13px] text-[rgba(26,26,46,0.4)] italic">
+                <td colSpan={9} className="px-4 py-12 text-center font-body text-[13px] text-[var(--color-text-muted)] italic">
                   Sonuç bulunamadı
                 </td>
               </tr>
             )}
             {filtered.map((lead) => (
-              <tr key={lead.id} className="border-b border-[rgba(196,163,90,0.07)] hover:bg-[rgba(196,163,90,0.03)] transition-colors">
-                <td className="px-4 py-3 font-mono text-[11px] text-[rgba(26,26,46,0.5)]">{lead.id}</td>
-                <td className="px-4 py-3 font-body text-[13px] text-[#1A1A2E] font-medium">{lead.full_name}</td>
-                <td className="px-4 py-3 font-body text-[12px] text-[rgba(26,26,46,0.6)]">{lead.age_range} · {lead.gender === 'female' ? 'K' : lead.gender === 'male' ? 'E' : 'D'}</td>
-                <td className="px-4 py-3 font-body text-[12px] text-[rgba(26,26,46,0.6)]">{lead.phone}</td>
-                <td className="px-4 py-3 font-body text-[11px] text-[rgba(26,26,46,0.6)]">{concernAreaLabels[lead.concern_area]}</td>
+              <tr key={lead.id} className="border-b border-[var(--color-border)] hover:bg-[var(--color-gold-glow)] transition-colors">
+                <td className="px-4 py-3 font-mono text-[11px] text-[var(--color-text-muted)]">{lead.id}</td>
+                <td className="px-4 py-3 font-body text-[13px] text-[var(--color-text)] font-medium">{lead.full_name}</td>
+                <td className="px-4 py-3 font-body text-[12px] text-[var(--color-text-secondary)]">{lead.age_range} · {lead.gender === 'female' ? 'K' : lead.gender === 'male' ? 'E' : 'D'}</td>
+                <td className="px-4 py-3 font-body text-[12px] text-[var(--color-text-secondary)]">{lead.phone}</td>
+                <td className="px-4 py-3 font-body text-[11px] text-[var(--color-text-secondary)]">{concernAreaLabels[lead.concern_area]}</td>
                 <td className="px-4 py-3"><StatusBadge status={lead.status} type="lead" /></td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     {lead.readiness_band && <StatusBadge status={lead.readiness_band} type="readiness" />}
                     {lead.readiness_score != null && (
-                      <span className="font-mono text-[12px] text-[rgba(26,26,46,0.5)]">{lead.readiness_score}</span>
+                      <span className="font-mono text-[12px] text-[var(--color-text-muted)]">{lead.readiness_score}</span>
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3 font-body text-[11px] text-[rgba(26,26,46,0.45)]">{formatDate(lead.created_at)}</td>
+                <td className="px-4 py-3 font-body text-[11px] text-[var(--color-text-muted)]">{formatDate(lead.created_at)}</td>
                 <td className="px-4 py-3">
                   <Link
                     href={`/doctor/leads/${lead.id}`}
-                    className="font-body text-[10px] tracking-[0.15em] uppercase text-[#2D5F5D] hover:text-[#1A1A2E] transition-colors border border-[rgba(45,95,93,0.3)] hover:border-[#1A1A2E] px-3 py-1.5 rounded-[8px]"
+                    className="font-body text-[10px] tracking-[0.15em] uppercase text-medical-trust hover:text-[var(--color-text)] transition-colors border border-[rgba(45,95,93,0.3)] hover:border-[var(--color-text)] px-3 py-1.5 rounded-sm"
                   >
                     İncele
                   </Link>

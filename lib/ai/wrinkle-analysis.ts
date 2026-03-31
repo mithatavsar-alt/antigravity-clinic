@@ -713,6 +713,112 @@ function evaluateRegionConfidence(
   return clamp(contrastScore * brightnessPenalty * sizeFactor, 0.1, 1.0)
 }
 
+// ─── Smoothing / beautify detection ─────────────────────────
+
+/**
+ * Detect if a region has been heavily smoothed (beauty filter).
+ * Smoothed skin loses high-frequency texture — Laplacian variance drops.
+ * Returns 0–1 where higher = more smoothing detected.
+ */
+function detectSmoothing(
+  gray: Uint8ClampedArray,
+  width: number,
+  height: number,
+): number {
+  if (width < 10 || height < 10) return 0
+
+  // Laplacian variance: measures high-frequency content
+  let lapSum = 0
+  let lapSumSq = 0
+  let count = 0
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x
+      const lap = -4 * gray[i] + gray[i - 1] + gray[i + 1] + gray[i - width] + gray[i + width]
+      lapSum += lap
+      lapSumSq += lap * lap
+      count++
+    }
+  }
+  if (count === 0) return 0
+
+  const lapMean = lapSum / count
+  const lapVar = lapSumSq / count - lapMean * lapMean
+
+  // Normal skin texture: lapVar typically 200–2000+
+  // Heavily smoothed: lapVar < 50
+  // Moderate smoothing: lapVar 50–150
+  if (lapVar < 30) return 1.0
+  if (lapVar < 80) return clamp((80 - lapVar) / 50, 0.3, 0.9)
+  if (lapVar < 150) return clamp((150 - lapVar) / 150, 0, 0.3)
+  return 0
+}
+
+// ─── Evidence strength derivation ───────────────────────────
+
+/**
+ * Derive evidence strength from confidence, score, and smoothing level.
+ * This determines how assertive the output text should be.
+ * CRITICAL: visual mesh density does NOT influence this — only real image signals.
+ */
+function deriveEvidenceStrength(
+  confidence: number,
+  score: number,
+  smoothingLevel: number,
+): 'strong' | 'moderate' | 'weak' | 'insufficient' {
+  // Heavy smoothing makes all evidence unreliable
+  if (smoothingLevel > 0.6) return 'insufficient'
+  if (smoothingLevel > 0.3 && confidence < 0.5) return 'insufficient'
+
+  // Strong: high confidence + meaningful score + no smoothing
+  if (confidence >= 0.6 && score >= 12 && smoothingLevel < 0.2) return 'strong'
+
+  // Moderate: decent confidence
+  if (confidence >= 0.4 && score >= 8) return 'moderate'
+
+  // Weak: low confidence or very low score
+  if (confidence >= 0.25) return 'weak'
+
+  return 'insufficient'
+}
+
+// ─── Oriented line patterns (crow's feet, nasolabial) ───────
+
+/**
+ * Sobel with lateral (mostly horizontal + slight diagonal) bias.
+ * Optimized for crow's feet — short, fine lateral lines near outer eye.
+ */
+function sobelLateralBias(
+  gray: Uint8ClampedArray,
+  width: number,
+  height: number,
+): Uint8ClampedArray {
+  const edges = new Uint8ClampedArray(width * height)
+  if (width < 3 || height < 3) return edges
+
+  // Weight horizontal gradient higher, but keep some diagonal sensitivity
+  const GX_WEIGHT = 0.6
+  const GY_WEIGHT = 1.8
+
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x
+      const gx =
+        -gray[i - width - 1] + gray[i - width + 1] +
+        -2 * gray[i - 1] + 2 * gray[i + 1] +
+        -gray[i + width - 1] + gray[i + width + 1]
+      const gy =
+        -gray[i - width - 1] - 2 * gray[i - width] - gray[i - width + 1] +
+        gray[i + width - 1] + 2 * gray[i + width] + gray[i + width + 1]
+
+      edges[i] = Math.min(255, Math.round(
+        Math.sqrt((gx * GX_WEIGHT) ** 2 + (gy * GY_WEIGHT) ** 2),
+      ))
+    }
+  }
+  return edges
+}
+
 // ─── Classification ─────────────────────────────────────────
 
 function classifyWrinkleLevel(score: number): WrinkleLevel {
@@ -866,17 +972,18 @@ function analyzeForehead(
     return {
       region, label, density: 0, score: 0, level: 'low',
       insight: getInsight(region, 'low', 0.1),
-      confidence: 0.1,
+      confidence: 0.1, detected: false, evidenceStrength: 'insufficient',
     }
   }
 
   const fullConfidence = evaluateRegionConfidence(fullRegion.data, fullRegion.width, fullRegion.height)
+  const smoothing = detectSmoothing(fullRegion.data, fullRegion.width, fullRegion.height)
 
   if (fullConfidence < 0.15) {
     return {
       region, label, density: 0, score: 0, level: 'low',
       insight: getInsight(region, 'low', fullConfidence),
-      confidence: fullConfidence,
+      confidence: fullConfidence, detected: false, evidenceStrength: 'insufficient',
     }
   }
 
@@ -939,8 +1046,6 @@ function analyzeForehead(
     score = Math.max(score, 35)
   }
 
-  const level = classifyWrinkleLevel(score)
-
   // ── Confidence ──
   const subzoneAgreement = subzoneCount >= 2
     ? 1 - Math.abs(subzoneMaxDensity - subzoneAvg) / Math.max(0.001, subzoneMaxDensity)
@@ -951,12 +1056,21 @@ function analyzeForehead(
     0.1, 1.0,
   )
 
+  const detected = score >= 12 && confidence >= 0.3
+  const evidenceStrength = deriveEvidenceStrength(confidence, score, smoothing)
+
+  // Suppress score if smoothing makes evidence unreliable
+  const finalScore = evidenceStrength === 'insufficient' ? Math.min(score, 8) : score
+  const finalLevel = classifyWrinkleLevel(finalScore)
+
   return {
     region, label,
     density: compositeDensity,
-    score, level,
-    insight: getInsight(region, level, confidence),
-    confidence,
+    score: finalScore, level: finalLevel,
+    insight: evidenceStrength === 'insufficient'
+      ? 'Alın bölgesinde güvenilir değerlendirme için görüntü kalitesi yetersiz.'
+      : getInsight(region, finalLevel, confidence),
+    confidence, detected, evidenceStrength,
   }
 }
 
@@ -1048,35 +1162,53 @@ export function analyzeWrinkles(
       results.push({
         region,
         label: regionConfig.label,
-        density: 0,
-        score: 0,
-        level: 'minimal',
+        density: 0, score: 0, level: 'minimal',
         insight: getInsight(region, 'minimal', 0.1),
-        confidence: 0.1,
+        confidence: 0.1, detected: false, evidenceStrength: 'insufficient',
       })
       continue
     }
 
     const confidence = evaluateRegionConfidence(grayRegion.data, grayRegion.width, grayRegion.height)
+    const smoothing = detectSmoothing(grayRegion.data, grayRegion.width, grayRegion.height)
+
+    // Choose edge detector based on region type:
+    // - forehead: horizontal bias (handled separately above)
+    // - crow's feet: lateral bias (short fine horizontal + diagonal lines)
+    // - others: standard Sobel
+    const isCrowFeet = region === 'crow_feet_left' || region === 'crow_feet_right'
     const useHorizontal = regionConfig.horizontalBias === true
-    const edges = useHorizontal
-      ? sobelHorizontalBias(grayRegion.data, grayRegion.width, grayRegion.height)
-      : sobelEdgeDetection(grayRegion.data, grayRegion.width, grayRegion.height)
+    const edges = isCrowFeet
+      ? sobelLateralBias(grayRegion.data, grayRegion.width, grayRegion.height)
+      : useHorizontal
+        ? sobelHorizontalBias(grayRegion.data, grayRegion.width, grayRegion.height)
+        : sobelEdgeDetection(grayRegion.data, grayRegion.width, grayRegion.height)
     const rawDensity = calculateWrinkleDensity(edges, grayRegion.width, grayRegion.height)
 
     // Scale density to a 0–100 score using region-specific sensitivity
     const adjustedDensity = rawDensity * ageFactor
-    const score = clamp(Math.round(adjustedDensity * useSensitivity), 0, 100)
+    let score = clamp(Math.round(adjustedDensity * useSensitivity), 0, 100)
+
+    // Derive evidence strength BEFORE any suppression
+    const evidenceStrength = deriveEvidenceStrength(confidence, score, smoothing)
+
+    // Suppress score if smoothing makes evidence unreliable
+    if (evidenceStrength === 'insufficient') {
+      score = Math.min(score, 8)
+    }
+
     const level = classifyWrinkleLevel(score)
+    const detected = score >= 12 && confidence >= 0.3
+
+    const insight = evidenceStrength === 'insufficient'
+      ? `${regionConfig.label} bölgesinde güvenilir değerlendirme için görüntü kalitesi yetersiz.`
+      : getInsight(region, level, confidence)
 
     results.push({
       region,
       label: regionConfig.label,
-      density: rawDensity,
-      score,
-      level,
-      insight: getInsight(region, level, confidence),
-      confidence,
+      density: rawDensity, score, level,
+      insight, confidence, detected, evidenceStrength,
     })
   }
 
@@ -1095,6 +1227,144 @@ export function analyzeWrinkles(
     regions: results,
     overallScore,
     overallLevel,
+  }
+}
+
+/**
+ * Run wrinkle analysis across multiple augmented frames and aggregate results.
+ * Creates slight brightness/contrast variations of the source image to reduce
+ * noise-driven false positives and stabilize scores.
+ *
+ * Returns the averaged result — regions with inconsistent scores across frames
+ * get lower confidence, preventing one-off noise from inflating results.
+ */
+export function analyzeWrinklesMultiFrame(
+  image: HTMLImageElement | HTMLCanvasElement,
+  landmarks: Landmark[],
+  estimatedAge: number | null,
+  frameCount = 3,
+): WrinkleAnalysisResult | null {
+  if (landmarks.length < 400) return null
+
+  // Generate augmented frames: slight brightness/contrast jitter
+  const augmentations = [
+    { brightness: 0, contrast: 0 },       // Original
+    { brightness: 8, contrast: 0.06 },     // Slightly brighter + more contrast
+    { brightness: -8, contrast: -0.04 },   // Slightly darker + less contrast
+    { brightness: 0, contrast: 0.10 },     // More contrast only
+    { brightness: -5, contrast: 0.08 },    // Darker + more contrast
+  ].slice(0, Math.max(1, frameCount))
+
+  let imgW: number, imgH: number
+  if (image instanceof HTMLImageElement) {
+    imgW = image.naturalWidth || image.width
+    imgH = image.naturalHeight || image.height
+  } else {
+    imgW = image.width
+    imgH = image.height
+  }
+
+  if (imgW < 50 || imgH < 50) return null
+
+  const allResults: WrinkleAnalysisResult[] = []
+
+  for (const aug of augmentations) {
+    let frameImage: HTMLImageElement | HTMLCanvasElement = image
+
+    // Apply augmentation if non-zero
+    if (aug.brightness !== 0 || aug.contrast !== 0) {
+      const augCanvas = document.createElement('canvas')
+      augCanvas.width = imgW
+      augCanvas.height = imgH
+      const augCtx = augCanvas.getContext('2d', { willReadFrequently: true })
+      if (!augCtx) continue
+
+      augCtx.drawImage(image, 0, 0, imgW, imgH)
+      const imgData = augCtx.getImageData(0, 0, imgW, imgH)
+      const px = imgData.data
+      const contrastFactor = 1 + aug.contrast
+
+      for (let i = 0; i < px.length; i += 4) {
+        px[i]     = clamp(Math.round((px[i]     - 128) * contrastFactor + 128 + aug.brightness), 0, 255)
+        px[i + 1] = clamp(Math.round((px[i + 1] - 128) * contrastFactor + 128 + aug.brightness), 0, 255)
+        px[i + 2] = clamp(Math.round((px[i + 2] - 128) * contrastFactor + 128 + aug.brightness), 0, 255)
+      }
+      augCtx.putImageData(imgData, 0, 0)
+      frameImage = augCanvas
+    }
+
+    const result = analyzeWrinkles(frameImage, landmarks, estimatedAge)
+    if (result) allResults.push(result)
+  }
+
+  if (allResults.length === 0) return null
+  if (allResults.length === 1) return allResults[0]
+
+  // Aggregate: average scores per region, penalize inconsistency
+  const regionMap = new Map<string, WrinkleRegionResult[]>()
+  for (const res of allResults) {
+    for (const r of res.regions) {
+      const key = r.region
+      if (!regionMap.has(key)) regionMap.set(key, [])
+      regionMap.get(key)!.push(r)
+    }
+  }
+
+  const aggregatedRegions: WrinkleRegionResult[] = []
+  for (const [, regionResults] of regionMap) {
+    if (regionResults.length === 0) continue
+
+    const avgScore = regionResults.reduce((s, r) => s + r.score, 0) / regionResults.length
+    const avgDensity = regionResults.reduce((s, r) => s + r.density, 0) / regionResults.length
+    const avgConf = regionResults.reduce((s, r) => s + r.confidence, 0) / regionResults.length
+
+    // Score variance across frames — high variance = unreliable
+    const scoreVariance = regionResults.reduce((s, r) => s + (r.score - avgScore) ** 2, 0) / regionResults.length
+    const consistencyPenalty = scoreVariance > 200 ? 0.7 : scoreVariance > 100 ? 0.85 : 1.0
+
+    const finalScore = clamp(Math.round(avgScore * consistencyPenalty), 0, 100)
+    const finalConf = clamp(avgConf * consistencyPenalty, 0.1, 1.0)
+    const level = classifyWrinkleLevel(finalScore)
+
+    // Use the best evidence strength from the frames
+    const strengths = regionResults.map(r => r.evidenceStrength)
+    const strengthRank = { strong: 3, moderate: 2, weak: 1, insufficient: 0 }
+    const bestStrength = strengths.sort((a, b) => strengthRank[b] - strengthRank[a])[0]
+    // But if scores are very inconsistent, downgrade
+    const finalStrength = consistencyPenalty < 0.85 && bestStrength === 'strong' ? 'moderate' : bestStrength
+
+    const detected = finalScore >= 12 && finalConf >= 0.3
+    const baseResult = regionResults[0]
+
+    aggregatedRegions.push({
+      region: baseResult.region,
+      label: baseResult.label,
+      density: avgDensity,
+      score: finalScore,
+      level,
+      insight: finalStrength === 'insufficient'
+        ? `${baseResult.label} bölgesinde güvenilir değerlendirme için görüntü kalitesi yetersiz.`
+        : getInsight(baseResult.region, level, finalConf),
+      confidence: finalConf,
+      detected,
+      evidenceStrength: finalStrength,
+    })
+  }
+
+  // Overall score
+  let weightedSum = 0
+  let totalWeight = 0
+  for (const r of aggregatedRegions) {
+    const w = REGIONS[r.region]?.weight ?? 0.05
+    weightedSum += r.score * w
+    totalWeight += w
+  }
+  const overallScore = totalWeight > 0 ? clamp(Math.round(weightedSum / totalWeight), 0, 100) : 0
+
+  return {
+    regions: aggregatedRegions,
+    overallScore,
+    overallLevel: classifyWrinkleLevel(overallScore),
   }
 }
 

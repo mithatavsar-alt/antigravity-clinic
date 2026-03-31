@@ -17,7 +17,7 @@ import { computeFocusAreas, computeQualityScore, getSuggestedZones } from '@/lib
 import { generateSuggestions, generatePatientSummaryText, generateFocusAreaLabels, mapFocusAreasToRegionScores } from '@/lib/ai/result-generator'
 import { deriveRadarAnalysis } from '@/lib/ai/radar-scores'
 import { deriveDoctorAnalysis, deriveConsultationReadiness } from '@/lib/ai/derive-doctor-analysis'
-import { analyzeWrinkles, deriveSkinTexture } from '@/lib/ai/wrinkle-analysis'
+import { analyzeWrinkles, analyzeWrinklesMultiFrame, deriveSkinTexture } from '@/lib/ai/wrinkle-analysis'
 import { assessImageQuality } from '@/lib/ai/image-quality'
 import { estimateAge } from '@/lib/ai/age-estimation'
 import { computeSymmetryAnalysis } from '@/lib/ai/aesthetic-scoring'
@@ -521,10 +521,11 @@ async function runLocalAnalysisPipeline(
       console.warn('[Pipeline] Image quality assessment failed (non-fatal):', err)
     }
 
-    // Wrinkle analysis (13 regions)
+    // Wrinkle analysis (13 regions) — multi-frame for stability
     let wa = null
     try {
-      wa = analyzeWrinkles(imgEl, detection.landmarks, finalAge)
+      wa = analyzeWrinklesMultiFrame(imgEl, detection.landmarks, finalAge, 3)
+      if (!wa) wa = analyzeWrinkles(imgEl, detection.landmarks, finalAge)
     } catch (err) {
       console.warn('[Pipeline] Wrinkle analysis failed (non-fatal):', err)
     }
@@ -872,6 +873,8 @@ function ProcessingContent() {
               level: r.level,
               insight: r.insight,
               confidence: r.confidence,
+              detected: r.detected,
+              evidenceStrength: r.evidenceStrength,
             })),
             overallScore: wrinkleAnalysis.overallScore,
             overallLevel: wrinkleAnalysis.overallLevel,
@@ -1113,7 +1116,7 @@ function ProcessingContent() {
 
         {/* ── Stage timeline — premium ── */}
         <div
-          className="w-full relative flex flex-col rounded-[20px] px-5 py-4"
+          className="w-full relative flex flex-col rounded-xl px-5 py-4"
           style={{ background: 'rgba(14,12,10,0.40)', border: '1px solid rgba(214,185,140,0.05)' }}
         >
           {/* Vertical spine */}
@@ -1224,7 +1227,7 @@ function ProcessingContent() {
             className="w-full flex flex-col gap-5"
             style={{ animation: 'sectionReveal 0.4s ease-out' }}
           >
-            <div className="rounded-[16px] border border-[rgba(196,122,122,0.15)] bg-[rgba(196,122,122,0.04)] px-5 py-4">
+            <div className="rounded-lg border border-[rgba(196,122,122,0.15)] bg-[rgba(196,122,122,0.04)] px-5 py-4">
               <p className="font-body text-[13px] text-[rgba(196,122,122,0.85)] leading-[1.7]">
                 {pipelineState.message}
               </p>

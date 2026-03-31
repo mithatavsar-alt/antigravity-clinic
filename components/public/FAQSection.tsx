@@ -24,16 +24,16 @@ function FAQItem({ q, a, i }: { q: string; a: string; i: number }) {
       initial={{ opacity: 0, y: 16 }}
       transition={{ duration: 0.6, delay: i * 0.08, ease }}
       viewport={{ once: true }}
-      className="border-b border-[rgba(214,185,140,0.1)]"
+      className="border-b border-[var(--color-border)]"
     >
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex justify-between items-center py-5 text-left gap-4 group"
+        className="w-full flex justify-between items-center py-7 sm:py-8 text-left gap-5 group cursor-pointer"
       >
-        <span className="font-display text-[18px] font-light text-[#F8F6F2] group-hover:text-[#D6B98C] transition-colors">
+        <span className="font-display text-[19px] sm:text-[21px] font-medium text-[var(--color-text)] group-hover:text-[var(--color-gold)] transition-colors">
           {q}
         </span>
-        <span className="text-[#D6B98C] text-xl flex-shrink-0 transition-transform duration-300" style={{ transform: open ? 'rotate(45deg)' : 'none' }}>
+        <span className="text-[var(--color-gold)] text-xl flex-shrink-0 transition-transform duration-300" style={{ transform: open ? 'rotate(45deg)' : 'none' }}>
           +
         </span>
       </button>
@@ -46,7 +46,7 @@ function FAQItem({ q, a, i }: { q: string; a: string; i: number }) {
             transition={{ duration: 0.35 }}
             className="overflow-hidden"
           >
-            <p className="font-body text-[13px] text-[rgba(248,246,242,0.55)] leading-relaxed pb-5">{a}</p>
+            <p className="font-body text-[15px] sm:text-[16px] text-[var(--color-text-secondary)] leading-[1.75] pb-7 sm:pb-8">{a}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -56,11 +56,11 @@ function FAQItem({ q, a, i }: { q: string; a: string; i: number }) {
 
 export function FAQSection() {
   return (
-    <section id="faq" className="py-[100px] px-10 bg-[#0E0B09]">
-      <div className="container-main max-w-3xl mx-auto">
-        <div className="text-center mb-14">
-          <SectionLabel className="justify-center mb-4">Sık Sorulanlar</SectionLabel>
-          <EditorialHeading light>Merak Ettikleriniz</EditorialHeading>
+    <section id="faq" className="py-20 sm:py-28 px-6 sm:px-10 bg-[var(--color-bg)]">
+      <div className="container-main max-w-4xl mx-auto">
+        <div className="text-center mb-12">
+          <SectionLabel className="mb-4">Sık Sorulanlar</SectionLabel>
+          <EditorialHeading as="h2">Merak Ettikleriniz</EditorialHeading>
         </div>
         <div>
           {faqs.map((item, i) => (
