@@ -29,7 +29,6 @@ import {
   LOWER_LIP,
   JAWLINE,
   type FaceGuideStatus,
-  type FaceDebugInfo,
 } from '@/lib/ai/face-guide'
 
 // ─── Types ──────────────────────────────────────────────────
@@ -102,23 +101,6 @@ function Badge({ category, value }: { category: string; value: string }) {
       <span className={`w-1 h-1 rounded-full ${isOk ? 'bg-[#00DC82]' : isWarn ? 'bg-[#C4A35A]' : 'bg-[#A05252]'}`} />
       {label}
     </span>
-  )
-}
-
-// ─── Debug overlay ──────────────────────────────────────────
-function DebugOverlay({ debug, phase, qualityScore }: { debug: FaceDebugInfo; phase: ValidationPhase; qualityScore: number }) {
-  if (!debug.boundingBox) return null
-  return (
-    <div className="absolute top-1 left-1 z-30 pointer-events-none font-mono text-[8px] leading-[11px] text-green-400/80 bg-black/60 rounded px-1.5 py-1 max-w-[160px]">
-      <div>phase: {phase}</div>
-      <div>quality: {(qualityScore * 100).toFixed(0)}%</div>
-      <div>face: {debug.faceSizePct}%</div>
-      <div>center: {debug.centerOffsetX.toFixed(3)},{debug.centerOffsetY.toFixed(3)}</div>
-      <div>tilt: {debug.tiltDeg}° yaw: {debug.yawDeg}° pitch: {debug.pitchDeg}°</div>
-      <div>bright: {debug.brightness.toFixed(0)}</div>
-      <div>lock: {debug.lockFrames} miss: {debug.unlockFrames}</div>
-      {debug.rejectionReason && <div className="text-red-400">reject: {debug.rejectionReason}</div>}
-    </div>
   )
 }
 
@@ -362,7 +344,6 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
   const [tipIndex, setTipIndex] = useState(0)
   const [failsafeActive, setFailsafeActive] = useState(false)
   const [showFlash, setShowFlash] = useState(false)
-  const [showDebug, setShowDebug] = useState(false)
   const [landmarksRef] = useState<{ current: Landmark[] | null }>({ current: null })
 
   const [multiStep, setMultiStep] = useState<MultiStep>('front')
@@ -372,19 +353,6 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
   useEffect(() => {
     const interval = setInterval(() => setTipIndex((i) => (i + 1) % TIPS.length), 4000)
     return () => clearInterval(interval)
-  }, [])
-
-  // Debug toggle — triple-tap top-right
-  const debugTapRef = useRef({ count: 0, last: 0 })
-  const handleDebugTap = useCallback(() => {
-    const now = Date.now()
-    if (now - debugTapRef.current.last > 800) debugTapRef.current.count = 0
-    debugTapRef.current.count++
-    debugTapRef.current.last = now
-    if (debugTapRef.current.count >= 3) {
-      setShowDebug((d) => !d)
-      debugTapRef.current.count = 0
-    }
   }, [])
 
   // Capture best frame from buffer
@@ -677,7 +645,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
               ))}
             </div>
           ) : (
-            <div className="w-10 h-10" onClick={handleDebugTap} />
+            <div className="w-10 h-10" />
           )}
         </div>
       </div>
@@ -731,11 +699,6 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
             <div className="absolute inset-0 pointer-events-none" style={{
               background: 'radial-gradient(ellipse 70% 65% at 50% 45%, transparent 50%, rgba(3,3,5,0.7) 100%)',
             }} />
-
-            {/* Debug overlay */}
-            {showDebug && status.faceDetected && (
-              <DebugOverlay debug={status.debug} phase={phase} qualityScore={status.qualityScore} />
-            )}
 
             {/* Stabilization progress ring */}
             {phase === 'stabilizing' && (

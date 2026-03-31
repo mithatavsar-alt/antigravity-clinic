@@ -4,7 +4,6 @@ import { useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useClinicStore } from '@/lib/store'
 import { GlassCard } from '@/components/design-system/GlassCard'
-import { ThinLine } from '@/components/design-system/ThinLine'
 import { AnalysisStepBar } from '@/components/analysis/AnalysisStepBar'
 import { FaceMeshCamera, type CaptureMetadata } from '@/components/analysis/FaceMeshCamera'
 

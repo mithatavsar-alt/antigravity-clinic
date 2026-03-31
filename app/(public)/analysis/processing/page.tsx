@@ -746,7 +746,6 @@ function ProcessingContent() {
       running = false
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [landmarks, currentStage, pipelineState.phase, freeze, photoUrl])
 
   // ── Main pipeline ──
@@ -942,7 +941,6 @@ function ProcessingContent() {
     }
 
     runPipeline()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   const handleRetry = useCallback(() => {

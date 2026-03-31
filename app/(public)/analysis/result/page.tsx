@@ -7,58 +7,14 @@ import { useClinicStore, waitForHydration } from '@/lib/store'
 import { GlassCard } from '@/components/design-system/GlassCard'
 import { PremiumButton } from '@/components/design-system/PremiumButton'
 import { ThinLine } from '@/components/design-system/ThinLine'
-import { SectionLabel } from '@/components/design-system/SectionLabel'
 import { photoQualityLabels } from '@/types/lead'
 import type { Lead } from '@/types/lead'
-import { getPhoto, removePhoto } from '@/lib/photo-bridge'
+import { getPhoto } from '@/lib/photo-bridge'
 import { LandmarkOverlay, type OverlayState } from '@/components/analysis/LandmarkOverlay'
 import { contact } from '@/lib/contact'
 import RadarChartSection from '@/components/analysis/RadarChart'
 
 const fallbackFocusAreas = ['Göz Çevresi', 'Orta Yüz', 'Alt Yüz', 'Cilt Görünümü']
-
-/* ── Score bar ─────────────────────────────────────────────── */
-function ScoreBar({ label, score, delay = 0 }: { label: string; score: number; delay?: number }) {
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => {
-    const t = setTimeout(() => setMounted(true), delay + 80)
-    return () => clearTimeout(t)
-  }, [delay])
-
-  const color   = score >= 75 ? '#4AE3A7' : score >= 50 ? '#D6B98C' : '#C47A7A'
-  const grade   = score >= 80 ? 'Mükemmel' : score >= 65 ? 'İyi' : score >= 50 ? 'Orta' : 'Düşük'
-  const gradFill = score >= 75
-    ? 'linear-gradient(90deg, #2D5F5D 0%, #4AE3A7 100%)'
-    : score >= 50
-      ? 'linear-gradient(90deg, #8B6B2A 0%, #D6B98C 100%)'
-      : 'linear-gradient(90deg, #6B2828 0%, #C47A7A 100%)'
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex justify-between items-start">
-        <div className="flex flex-col gap-0.5">
-          <span className="font-body text-[12px] tracking-wide text-[rgba(248,246,242,0.55)]">{label}</span>
-          <span className="font-body text-[9px] tracking-[0.18em] uppercase" style={{ color: `${color}88` }}>{grade}</span>
-        </div>
-        <div className="flex items-baseline gap-0.5">
-          <span className="font-mono text-[22px] font-light leading-none" style={{ color }}>{score}</span>
-          <span className="font-mono text-[10px] text-[rgba(248,246,242,0.2)] leading-none mb-0.5">/100</span>
-        </div>
-      </div>
-      <div className="relative h-[3px] rounded-full bg-[rgba(248,246,242,0.06)] overflow-hidden">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full"
-          style={{
-            background: gradFill,
-            width: mounted ? `${score}%` : '0%',
-            transition: 'width 1.3s cubic-bezier(0.16, 1, 0.3, 1)',
-            boxShadow: `0 0 10px ${color}55`,
-          }}
-        />
-      </div>
-    </div>
-  )
-}
 
 /* ── Radial gauge ──────────────────────────────────────────── */
 function RadialGauge({ score, label, color }: { score: number; label: string; color: string }) {
@@ -175,7 +131,7 @@ function AnalysisPhoto({ src, onClick, hasAI }: { src: string; onClick: () => vo
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative rounded-[20px] overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.4)]">
+      <div className="relative rounded-[24px] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.50)]" style={{ border: '1px solid rgba(214,185,140,0.06)' }}>
         <button
           type="button"
           onClick={onClick}
@@ -770,10 +726,10 @@ function ResultContent() {
   // Show loading state until store is hydrated
   if (!hydrated) {
     return (
-      <div className="theme-dark min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0E0B09 0%, #1A1410 25%, #14181A 55%, #0B0E10 100%)' }}>
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-full border-2 border-transparent border-t-[#D6B98C] animate-spin" />
-          <p className="font-body text-[12px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.4)]">
+      <div className="theme-dark min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(160deg, #0A0908 0%, #141110 20%, #0F1214 50%, #0A0B0D 100%)' }}>
+        <div className="flex flex-col items-center gap-5">
+          <div className="w-10 h-10 rounded-full border-[1.5px] border-transparent border-t-[#D6B98C] animate-spin" />
+          <p className="text-label text-[rgba(248,246,242,0.30)]">
             Sonuçlar hazırlanıyor…
           </p>
         </div>
@@ -783,16 +739,16 @@ function ResultContent() {
 
   if (!selectedLead) {
     return (
-      <div className="theme-dark min-h-screen py-28 px-5" style={{ background: 'linear-gradient(135deg, #0E0B09 0%, #1A1410 25%, #14181A 55%, #0B0E10 100%)' }}>
-        <div className="max-w-lg mx-auto">
-          <GlassCard strong padding="lg" rounded="xl">
-            <div className="flex flex-col gap-4 text-center">
-              <SectionLabel className="justify-center">Sonuç Bulunamadı</SectionLabel>
-              <h1 className="font-display text-[32px] font-light text-[#F8F6F2]">Analiz kaydına ulaşılamadı</h1>
-              <p className="font-body text-[14px] text-[rgba(248,246,242,0.55)] leading-relaxed">
+      <div className="theme-dark min-h-screen flex items-center justify-center px-5" style={{ background: 'linear-gradient(160deg, #0A0908 0%, #141110 20%, #0F1214 50%, #0A0B0D 100%)' }}>
+        <div className="max-w-md w-full">
+          <GlassCard elevated padding="xl" rounded="xl">
+            <div className="flex flex-col gap-6 text-center items-center">
+              <span className="text-label text-[rgba(214,185,140,0.45)]">Sonuç Bulunamadı</span>
+              <h1 className="heading-display heading-display-sm text-[#F8F6F2]">Analiz kaydına ulaşılamadı</h1>
+              <p className="font-body text-[14px] text-[rgba(248,246,242,0.45)] leading-[1.7] max-w-[28ch]">
                 Ön değerlendirmeyi yeniden başlatarak fotoğrafınızı tekrar yükleyebilirsiniz.
               </p>
-              <Link href="/analysis">
+              <Link href="/analysis" className="w-full mt-2">
                 <PremiumButton size="lg" className="w-full justify-center">
                   Ön Değerlendirmeyi Yeniden Başlat
                 </PremiumButton>
@@ -1081,8 +1037,8 @@ function ResultContent() {
 export default function ResultPage() {
   return (
     <Suspense fallback={
-      <div className="theme-dark min-h-screen flex items-center justify-center" style={{ background: '#0E0B09' }}>
-        <div className="w-12 h-12 rounded-full border-2 border-transparent border-t-[#D6B98C] animate-spin" />
+      <div className="theme-dark min-h-screen flex items-center justify-center" style={{ background: '#0A0908' }}>
+        <div className="w-10 h-10 rounded-full border-[1.5px] border-transparent border-t-[#D6B98C] animate-spin" />
       </div>
     }>
       <ResultContent />

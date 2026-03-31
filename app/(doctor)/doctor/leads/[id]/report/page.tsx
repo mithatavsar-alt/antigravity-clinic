@@ -12,7 +12,6 @@ import {
   consultationTimingLabels,
   desiredResultLabels,
   goalClarityLabels,
-  photoQualityLabels,
   timeIntentLabels,
 } from '@/types/lead'
 
