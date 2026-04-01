@@ -29,6 +29,6 @@ export function buildPatientSummary(lead: Pick<Partial<Lead>, 'concern_area' | '
     consultation_recommended: true,
     summary_text: `${concernAreaLabels[concernArea]} odağında ön değerlendirme tamamlandı. Kesin plan, doktor muayenesi ve klinik fotoğraf seti ile netleştirilir.`,
     feature_schema_version: '1.0.0',
-    model_version: 'mock-v1',
+    model_version: 'pre-analysis-v1',
   }
 }

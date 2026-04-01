@@ -19,6 +19,9 @@ export function formatDateTime(iso: string): string {
 }
 
 export function generateLeadId(): string {
-  const n = Math.floor(1000 + Math.random() * 9000)
-  return `LD-${n}`
+  const ts = Date.now().toString(36)
+  const rand = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(36).slice(2, 10)
+  return `LD-${ts}-${rand}`
 }

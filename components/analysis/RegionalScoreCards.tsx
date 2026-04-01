@@ -58,6 +58,27 @@ interface RegionalScoreCardsProps {
       confidence: number
     }>
   }
+  /** Specialist module assessments (preferred when available) */
+  specialistAssessments?: Array<{
+    moduleKey: string
+    displayName: string
+    icon: string
+    score: number
+    confidence: number
+    severity: 'minimal' | 'hafif' | 'orta' | 'belirgin'
+    observation: string
+    isPositive: boolean
+    consultationNote?: string
+    evaluable: boolean
+    limitation?: string
+    subScores: Array<{
+      key: string
+      label: string
+      score: number
+      weight: number
+      confidence: number
+    }>
+  }>
 }
 
 // ─── Observation area → Card region mapping ─────────────────
@@ -107,10 +128,48 @@ const CARD_CONFIGS = [
 
 // ─── Build card data from observations ──────────────────────
 
+/** Map specialist moduleKey → card config key */
+const SPECIALIST_TO_CARD: Record<string, string> = {
+  crow_feet: 'crow_feet',
+  under_eye: 'under_eye',
+  lips_perioral: 'lips',
+  cheek_volume: 'cheeks',
+  chin_contour: 'chin_lower',
+}
+
 function buildCards(props: RegionalScoreCardsProps): RegionCardData[] {
-  const { observations, wrinkleScores } = props
+  const { observations, wrinkleScores, specialistAssessments } = props
   const cards: RegionCardData[] = []
 
+  // ── Preferred path: use specialist module assessments ──
+  if (specialistAssessments && specialistAssessments.length > 0) {
+    for (const assessment of specialistAssessments) {
+      if (!assessment.evaluable) continue
+
+      const cardKey = SPECIALIST_TO_CARD[assessment.moduleKey] ?? assessment.moduleKey
+      const config = CARD_CONFIGS.find(c => c.key === cardKey)
+
+      cards.push({
+        key: cardKey,
+        title: assessment.displayName,
+        icon: assessment.icon,
+        score: assessment.score,
+        confidence: assessment.confidence,
+        severity: assessment.severity,
+        observation: assessment.observation,
+        isPositive: assessment.isPositive,
+        consultationNote: assessment.consultationNote ?? (
+          !assessment.isPositive && assessment.score >= 25 && assessment.confidence >= 35
+            ? config?.defaultNote
+            : undefined
+        ),
+      })
+    }
+
+    if (cards.length > 0) return cards
+  }
+
+  // ── Fallback path: use trust pipeline observations ──
   for (const config of CARD_CONFIGS) {
     let score = 0
     let confidence = 0
@@ -119,10 +178,8 @@ function buildCards(props: RegionalScoreCardsProps): RegionCardData[] {
     let hasData = false
 
     if (observations && observations.length > 0) {
-      // Find matching observations for this card
       const matches = observations.filter(o => config.areas.includes(o.area))
       if (matches.length > 0) {
-        // Pick the most impactful non-positive observation, or the best positive
         const nonPositive = matches.filter(o => !o.isPositive).sort((a, b) => b.score - a.score)
         const positive = matches.filter(o => o.isPositive).sort((a, b) => b.confidence - a.confidence)
         const best = nonPositive[0] ?? positive[0]!
@@ -135,7 +192,6 @@ function buildCards(props: RegionalScoreCardsProps): RegionCardData[] {
       }
     }
 
-    // Fallback to wrinkle scores
     if (!hasData && wrinkleScores?.regions) {
       const matches = wrinkleScores.regions.filter(r =>
         config.fallbackRegions.some(fr => r.region.includes(fr))

@@ -323,6 +323,34 @@ export interface Lead {
     }>
   }
 
+  /** Specialist module analysis — 5 region-specific assessments */
+  specialist_analysis?: {
+    assessments: Array<{
+      moduleKey: string
+      displayName: string
+      icon: string
+      score: number
+      confidence: number
+      severity: 'minimal' | 'hafif' | 'orta' | 'belirgin'
+      observation: string
+      isPositive: boolean
+      consultationNote?: string
+      evaluable: boolean
+      limitation?: string
+      subScores: Array<{
+        key: string
+        label: string
+        score: number
+        weight: number
+        confidence: number
+      }>
+    }>
+    overallScore: number
+    overallConfidence: number
+    priorityRegions: string[]
+    analyzedAt: number
+  }
+
   /** Lip analysis results */
   lip_analysis?: {
     volume: 'low' | 'balanced' | 'full'

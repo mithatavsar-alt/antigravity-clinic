@@ -86,7 +86,7 @@ export function deriveDoctorAnalysis(
       video_present: hasVideo,
     },
     region_scores: regionScores,
-    stability_score: Math.round(symNorm * 0.6 + propNorm * 0.4 * 100) / 100,
+    stability_score: Math.round((symNorm * 0.6 + propNorm * 0.4) * 100) / 100,
     overfill_risk_level: riskLevel,
     identity_preservation_score: Math.round((symNorm * 0.5 + propNorm * 0.5) * 100) / 100,
     dose_recommendation: {

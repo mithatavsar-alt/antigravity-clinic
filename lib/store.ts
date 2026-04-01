@@ -26,6 +26,7 @@ interface LeadAnalysisUpdate {
   analysis_source?: Lead['analysis_source']
   trust_pipeline?: Lead['trust_pipeline']
   lip_analysis?: Lead['lip_analysis']
+  specialist_analysis?: Lead['specialist_analysis']
   status?: LeadStatus
 }
 

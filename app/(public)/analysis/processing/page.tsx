@@ -30,6 +30,7 @@ import {
 import type { EnhancedAnalysisResult } from '@/lib/ai/types'
 import type { Landmark } from '@/lib/ai/types'
 import { runTrustPipeline, getQualityCaveatText } from '@/lib/ai/pipeline'
+import { runSpecialistAnalysis, buildCalibrationContext } from '@/lib/ai/specialists'
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -625,6 +626,7 @@ function ProcessingContent() {
   const [microMessage, setMicroMessage] = useState<string>(STAGES[0].messages[0])
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [landmarks, setLandmarks] = useState<Landmark[] | null>(null)
+  const landmarksRef = useRef<Landmark[] | null>(null)
   const [freeze, setFreeze] = useState(false)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -826,6 +828,7 @@ function ProcessingContent() {
             }
           },
           (lm) => {
+            landmarksRef.current = lm
             if (!abortRef.current) setLandmarks(lm)
           },
         )
@@ -836,21 +839,45 @@ function ProcessingContent() {
         // The image element is needed for quality gate — recreate it
         const trustImage = new Image()
         trustImage.crossOrigin = 'anonymous'
+        let trustImageLoaded = false
         await new Promise<void>((resolve) => {
-          trustImage.onload = () => resolve()
-          trustImage.onerror = () => resolve() // non-fatal
+          trustImage.onload = () => { trustImageLoaded = true; resolve() }
+          trustImage.onerror = () => resolve()
           trustImage.src = photo
         })
 
+        const pipelineLandmarks = landmarksRef.current ?? []
+
         const trustResult = runTrustPipeline(
           enhanced,
-          landmarks ?? [],
+          pipelineLandmarks,
           trustImage,
         )
 
         // Post-capture: quality gate never blocks (downgraded to degrade in pipeline).
         // Only soft warnings are shown on the result page.
         const qualityCaveat = getQualityCaveatText(trustResult)
+
+        // ── Specialist Module Analysis (5 regions) ──
+        let specialistResult = null
+        if (trustImageLoaded && pipelineLandmarks.length >= 468) {
+          try {
+            const calibrationCtx = buildCalibrationContext(
+              enhanced,
+              trustResult.qualityGate,
+              trustResult.youngFaceProfile,
+              (lead.capture_confidence as 'high' | 'medium' | 'low') ?? 'high',
+            )
+            specialistResult = runSpecialistAnalysis(
+              pipelineLandmarks,
+              trustImage,
+              calibrationCtx,
+              enhanced.wrinkleAnalysis?.regions,
+            )
+          } catch (err) {
+            console.warn('[Pipeline] Specialist analysis failed (non-fatal):', err)
+          }
+        }
 
         // ── Save results ──
         const { geometry, estimatedAge, focusAreas, suggestedZones, confidence, qualityScore, wrinkleAnalysis, ageEstimation } = enhanced
@@ -985,6 +1012,32 @@ function ProcessingContent() {
             evaluable: trustResult.lipMetric.data.evaluable,
             limitationReason: trustResult.lipMetric.data.limitationReason,
             confidence: trustResult.lipMetric.data.confidence,
+          } : undefined,
+          specialist_analysis: specialistResult ? {
+            assessments: specialistResult.assessments.map(a => ({
+              moduleKey: a.moduleKey,
+              displayName: a.displayName,
+              icon: a.icon,
+              score: a.score,
+              confidence: a.confidence,
+              severity: a.severity,
+              observation: a.observation,
+              isPositive: a.isPositive,
+              consultationNote: a.consultationNote,
+              evaluable: a.evaluable,
+              limitation: a.limitation,
+              subScores: a.subScores.map(s => ({
+                key: s.key,
+                label: s.label,
+                score: s.score,
+                weight: s.weight,
+                confidence: s.confidence,
+              })),
+            })),
+            overallScore: specialistResult.overallScore,
+            overallConfidence: specialistResult.overallConfidence,
+            priorityRegions: specialistResult.priorityRegions,
+            analyzedAt: specialistResult.analyzedAt,
           } : undefined,
         })
 
