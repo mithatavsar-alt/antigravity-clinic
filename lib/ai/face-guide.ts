@@ -37,6 +37,8 @@ export interface FaceDebugInfo {
   tiltDeg: number
   yawDeg: number
   pitchDeg: number
+  noseOffset: number
+  targetAngle: string
   brightness: number
   lockFrames: number
   unlockFrames: number
@@ -163,8 +165,8 @@ export const NO_FACE_STATUS: FaceGuideStatus = {
   faceLocked: false,
   debug: {
     faceSizePct: 0, centerOffsetX: 0, centerOffsetY: 0,
-    tiltDeg: 0, yawDeg: 0, pitchDeg: 0, brightness: 0,
-    lockFrames: 0, unlockFrames: 0, rejectionReason: null, boundingBox: null,
+    tiltDeg: 0, yawDeg: 0, pitchDeg: 0, noseOffset: 0, targetAngle: 'front',
+    brightness: 0, lockFrames: 0, unlockFrames: 0, rejectionReason: null, boundingBox: null,
   },
 }
 
@@ -445,8 +447,11 @@ export function evaluateFaceGuide(
   // ── 2. CENTERING ──
   const offsetX = Math.abs(faceCenterX - 0.5)
   const offsetY = Math.abs(faceCenterY - 0.45)
+  // Relax centering for angled captures — face naturally shifts when turning
+  const centerThresholdX = targetAngle === 'front' ? 0.08 : 0.14
+  const centerThresholdY = targetAngle === 'front' ? 0.08 : 0.10
   const centering: FaceGuideStatus['centering'] =
-    (offsetX > 0.08 || offsetY > 0.08) ? 'off_center' : 'ok'
+    (offsetX > centerThresholdX || offsetY > centerThresholdY) ? 'off_center' : 'ok'
 
   // ── 3. HEAD POSE (stricter: ≈±10° yaw/pitch, ±5° roll) ──
   // Roll (head tilt): eye line angle
@@ -528,13 +533,15 @@ export function evaluateFaceGuide(
     (lightingOk ? 1 : 0) +
     (foreheadOk ? 1 : 0)
 
+  // For angled captures, forehead may be partially hidden — don't require it
+  const foreheadRequired = targetAngle === 'front'
   const allOk =
     centering === 'ok' &&
     distanceOk &&
     angleOk &&
     lightingOk &&
     eyesVisible &&
-    foreheadVisible
+    (foreheadRequired ? foreheadVisible : true)
 
   // Main message priority — premium, calm guidance
   let mainMessage = 'Harika, pozisyon uygun'
@@ -586,13 +593,16 @@ export function evaluateFaceGuide(
   const centerScore = Math.max(0, 1 - (offsetX + offsetY) / 0.16)
   const eyeScore = eyesVisible ? 1 : 0
   const fhScore = foreheadVisible ? 1 : 0
+  // Reduce forehead weight for angled captures, redistribute to yaw
+  const fhWeight = foreheadRequired ? 0.15 : 0.05
+  const yawWeight = foreheadRequired ? 0.20 : 0.30
   const alignmentScore =
     tiltScore * 0.20 +
-    yawScore * 0.20 +
+    yawScore * yawWeight +
     pitchScore * 0.15 +
     centerScore * 0.20 +
     eyeScore * 0.10 +
-    fhScore * 0.15
+    fhScore * fhWeight
 
   // Lighting score: ideal brightness 90–180 + shadow uniformity
   let lightingScore = 0
@@ -652,6 +662,8 @@ export function evaluateFaceGuide(
     tiltDeg: Math.round(Math.atan(tiltRatio) * (180 / Math.PI) * 10) / 10,
     yawDeg: Math.round(Math.atan(noseOffset) * (180 / Math.PI) * 10) / 10,
     pitchDeg: Math.round(Math.atan(pitchOffset) * (180 / Math.PI) * 10) / 10,
+    noseOffset: Math.round(noseOffset * 1000) / 1000,
+    targetAngle,
     brightness,
     lockFrames: consecutiveDetections,
     unlockFrames: consecutiveMisses,

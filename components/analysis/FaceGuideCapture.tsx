@@ -83,19 +83,22 @@ const STABILITY_FRAMES_REQUIRED = 10
 
 // ─── Strict READY gate ─────────────────────────────────────
 // Capture is only allowed when ALL of these conditions are met simultaneously.
-// This prevents weak frames from ever being captured.
-function isReadyForCapture(status: FaceGuideStatus): boolean {
+// When `relaxed` is true (failsafe after extended wait), thresholds are lowered.
+function isReadyForCapture(status: FaceGuideStatus, relaxed = false): boolean {
   const { qualityBreakdown: qb } = status
+  const qThresh = relaxed ? 0.65 : AUTO_CAPTURE_QUALITY_THRESHOLD
+  const subThresh = relaxed ? 0.35 : 0.50
+  const alignThresh = relaxed ? 0.40 : 0.55
   return (
     status.faceDetected &&
     status.allOk &&
     status.faceLocked &&
-    qb.distance >= 0.55 &&
-    qb.alignment >= 0.55 &&
-    qb.lighting >= 0.50 &&
-    qb.sharpness >= 0.50 &&
-    qb.stability >= 0.50 &&
-    status.qualityScore >= AUTO_CAPTURE_QUALITY_THRESHOLD
+    qb.distance >= (relaxed ? 0.40 : 0.55) &&
+    qb.alignment >= alignThresh &&
+    qb.lighting >= subThresh &&
+    qb.sharpness >= subThresh &&
+    qb.stability >= (relaxed ? 0.30 : 0.50) &&
+    status.qualityScore >= qThresh
   )
 }
 
@@ -760,14 +763,21 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           const isMimicStep = multiStep === 'mimic'
 
           // Strict READY gate: all sub-scores must meet minimums
-          const readyNow = !isMimicStep && isReadyForCapture(guide)
+          // Use relaxed thresholds after failsafe timer (10s+ of trying)
+          const readyNow = !isMimicStep && isReadyForCapture(guide, failsafeActive)
           if (readyNow) {
             stableReadyFrames.current++
           } else {
-            stableReadyFrames.current = 0
+            // Decay instead of hard reset — prevents single dropped frames from restarting
+            stableReadyFrames.current = Math.floor(stableReadyFrames.current * 0.5)
           }
 
-          if (readyNow && stableReadyFrames.current >= STABILITY_FRAMES_REQUIRED && !preview) {
+          // After failsafe, also reduce required stability frames
+          const requiredFrames = failsafeActive
+            ? Math.max(3, Math.floor(STABILITY_FRAMES_REQUIRED * 0.5))
+            : STABILITY_FRAMES_REQUIRED
+
+          if (readyNow && stableReadyFrames.current >= requiredFrames && !preview) {
             if (!validationStartRef.current) {
               validationStartRef.current = now
               setPhase('stabilizing')
@@ -806,7 +816,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
       .catch(() => { processingRef.current = false })
 
     animFrameRef.current = requestAnimationFrame(processFrame)
-  }, [landmarksRef, preview, phase, status.faceLocked, triggerAutoAdvance, mode, multiStep])
+  }, [landmarksRef, preview, phase, status.faceLocked, triggerAutoAdvance, mode, multiStep, failsafeActive])
 
   useEffect(() => {
     if (initState === 'ready' && !preview) {
@@ -1064,6 +1074,22 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               {/* Flash */}
               {showFlash && (
                 <div className="absolute inset-0 z-30 bg-white animate-[flashFade_0.35s_ease-out_forwards] pointer-events-none" />
+              )}
+
+              {/* Dev-only debug panel */}
+              {process.env.NODE_ENV === 'development' && status.debug && (
+                <div className="absolute top-1 left-1 z-40 bg-black/70 text-[8px] font-mono text-green-300 px-2 py-1 rounded pointer-events-none leading-tight max-w-[200px]">
+                  <div>yaw: {status.debug.yawDeg}° nose: {status.debug.noseOffset}</div>
+                  <div>pitch: {status.debug.pitchDeg}° tilt: {status.debug.tiltDeg}°</div>
+                  <div>target: {status.debug.targetAngle} angle: {status.angle}</div>
+                  <div>center: {status.centering} dist: {status.distance}</div>
+                  <div>stable: {stableReadyFrames.current} phase: {phase}</div>
+                  <div>quality: {(status.qualityScore * 100).toFixed(0)}% allOk: {String(status.allOk)}</div>
+                  <div>locked: {String(status.faceLocked)} failsafe: {String(failsafeActive)}</div>
+                  {status.debug.rejectionReason && (
+                    <div className="text-red-300">reject: {status.debug.rejectionReason}</div>
+                  )}
+                </div>
               )}
             </>
           )}
