@@ -31,6 +31,7 @@ import type { EnhancedAnalysisResult } from '@/lib/ai/types'
 import type { Landmark } from '@/lib/ai/types'
 import { runTrustPipeline, getQualityCaveatText } from '@/lib/ai/pipeline'
 import { runSpecialistAnalysis, buildCalibrationContext } from '@/lib/ai/specialists'
+import { runMultiViewPipeline, type MultiViewInput, type ViewKey } from '@/lib/ai/multi-view-pipeline'
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -879,6 +880,69 @@ function ProcessingContent() {
           }
         }
 
+        // ── Multi-View Analysis Pipeline (front + left + right) ──
+        let multiViewResult = null
+        const allPhotos = lead.doctor_frontal_photos ?? []
+        if (trustImageLoaded && pipelineLandmarks.length >= 468 && allPhotos.length >= 3) {
+          try {
+            const calibrationCtx = specialistResult
+              ? buildCalibrationContext(enhanced, trustResult.qualityGate, trustResult.youngFaceProfile, (lead.capture_confidence as 'high' | 'medium' | 'low') ?? 'high')
+              : buildCalibrationContext(enhanced, trustResult.qualityGate, trustResult.youngFaceProfile, (lead.capture_confidence as 'high' | 'medium' | 'low') ?? 'high')
+
+            const viewKeys: ViewKey[] = ['front', 'left', 'right']
+            const multiViewInputs: MultiViewInput[] = []
+
+            for (let i = 0; i < 3; i++) {
+              const photoSrc = allPhotos[i]
+              if (!photoSrc) continue
+
+              if (i === 0) {
+                // Front photo: reuse existing landmarks + trustImage
+                multiViewInputs.push({
+                  view: viewKeys[i],
+                  image: trustImage,
+                  landmarks: pipelineLandmarks,
+                  detectionConfidence: enhanced.confidence,
+                })
+              } else {
+                // Left/Right photos: load image and detect landmarks
+                const img = new Image()
+                img.crossOrigin = 'anonymous'
+                const loaded = await new Promise<boolean>((resolve) => {
+                  img.onload = () => resolve(true)
+                  img.onerror = () => resolve(false)
+                  img.src = photoSrc
+                })
+                if (!loaded || img.naturalWidth < 100) continue
+
+                const det = await detectFace(img).catch(() => null)
+                if (!det || det.landmarks.length < 468) {
+                  // Still add with empty landmarks — pipeline will mark as unusable
+                  multiViewInputs.push({
+                    view: viewKeys[i],
+                    image: img,
+                    landmarks: det?.landmarks ?? [],
+                    detectionConfidence: det?.confidence ?? 0,
+                  })
+                } else {
+                  multiViewInputs.push({
+                    view: viewKeys[i],
+                    image: img,
+                    landmarks: det.landmarks,
+                    detectionConfidence: det.confidence,
+                  })
+                }
+              }
+            }
+
+            if (multiViewInputs.length >= 2) {
+              multiViewResult = runMultiViewPipeline(multiViewInputs, calibrationCtx)
+            }
+          } catch (err) {
+            console.warn('[Pipeline] Multi-view analysis failed (non-fatal):', err)
+          }
+        }
+
         // ── Save results ──
         const { geometry, estimatedAge, focusAreas, suggestedZones, confidence, qualityScore, wrinkleAnalysis, ageEstimation } = enhanced
 
@@ -1038,6 +1102,36 @@ function ProcessingContent() {
             overallConfidence: specialistResult.overallConfidence,
             priorityRegions: specialistResult.priorityRegions,
             analyzedAt: specialistResult.analyzedAt,
+          } : undefined,
+          multi_view_analysis: multiViewResult ? {
+            globalScore: multiViewResult.globalScore,
+            globalConfidence: multiViewResult.globalConfidence,
+            recaptureNeeded: multiViewResult.recaptureNeeded,
+            centralRegions: multiViewResult.centralRegions.map(r => ({
+              key: r.key, label: r.label, icon: r.icon, sourceView: r.sourceView,
+              score: r.score, confidence: r.confidence, severity: r.severity,
+              observation: r.observation, isPositive: r.isPositive,
+              consultationNote: r.consultationNote,
+            })),
+            leftRegions: multiViewResult.leftRegions.map(r => ({
+              key: r.key, label: r.label, icon: r.icon, sourceView: r.sourceView,
+              score: r.score, confidence: r.confidence, severity: r.severity,
+              observation: r.observation, isPositive: r.isPositive,
+              consultationNote: r.consultationNote,
+            })),
+            rightRegions: multiViewResult.rightRegions.map(r => ({
+              key: r.key, label: r.label, icon: r.icon, sourceView: r.sourceView,
+              score: r.score, confidence: r.confidence, severity: r.severity,
+              observation: r.observation, isPositive: r.isPositive,
+              consultationNote: r.consultationNote,
+            })),
+            priorityRegions: multiViewResult.priorityRegions,
+            viewQualities: multiViewResult.views.map(v => ({
+              view: v.view, score: Math.round(v.quality.score * 100),
+              usable: v.quality.usable, issue: v.quality.issue,
+              poseCorrect: v.poseValidation.poseCorrect,
+            })),
+            analyzedAt: multiViewResult.analyzedAt,
           } : undefined,
         })
 

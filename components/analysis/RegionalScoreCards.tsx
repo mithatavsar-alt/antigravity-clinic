@@ -35,6 +35,20 @@ export interface RegionCardData {
   consultationNote?: string
 }
 
+/** Multi-view region shape (from multi-view pipeline) */
+interface MultiViewRegionData {
+  key: string
+  label: string
+  icon: string
+  sourceView: string
+  score: number
+  confidence: number
+  severity: 'minimal' | 'hafif' | 'orta' | 'belirgin'
+  observation: string
+  isPositive: boolean
+  consultationNote?: string
+}
+
 interface RegionalScoreCardsProps {
   /** Observations from trust pipeline */
   observations?: Array<{
@@ -79,6 +93,14 @@ interface RegionalScoreCardsProps {
       confidence: number
     }>
   }>
+  /** Multi-view analysis data (highest priority when available) */
+  multiViewAnalysis?: {
+    globalScore: number
+    globalConfidence: number
+    centralRegions: MultiViewRegionData[]
+    leftRegions: MultiViewRegionData[]
+    rightRegions: MultiViewRegionData[]
+  }
 }
 
 // ─── Observation area → Card region mapping ─────────────────
@@ -305,9 +327,149 @@ function ScoreArc({ score, color }: { score: number; color: string }) {
   )
 }
 
+// ─── Region card renderer ───────────────────────────────────
+
+function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
+  const sev = SEVERITY_STYLES[card.severity]
+  const scoreColor = card.isPositive ? '#3D9B7A'
+    : card.score >= 55 ? '#C8785A'
+    : card.score >= 35 ? '#E5A83B'
+    : card.score >= 15 ? '#D6B98C'
+    : '#3D9B7A'
+
+  return (
+    <div
+      className="rounded-xl border bg-[rgba(248,246,242,0.015)] overflow-hidden"
+      style={{
+        borderColor: card.isPositive ? 'rgba(61,155,122,0.10)' : 'rgba(214,185,140,0.08)',
+        animation: `cardEntrance 0.4s ease-out ${idx * 0.08}s both`,
+      }}
+    >
+      <div className="flex gap-3 p-4 sm:p-3.5">
+        <div className="flex-shrink-0">
+          <ScoreArc score={card.score} color={scoreColor} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="font-body text-[12px] sm:text-[11px] font-medium text-[rgba(248,246,242,0.75)] tracking-[0.02em]">
+              {card.title}
+            </span>
+            <span
+              className="px-2 py-0.5 rounded-full text-[8px] font-medium tracking-[0.12em] uppercase"
+              style={{ background: sev.bg, color: sev.text }}
+            >
+              {sev.label}
+            </span>
+          </div>
+          <p className="font-body text-[12px] sm:text-[11px] text-[rgba(248,246,242,0.48)] leading-[1.65] mb-2">
+            {card.observation}
+          </p>
+          <ConfidenceBar value={card.confidence} />
+        </div>
+      </div>
+      {card.consultationNote && (
+        <div className="px-4 sm:px-3.5 py-2.5 border-t border-[rgba(214,185,140,0.05)] bg-[rgba(214,185,140,0.015)]">
+          <p className="font-body text-[10px] sm:text-[9px] text-[rgba(214,185,140,0.45)] leading-[1.6] italic">
+            {card.consultationNote}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Section header ─────────────────────────────────────────
+
+function SectionHeader({ label, icon }: { label: string; icon: string }) {
+  return (
+    <div className="flex items-center gap-2 mt-3 mb-1.5">
+      <span className="text-[11px] font-medium text-[rgba(248,246,242,0.25)]">{icon}</span>
+      <span className="font-body text-[10px] tracking-[0.18em] uppercase text-[rgba(248,246,242,0.3)]">{label}</span>
+      <div className="flex-1 h-px bg-[rgba(248,246,242,0.04)]" />
+    </div>
+  )
+}
+
+// ─── Multi-view region → card mapper ────────────────────────
+
+function multiViewToCards(regions: MultiViewRegionData[]): RegionCardData[] {
+  return regions.map(r => ({
+    key: r.key,
+    title: r.label,
+    icon: r.icon,
+    score: r.score,
+    confidence: r.confidence,
+    severity: r.severity,
+    observation: r.observation,
+    isPositive: r.isPositive,
+    consultationNote: r.consultationNote,
+  }))
+}
+
 // ─── Main component ─────────────────────────────────────────
 
 export function RegionalScoreCards(props: RegionalScoreCardsProps) {
+  const { multiViewAnalysis } = props
+
+  // ── Preferred path: multi-view analysis (3-pose) ──
+  if (multiViewAnalysis && (multiViewAnalysis.centralRegions.length > 0 || multiViewAnalysis.leftRegions.length > 0)) {
+    const centralCards = multiViewToCards(multiViewAnalysis.centralRegions)
+    const leftCards = multiViewToCards(multiViewAnalysis.leftRegions)
+    const rightCards = multiViewToCards(multiViewAnalysis.rightRegions)
+    let globalIdx = 0
+
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-label text-[rgba(248,246,242,0.35)]">
+            Çoklu Açı Değerlendirmesi
+          </span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[rgba(61,155,122,0.06)] border border-[rgba(61,155,122,0.12)]">
+            <span className="font-body text-[8px] tracking-[0.1em] uppercase text-[rgba(61,155,122,0.5)]">Güven</span>
+            <span className="font-mono text-[11px] text-[#3D9B7A]">{multiViewAnalysis.globalConfidence}%</span>
+          </div>
+        </div>
+
+        {/* Central regions (from front view) */}
+        {centralCards.length > 0 && (
+          <>
+            <SectionHeader label="Merkez / Genel Denge" icon="◎" />
+            <div className="flex flex-col gap-2">
+              {centralCards.map((card) => (
+                <RegionCard key={card.key} card={card} idx={globalIdx++} />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Left-side regions (from left view) */}
+        {leftCards.length > 0 && (
+          <>
+            <SectionHeader label="Sol Taraf" icon="◧" />
+            <div className="flex flex-col gap-2">
+              {leftCards.map((card) => (
+                <RegionCard key={card.key} card={card} idx={globalIdx++} />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Right-side regions (from right view) */}
+        {rightCards.length > 0 && (
+          <>
+            <SectionHeader label="Sag Taraf" icon="◨" />
+            <div className="flex flex-col gap-2">
+              {rightCards.map((card) => (
+                <RegionCard key={card.key} card={card} idx={globalIdx++} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  // ── Fallback: single-view cards (specialist or trust pipeline) ──
   const cards = buildCards(props)
 
   if (cards.length === 0) return null
@@ -315,68 +477,12 @@ export function RegionalScoreCards(props: RegionalScoreCardsProps) {
   return (
     <div className="flex flex-col gap-3">
       <span className="text-label text-[rgba(248,246,242,0.35)] mb-1 block">
-        Bölgesel Değerlendirmeler
+        Bolgesel Degerlendirmeler
       </span>
       <div className="flex flex-col gap-2.5">
-        {cards.map((card, idx) => {
-          const sev = SEVERITY_STYLES[card.severity]
-          const scoreColor = card.isPositive ? '#3D9B7A'
-            : card.score >= 55 ? '#C8785A'
-            : card.score >= 35 ? '#E5A83B'
-            : card.score >= 15 ? '#D6B98C'
-            : '#3D9B7A'
-
-          return (
-            <div
-              key={card.key}
-              className="rounded-xl border bg-[rgba(248,246,242,0.015)] overflow-hidden"
-              style={{
-                borderColor: card.isPositive ? 'rgba(61,155,122,0.10)' : 'rgba(214,185,140,0.08)',
-                animation: `cardEntrance 0.4s ease-out ${idx * 0.08}s both`,
-              }}
-            >
-              <div className="flex gap-3 p-4 sm:p-3.5">
-                {/* Score arc */}
-                <div className="flex-shrink-0">
-                  <ScoreArc score={card.score} color={scoreColor} />
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  {/* Title + severity */}
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="font-body text-[12px] sm:text-[11px] font-medium text-[rgba(248,246,242,0.75)] tracking-[0.02em]">
-                      {card.title}
-                    </span>
-                    <span
-                      className="px-2 py-0.5 rounded-full text-[8px] font-medium tracking-[0.12em] uppercase"
-                      style={{ background: sev.bg, color: sev.text }}
-                    >
-                      {sev.label}
-                    </span>
-                  </div>
-
-                  {/* Observation */}
-                  <p className="font-body text-[12px] sm:text-[11px] text-[rgba(248,246,242,0.48)] leading-[1.65] mb-2">
-                    {card.observation}
-                  </p>
-
-                  {/* Confidence bar */}
-                  <ConfidenceBar value={card.confidence} />
-                </div>
-              </div>
-
-              {/* Consultation relevance line */}
-              {card.consultationNote && (
-                <div className="px-4 sm:px-3.5 py-2.5 border-t border-[rgba(214,185,140,0.05)] bg-[rgba(214,185,140,0.015)]">
-                  <p className="font-body text-[10px] sm:text-[9px] text-[rgba(214,185,140,0.45)] leading-[1.6] italic">
-                    {card.consultationNote}
-                  </p>
-                </div>
-              )}
-            </div>
-          )
-        })}
+        {cards.map((card, idx) => (
+          <RegionCard key={card.key} card={card} idx={idx} />
+        ))}
       </div>
     </div>
   )

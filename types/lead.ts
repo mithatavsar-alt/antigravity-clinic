@@ -351,6 +351,58 @@ export interface Lead {
     analyzedAt: number
   }
 
+  /** Multi-view analysis — 3-pose (front, left, right) fused results */
+  multi_view_analysis?: {
+    globalScore: number
+    globalConfidence: number
+    recaptureNeeded: string[]
+    centralRegions: Array<{
+      key: string
+      label: string
+      icon: string
+      sourceView: string
+      score: number
+      confidence: number
+      severity: 'minimal' | 'hafif' | 'orta' | 'belirgin'
+      observation: string
+      isPositive: boolean
+      consultationNote?: string
+    }>
+    leftRegions: Array<{
+      key: string
+      label: string
+      icon: string
+      sourceView: string
+      score: number
+      confidence: number
+      severity: 'minimal' | 'hafif' | 'orta' | 'belirgin'
+      observation: string
+      isPositive: boolean
+      consultationNote?: string
+    }>
+    rightRegions: Array<{
+      key: string
+      label: string
+      icon: string
+      sourceView: string
+      score: number
+      confidence: number
+      severity: 'minimal' | 'hafif' | 'orta' | 'belirgin'
+      observation: string
+      isPositive: boolean
+      consultationNote?: string
+    }>
+    priorityRegions: string[]
+    viewQualities: Array<{
+      view: string
+      score: number
+      usable: boolean
+      issue?: string
+      poseCorrect: boolean
+    }>
+    analyzedAt: number
+  }
+
   /** Lip analysis results */
   lip_analysis?: {
     volume: 'low' | 'balanced' | 'full'

@@ -1046,13 +1046,14 @@ function ResultContent() {
                   </>
                 )}
 
-                {/* Regional Score Cards — Module G (specialist-powered) */}
-                {(selectedLead.specialist_analysis?.assessments || (hasTrust && trustPipeline?.observations)) && (
+                {/* Regional Score Cards — multi-view preferred, specialist fallback */}
+                {(selectedLead.multi_view_analysis || selectedLead.specialist_analysis?.assessments || (hasTrust && trustPipeline?.observations)) && (
                   <>
                     <RegionalScoreCards
                       observations={trustPipeline?.observations}
                       wrinkleScores={selectedLead.wrinkle_scores}
                       specialistAssessments={selectedLead.specialist_analysis?.assessments}
+                      multiViewAnalysis={selectedLead.multi_view_analysis}
                     />
                     <ThinLine />
                   </>

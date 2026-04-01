@@ -72,14 +72,14 @@ export default function AnalysisMediaPage() {
     router.push(`/analysis/processing?id=${id}`)
   }, [addLead, router])
 
-  /** Multi-angle capture: front + left + right + optional mimic frames */
+  /** Multi-angle capture: front + left + right */
   const handleMultiCapture = useCallback((photos: MultiCaptureResult, meta?: CaptureMetadata) => {
     const confidence = meta?.confidence ?? 'high'
 
     setCurrentLead({
       patient_photo_url: photos.front,
       doctor_frontal_photos: [photos.front, photos.left, photos.right],
-      doctor_mimic_photos: photos.mimicFrames ?? [],
+      doctor_mimic_photos: [],
       capture_confidence: confidence,
     })
 

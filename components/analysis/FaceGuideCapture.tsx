@@ -34,7 +34,7 @@ import {
 
 // ─── Types ──────────────────────────────────────────────────
 export type CaptureMode = 'single' | 'multi'
-export type MultiStep = 'front' | 'left' | 'right' | 'mimic'
+export type MultiStep = 'front' | 'left' | 'right'
 
 export interface CaptureMetadata {
   confidence: 'high' | 'medium' | 'low'
@@ -45,7 +45,6 @@ export interface MultiCaptureResult {
   front: string
   left: string
   right: string
-  mimicFrames?: string[]
 }
 
 interface FaceGuideCaptureProps {
@@ -56,13 +55,7 @@ interface FaceGuideCaptureProps {
   onMultiCapture?: (photos: MultiCaptureResult, meta?: CaptureMetadata) => void
 }
 
-// ─── Mimic sequence expressions ─────────────────────────────
-const MIMIC_EXPRESSIONS = [
-  { key: 'neutral', label: 'Nötr İfade', instruction: 'Rahat ve nötr bir ifade yapın', durationMs: 2500 },
-  { key: 'smile', label: 'Hafif Gülümseme', instruction: 'Hafifçe gülümseyin', durationMs: 2500 },
-  { key: 'squint', label: 'Göz Kısma', instruction: 'Gözlerinizi hafifçe kısın', durationMs: 2500 },
-  { key: 'relaxed', label: 'Rahat', instruction: 'Dudaklarınızı kapalı tutun, rahat bırakın', durationMs: 2500 },
-] as const
+// Mimic expressions removed — 3-pose capture only (front, left, right)
 
 type InitState = 'loading' | 'ready' | 'error'
 
@@ -113,13 +106,11 @@ const MULTI_LABELS: Record<MultiStep, string> = {
   front: 'Ön Görünüm',
   left: 'Sol Açı',
   right: 'Sağ Açı',
-  mimic: 'Mimik Tarama',
 }
 const MULTI_INSTRUCTIONS: Record<MultiStep, string> = {
   front: 'Düz bakın — nötr ifade',
   left: 'Yüzünüzü hafifçe sola çevirin',
   right: 'Yüzünüzü hafifçe sağa çevirin',
-  mimic: 'Yönergeleri takip edin',
 }
 
 // ─── Badge component ────────────────────────────────────────
@@ -563,58 +554,12 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
 
   const [multiStep, setMultiStep] = useState<MultiStep>('front')
   const [multiPhotos, setMultiPhotos] = useState<{ front?: string; left?: string; right?: string }>({})
-  const [mimicFrames, setMimicFrames] = useState<string[]>([])
-  const [mimicExprIndex, setMimicExprIndex] = useState(0)
-  const [mimicActive, setMimicActive] = useState(false)
-  const mimicTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Rotating tips
   useEffect(() => {
     const interval = setInterval(() => setTipIndex((i) => (i + 1) % TIPS.length), 4000)
     return () => clearInterval(interval)
   }, [])
-
-  // ─── Mimic sequence: auto-cycle expressions and capture frames ──
-  useEffect(() => {
-    if (multiStep !== 'mimic' || !mimicActive || preview) return
-    if (mimicExprIndex >= MIMIC_EXPRESSIONS.length) return
-
-    const expr = MIMIC_EXPRESSIONS[mimicExprIndex]
-
-    mimicTimerRef.current = setTimeout(() => {
-      // Capture current frame for this expression
-      const video = videoRef.current
-      const canvas = captureCanvasRef.current
-      if (video && canvas) {
-        const frame = captureAlignedFrame(video, canvas)
-        if (frame) {
-          setMimicFrames(prev => [...prev, frame])
-        }
-      }
-
-      // Advance to next expression
-      const nextIdx = mimicExprIndex + 1
-      if (nextIdx >= MIMIC_EXPRESSIONS.length) {
-        // All expressions captured — mimic sequence complete
-        setMimicActive(false)
-        setPhase('validated')
-        setShowFlash(true)
-        setTimeout(() => setShowFlash(false), 350)
-        // Build final result
-        setTimeout(() => {
-          setPhase('advancing')
-          // Trigger completion — mimic frames are stored in state
-          setPreview(multiPhotos.front ?? '') // Show front photo as preview
-        }, ADVANCE_DELAY_MS)
-      } else {
-        setMimicExprIndex(nextIdx)
-      }
-    }, expr.durationMs)
-
-    return () => {
-      if (mimicTimerRef.current) clearTimeout(mimicTimerRef.current)
-    }
-  }, [multiStep, mimicActive, mimicExprIndex, preview, multiPhotos.front])
 
   // Capture best frame from buffer
   const captureBestFrame = useCallback((): string | null => {
@@ -759,12 +704,9 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           // Phase transitions
           if (phase === 'detecting' || phase === 'idle') setPhase('tracking')
 
-          // Skip auto-capture during mimic sequence (mimic uses timed capture)
-          const isMimicStep = multiStep === 'mimic'
-
           // Strict READY gate: all sub-scores must meet minimums
           // Use relaxed thresholds after failsafe timer (10s+ of trying)
-          const readyNow = !isMimicStep && isReadyForCapture(guide, failsafeActive)
+          const readyNow = isReadyForCapture(guide, failsafeActive)
           if (readyNow) {
             stableReadyFrames.current++
           } else {
@@ -863,35 +805,12 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     } else if (multiStep === 'left') {
       setPreview(null); setMultiStep('right'); resetValidation(); setPhase('detecting')
     } else if (multiStep === 'right') {
-      startMimicStep()
-      return
-    } else if (multiStep === 'mimic') {
-      finalizeMimicCapture()
-      return
-    } else {
-      const photos = { ...multiPhotos, [multiStep]: preview! }
+      // Final step — finalize multi-capture
+      const photos = { ...multiPhotos, right: preview! }
       if (onMultiCapture && photos.front && photos.left && photos.right) {
         onMultiCapture({ front: photos.front, left: photos.left, right: photos.right }, buildMeta())
       } else if (photos.front) onCapture(photos.front, buildMeta())
     }
-  }
-
-  /** Start mimic sequence after right angle is confirmed */
-  const startMimicStep = () => {
-    setMultiPhotos(prev => ({ ...prev, right: preview! }))
-    setPreview(null); setMultiStep('mimic'); resetValidation(); setPhase('tracking')
-    setMimicExprIndex(0); setMimicFrames([]); setMimicActive(true)
-  }
-
-  /** Finalize multi-capture with mimic frames */
-  const finalizeMimicCapture = () => {
-    const photos = multiPhotos
-    if (onMultiCapture && photos.front && photos.left && photos.right) {
-      onMultiCapture({
-        front: photos.front, left: photos.left, right: photos.right,
-        mimicFrames: mimicFrames.length > 0 ? mimicFrames : undefined,
-      }, buildMeta())
-    } else if (photos.front) onCapture(photos.front, buildMeta())
   }
 
   const retake = () => { setPreview(null); resetValidation(); setPhase('detecting') }
@@ -899,17 +818,12 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   // ─── Render ───────────────────────────────────────────────
   const isMulti = mode === 'multi'
   const currentStepLabel = isMulti ? MULTI_LABELS[multiStep] : null
-  const STEP_ORDER: MultiStep[] = ['front', 'left', 'right', 'mimic']
+  const STEP_ORDER: MultiStep[] = ['front', 'left', 'right']
   const stepNumber = STEP_ORDER.indexOf(multiStep) + 1
   const totalSteps = STEP_ORDER.length
 
   const phaseMessage = (() => {
     if (preview) return null
-    // Mimic step: show current expression instruction
-    if (multiStep === 'mimic' && mimicActive) {
-      const expr = MIMIC_EXPRESSIONS[mimicExprIndex]
-      return expr ? expr.instruction : 'Mimik taraması tamamlanıyor…'
-    }
     switch (phase) {
       case 'idle':
       case 'detecting':
@@ -920,7 +834,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
         return 'Harika, biraz daha sabit kalın'
       case 'validated':
       case 'advancing':
-        return multiStep === 'mimic' ? 'Mimik taraması tamamlandı' : 'Mükemmel — çekim tamamlandı'
+        return 'Mükemmel — çekim tamamlandı'
       default:
         return status.mainMessage
     }
@@ -969,8 +883,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           {isMulti && !preview ? (
             <div className="flex items-center gap-1">
               {STEP_ORDER.map((s, i) => {
-                const isDone = s === 'mimic' ? mimicFrames.length >= MIMIC_EXPRESSIONS.length
-                  : !!multiPhotos[s as 'front' | 'left' | 'right']
+                const isDone = !!multiPhotos[s]
                 const isCurrent = s === multiStep
                 return (
                   <div key={s} className="flex items-center gap-0.5">
@@ -1140,24 +1053,12 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
             <p className={`font-display text-[16px] sm:text-[18px] font-light tracking-[-0.01em] text-center transition-all duration-500 ${messageColor}`}>
               {phaseMessage}
             </p>
-            {/* Mimic expression progress */}
-            {multiStep === 'mimic' && mimicActive && (
-              <div className="flex items-center gap-1.5 mt-1">
-                {MIMIC_EXPRESSIONS.map((expr, i) => (
-                  <div key={expr.key} className={`h-1 flex-1 rounded-full transition-all duration-500 ${
-                    i < mimicExprIndex ? 'bg-[#00DC82]'
-                      : i === mimicExprIndex ? 'bg-[#D4B96A] animate-pulse'
-                      : 'bg-white/10'
-                  }`} />
-                ))}
-              </div>
-            )}
-            {multiStep !== 'mimic' && phase === 'tracking' && status.faceDetected && (
+            {phase === 'tracking' && status.faceDetected && (
               <p className="font-body text-[10px] text-white/30 text-center animate-[fadeIn_0.4s_ease]" key={tipIndex}>
                 {TIPS[tipIndex]}
               </p>
             )}
-            {multiStep !== 'mimic' && (phase === 'idle' || phase === 'detecting') && !status.faceDetected && (
+            {(phase === 'idle' || phase === 'detecting') && !status.faceDetected && (
               <p className="font-body text-[10px] text-white/20 text-center">
                 Yüzünüzü çerçevenin içine yerleştirin
               </p>
@@ -1169,24 +1070,8 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
         <div className="flex flex-col items-center gap-1.5 sm:gap-2">
           {!preview ? (
             <>
-              {/* Mimic sequence: show expression label and auto-progress */}
-              {multiStep === 'mimic' && mimicActive && (
-                <div className="flex flex-col items-center gap-2 py-2">
-                  <div className="w-14 h-14 rounded-full bg-[rgba(196,163,90,0.1)] border border-[rgba(196,163,90,0.2)] flex items-center justify-center">
-                    <span className="text-[20px]">
-                      {mimicExprIndex === 0 ? '😐' : mimicExprIndex === 1 ? '🙂' : mimicExprIndex === 2 ? '😑' : '😶'}
-                    </span>
-                  </div>
-                  <p className="font-body text-[11px] text-[#D4B96A] tracking-[0.1em] uppercase">
-                    {MIMIC_EXPRESSIONS[mimicExprIndex]?.label ?? 'Tamamlanıyor…'}
-                  </p>
-                  <p className="font-body text-[9px] text-white/25">
-                    {mimicExprIndex + 1} / {MIMIC_EXPRESSIONS.length} ifade
-                  </p>
-                </div>
-              )}
-              {/* Quality bar — not during mimic */}
-              {multiStep !== 'mimic' && status.faceDetected && phase !== 'validated' && phase !== 'advancing' && (
+              {/* Quality bar */}
+              {status.faceDetected && phase !== 'validated' && phase !== 'advancing' && (
                 <div className="flex items-center gap-2 mb-0.5">
                   <div className="w-24 sm:w-28 h-[4px] sm:h-[5px] rounded-full bg-white/[0.06] overflow-hidden">
                     <div
@@ -1209,9 +1094,8 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 </div>
               )}
 
-              {/* Capture button / status — skip during mimic sequence */}
-              {multiStep === 'mimic' && mimicActive ? null
-              : failsafeActive && status.faceDetected && phase !== 'validated' && phase !== 'advancing' ? (
+              {/* Capture button / status */}
+              {failsafeActive && status.faceDetected && phase !== 'validated' && phase !== 'advancing' ? (
                 <div className="flex flex-col items-center gap-1.5">
                   <button
                     type="button"
@@ -1254,8 +1138,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 className="w-full font-body text-[12px] font-medium tracking-[0.1em] uppercase py-3 sm:py-3.5 rounded-[14px] bg-gradient-to-br from-[#00905A] to-[#00B864] text-white hover:shadow-[0_4px_24px_rgba(0,184,100,0.35)] transition-all active:scale-[0.98]"
               >
                 {isMulti
-                  ? multiStep === 'right' ? 'Sonraki: Mimik Tarama'
-                    : multiStep === 'mimic' ? 'Analizi Başlat'
+                  ? multiStep === 'right' ? 'Analizi Başlat'
                     : 'Sonraki Açı'
                   : 'Bu Fotoğrafı Kullan'}
               </button>
