@@ -6,7 +6,7 @@ import { useClinicStore } from '@/lib/store'
 import { GlassCard } from '@/components/design-system/GlassCard'
 import { EditorialHeading } from '@/components/design-system/EditorialHeading'
 import { AnalysisStepBar } from '@/components/analysis/AnalysisStepBar'
-import { FaceMeshCamera, type CaptureMetadata } from '@/components/analysis/FaceMeshCamera'
+import { FaceGuideCapture, type CaptureMetadata, type MultiCaptureResult } from '@/components/analysis/FaceGuideCapture'
 import { buildPatientSummary } from '@/lib/lead-helpers'
 import { deriveConsultationReadiness } from '@/lib/ai/derive-doctor-analysis'
 import { generateLeadId } from '@/lib/utils'
@@ -72,6 +72,21 @@ export default function AnalysisMediaPage() {
     router.push(`/analysis/processing?id=${id}`)
   }, [addLead, router])
 
+  /** Multi-angle capture: front + left + right + optional mimic frames */
+  const handleMultiCapture = useCallback((photos: MultiCaptureResult, meta?: CaptureMetadata) => {
+    const confidence = meta?.confidence ?? 'high'
+
+    setCurrentLead({
+      patient_photo_url: photos.front,
+      doctor_frontal_photos: [photos.front, photos.left, photos.right],
+      doctor_mimic_photos: photos.mimicFrames ?? [],
+      capture_confidence: confidence,
+    })
+
+    createLeadAndProcess(photos.front, confidence)
+  }, [setCurrentLead, createLeadAndProcess])
+
+  /** Fallback single capture (e.g. if multi fails or for legacy compat) */
   const handleCapture = useCallback((dataUrl: string, meta?: CaptureMetadata) => {
     const confidence = meta?.confidence ?? 'high'
 
@@ -81,11 +96,9 @@ export default function AnalysisMediaPage() {
       capture_confidence: confidence,
     })
 
-    // High-confidence auto-capture: skip consent, go directly to processing
     if (confidence === 'high') {
       createLeadAndProcess(dataUrl, confidence)
     } else {
-      // Medium/low: show consent step for manual confirmation
       router.push('/analysis/consent')
     }
   }, [setCurrentLead, router, createLeadAndProcess])
@@ -113,13 +126,18 @@ export default function AnalysisMediaPage() {
         </div>
 
         <GlassCard strong padding="lg" rounded="xl" className="[animation:cardEntrance_0.5s_ease-out_0.15s_both]">
-          <AnalysisStepBar currentStep={2} labels={['Kişisel Bilgiler', 'Yüz Tarama', 'Onay']} />
+          <AnalysisStepBar currentStep={2} labels={['Kişisel Bilgiler', 'Yüz Tarama (3 Açı)', 'Onay']} />
 
           <p className="font-body text-[12px] text-[var(--color-text-secondary)] mb-5 leading-relaxed text-center">
-            Yüzünüzü kameraya gösterin. AI otomatik olarak en iyi kareyi seçecektir.
+            3 açıdan yüz taraması yapılacaktır. Yönergeleri takip edin.
           </p>
 
-          <FaceMeshCamera onCapture={handleCapture} onClose={handleBack} autoConfirm />
+          <FaceGuideCapture
+            mode="multi"
+            onCapture={handleCapture}
+            onMultiCapture={handleMultiCapture}
+            onClose={handleBack}
+          />
         </GlassCard>
 
         <div className="flex items-center justify-center gap-2 mt-6" style={{ animation: 'cardEntrance 0.4s ease-out 0.3s both' }}>

@@ -13,6 +13,7 @@ import { getPhoto } from '@/lib/photo-bridge'
 import { LandmarkOverlay, type OverlayState } from '@/components/analysis/LandmarkOverlay'
 import { contact } from '@/lib/contact'
 import RadarChartSection from '@/components/analysis/RadarChart'
+import { RegionalScoreCards } from '@/components/analysis/RegionalScoreCards'
 
 /* ── Radial gauge ──────────────────────────────────────────── */
 function RadialGauge({ score, label, color }: { score: number; label: string; color: string }) {
@@ -1045,9 +1046,20 @@ function ResultContent() {
                   </>
                 )}
 
-                {/* Focus areas */}
+                {/* Regional Score Cards — Module G */}
+                {hasTrust && trustPipeline?.observations && (
+                  <>
+                    <RegionalScoreCards
+                      observations={trustPipeline.observations}
+                      wrinkleScores={selectedLead.wrinkle_scores}
+                    />
+                    <ThinLine />
+                  </>
+                )}
+
+                {/* Priority Focus Areas */}
                 <div>
-                  <span className="text-label text-[rgba(248,246,242,0.35)] sm:text-[rgba(248,246,242,0.30)] mb-4 block">Odak Alanları</span>
+                  <span className="text-label text-[rgba(248,246,242,0.35)] sm:text-[rgba(248,246,242,0.30)] mb-4 block">Öncelikli Odak Alanları</span>
                   <div className="flex flex-wrap gap-2.5">
                     {focusAreas.map((area) => (
                       <span
@@ -1060,12 +1072,17 @@ function ResultContent() {
                   </div>
                 </div>
 
-                {/* Next step info — elevated card */}
-                <div className="rounded-lg border border-[rgba(214,185,140,0.10)] sm:border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.5)] px-5 py-5 sm:py-4">
-                  <span className="text-label-sm text-[rgba(248,246,242,0.35)] sm:text-[rgba(248,246,242,0.30)] mb-2 block">
-                    Sonraki Adım
+                {/* Consultation Bridge — Module H Section 4 */}
+                <div className="rounded-xl border border-[rgba(61,155,122,0.12)] bg-[rgba(61,155,122,0.025)] px-5 py-5 sm:py-4">
+                  <span className="text-label-sm text-[rgba(61,155,122,0.55)] mb-3 block">
+                    Uzman Değerlendirmesi
                   </span>
-                  <p className="font-body text-[16px] sm:text-[15px] font-light text-[#F8F6F2] tracking-[0.01em]">Doktor ön incelemesi ve randevu planlama</p>
+                  <p className="font-body text-[14px] sm:text-[13px] font-light text-[#F8F6F2] tracking-[0.01em] leading-[1.6] mb-2">
+                    Uzman değerlendirmesinde öncelikli incelenebilecek alanlar belirlendi.
+                  </p>
+                  <p className="font-body text-[12px] sm:text-[11px] text-[rgba(248,246,242,0.45)] leading-[1.65]">
+                    Bu yüz analizi, doktor görüşmesi öncesinde görsel bir ön değerlendirme sunar. En doğru planlama için uzman değerlendirmesi önerilir.
+                  </p>
                 </div>
 
                 {/* Disclaimer */}

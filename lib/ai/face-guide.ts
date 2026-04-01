@@ -407,10 +407,14 @@ export const RIGHT_NASOLABIAL = [206, 205, 36, 142, 126, 217, 174]
 // Lighting: brightness + shadow uniformity check
 // Forehead: must be fully visible in frame
 //
+/** Target angle for multi-angle capture */
+export type TargetAngle = 'front' | 'left' | 'right'
+
 export function evaluateFaceGuide(
   landmarks: Landmark[],
   brightness: number,
-  shadowScore = 1 // 0 = heavy shadow, 1 = uniform (passed from caller)
+  shadowScore = 1, // 0 = heavy shadow, 1 = uniform (passed from caller)
+  targetAngle: TargetAngle = 'front',
 ): FaceGuideStatus {
   if (!landmarks || landmarks.length < 468) return NO_FACE_STATUS
 
@@ -464,12 +468,33 @@ export function evaluateFaceGuide(
   // ≈±10° pitch threshold
   const PITCH_THRESHOLD = 0.15
 
+  // Angle evaluation — target-aware for multi-angle capture
+  // For angled captures: accept yaw in the ±15-30° range (noseOffset ±0.18–0.40)
+  const ANGLED_MIN = 0.15   // minimum turn required
+  const ANGLED_MAX = 0.45   // maximum turn allowed
+  const ANGLED_IDEAL = 0.28 // ideal angle (~20°)
+
   let angle: FaceGuideStatus['angle'] = 'ok'
   if (tiltRatio > ROLL_THRESHOLD) angle = 'tilt'
-  else if (noseOffset > YAW_THRESHOLD) angle = 'look_left'
-  else if (noseOffset < -YAW_THRESHOLD) angle = 'look_right'
-  else if (pitchOffset < -PITCH_THRESHOLD) angle = 'look_up'
-  else if (pitchOffset > PITCH_THRESHOLD) angle = 'look_down'
+  else if (targetAngle === 'front') {
+    // Standard frontal: must look straight
+    if (noseOffset > YAW_THRESHOLD) angle = 'look_left'
+    else if (noseOffset < -YAW_THRESHOLD) angle = 'look_right'
+    else if (pitchOffset < -PITCH_THRESHOLD) angle = 'look_up'
+    else if (pitchOffset > PITCH_THRESHOLD) angle = 'look_down'
+  } else if (targetAngle === 'left') {
+    // Left profile: nose should point left (positive noseOffset)
+    if (noseOffset < ANGLED_MIN) angle = 'look_right'    // not turned enough
+    else if (noseOffset > ANGLED_MAX) angle = 'look_left' // turned too far
+    else if (pitchOffset < -PITCH_THRESHOLD) angle = 'look_up'
+    else if (pitchOffset > PITCH_THRESHOLD) angle = 'look_down'
+  } else if (targetAngle === 'right') {
+    // Right profile: nose should point right (negative noseOffset)
+    if (noseOffset > -ANGLED_MIN) angle = 'look_left'      // not turned enough
+    else if (noseOffset < -ANGLED_MAX) angle = 'look_right' // turned too far
+    else if (pitchOffset < -PITCH_THRESHOLD) angle = 'look_up'
+    else if (pitchOffset > PITCH_THRESHOLD) angle = 'look_down'
+  }
 
   // ── 4. EYES VISIBLE (EAR) ──
   const leftEAR = Math.abs(leftEyeTop.y - leftEyeBottom.y)
@@ -517,6 +542,10 @@ export function evaluateFaceGuide(
   else if (distance === 'too_close') mainMessage = 'Biraz geri çekilin'
   else if (centering === 'off_center') mainMessage = 'Yüzünüzü çerçevenin ortasına getirin'
   else if (angle === 'tilt') mainMessage = 'Başınızı hafifçe düzeltin'
+  else if (targetAngle === 'left' && angle === 'look_right') mainMessage = 'Yüzünüzü biraz daha sola çevirin'
+  else if (targetAngle === 'left' && angle === 'look_left') mainMessage = 'Çok fazla döndünüz, biraz geri gelin'
+  else if (targetAngle === 'right' && angle === 'look_left') mainMessage = 'Yüzünüzü biraz daha sağa çevirin'
+  else if (targetAngle === 'right' && angle === 'look_right') mainMessage = 'Çok fazla döndünüz, biraz geri gelin'
   else if (angle === 'look_left' || angle === 'look_right') mainMessage = 'Doğrudan kameraya bakın'
   else if (angle === 'look_up') mainMessage = 'Başınızı hafifçe indirin'
   else if (angle === 'look_down') mainMessage = 'Başınızı hafifçe kaldırın'
@@ -538,7 +567,21 @@ export function evaluateFaceGuide(
 
   // Alignment score: roll, yaw, pitch, centering, eyes, forehead
   const tiltScore = Math.max(0, 1 - tiltRatio / ROLL_THRESHOLD)
-  const yawScore = Math.max(0, 1 - Math.abs(noseOffset) / YAW_THRESHOLD)
+  // Yaw score — target-aware: frontal rewards center, angled rewards target range
+  let yawScore: number
+  if (targetAngle === 'front') {
+    yawScore = Math.max(0, 1 - Math.abs(noseOffset) / YAW_THRESHOLD)
+  } else {
+    const targetSign = targetAngle === 'left' ? 1 : -1
+    const signedOffset = noseOffset * targetSign // positive when facing correct direction
+    if (signedOffset >= ANGLED_MIN && signedOffset <= ANGLED_MAX) {
+      // In range: score by proximity to ideal
+      yawScore = Math.max(0.5, 1 - Math.abs(signedOffset - ANGLED_IDEAL) / ANGLED_IDEAL)
+    } else {
+      // Out of range: penalize
+      yawScore = Math.max(0, 0.3 - Math.abs(signedOffset - ANGLED_IDEAL) * 0.5)
+    }
+  }
   const pitchScore = Math.max(0, 1 - Math.abs(pitchOffset) / PITCH_THRESHOLD)
   const centerScore = Math.max(0, 1 - (offsetX + offsetY) / 0.16)
   const eyeScore = eyesVisible ? 1 : 0
