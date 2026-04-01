@@ -9,6 +9,8 @@
  */
 
 import type { EnhancedAnalysisResult, FocusArea } from './types'
+import type { StructuredObservation } from './pipeline/types'
+import { IMPACT_WEIGHT } from './pipeline/types'
 import type { ConcernArea } from '@/types/lead'
 import { concernAreaLabels } from '@/types/lead'
 
@@ -18,45 +20,54 @@ export function generatePatientSummaryText(
   result: EnhancedAnalysisResult,
   concernArea?: ConcernArea
 ): string {
-  const { geometry, focusAreas, qualityScore, ageEstimation, imageQuality } = result
+  const { geometry, focusAreas, qualityScore, ageEstimation } = result
   const area = concernArea ?? 'genel_yuz_dengesi'
   const concernLabel = concernAreaLabels[area]
 
   const avg = Math.round((geometry.scores.symmetry + geometry.scores.proportion) / 2)
-  const qualityLabel = avg >= 70 ? 'dengeli' : avg >= 50 ? 'orta düzeyde' : 'belirgin farklılıklar içeren'
-
   const parts: string[] = []
 
-  parts.push(`AI destekli ön değerlendirme tamamlandı.`)
+  // ── A. Overall Impression — warm, balanced, human ──
+  if (avg >= 70) {
+    parts.push('Genel görünümde doğal yüz dengesi korunmuş ve uyumlu bir profil gözlenmektedir.')
+  } else if (avg >= 50) {
+    parts.push('Genel görünümde yüz dengesi büyük ölçüde korunmuş; bazı bölgelerde hafif farklılıklar dikkat çekmektedir.')
+  } else {
+    parts.push('Yüz dengesinde bazı bölgelerde belirgin farklılıklar gözlenmektedir.')
+  }
 
-  // Confidence-aware age display
-  if (ageEstimation) {
+  // ── Age (only if confident) ──
+  if (ageEstimation && ageEstimation.confidence !== 'low') {
     const [min, max] = ageEstimation.estimatedRange
-    const confLabel = ageEstimation.confidence === 'high' ? '' :
-      ageEstimation.confidence === 'medium' ? ' (orta güvenilirlik)' : ' (düşük güvenilirlik)'
-    parts.push(`Tahmini yaş aralığı: ${min}–${max}${confLabel}.`)
-  } else if (result.estimatedAge !== null) {
-    parts.push(`Tahmini yaş: ~${Math.round(result.estimatedAge)}.`)
+    const confNote = ageEstimation.confidence === 'medium' ? ' (referans niteliğinde)' : ''
+    parts.push(`Tahmini yaş aralığı: ${min}–${max}${confNote}.`)
   }
 
-  parts.push(`Yüz oranları ${qualityLabel} bir profil gösteriyor.`)
-
-  // Top focus areas
-  const topAreas = focusAreas.filter((a) => a.score > 40).slice(0, 3)
-  if (topAreas.length > 0) {
-    const areaNames = topAreas.map((a) => a.label).join(', ')
-    parts.push(`Öne çıkan bölgeler: ${areaNames}.`)
+  // ── B. Strongest Areas ──
+  const strongAreas = focusAreas.filter((a) => a.score <= 35)
+  if (strongAreas.length > 0) {
+    const names = strongAreas.slice(0, 2).map((a) => a.label).join(' ve ')
+    parts.push(`${names} bölge${strongAreas.length > 1 ? 'leri' : 'si'} güçlü ve dengeli görünmektedir.`)
   }
 
-  parts.push(`${concernLabel} odağında detaylı doktor değerlendirmesi önerilir.`)
-  parts.push(`Simetri skoru: ${geometry.scores.symmetry}/100, Oran uyumu: ${geometry.scores.proportion}/100.`)
-
-  // Quality-aware caveat
-  if (imageQuality && !imageQuality.sufficient) {
-    parts.push(`Görüntü kalitesi sınırlı — sonuçlar referans niteliğindedir. Dengeli ışıkta tekrar analiz önerilir.`)
-  } else if (qualityScore < 50) {
-    parts.push(`(Fotoğraf kalitesi düşük — sonuçlar referans niteliğindedir.)`)
+  // ── C. Improvement Potential ──
+  const improvementAreas = focusAreas.filter((a) => a.score > 50).slice(0, 3)
+  if (improvementAreas.length > 0) {
+    const names = improvementAreas.map((a) => a.label).join(', ')
+    parts.push(`En belirgin odak alanları: ${names}.`)
   }
+
+  // ── Concern area context ──
+  if (area !== 'genel_yuz_dengesi') {
+    parts.push(`${concernLabel} alanında detaylı değerlendirme için uzman görüşü önerilir.`)
+  }
+
+  // ── Quality caveat (only if truly needed) ──
+  if (qualityScore < 40) {
+    parts.push('Görüntü koşulları bazı bölgelerde değerlendirme doğruluğunu sınırlamış olabilir.')
+  }
+
+  parts.push('Sonuçlar ön değerlendirme niteliğindedir.')
 
   return parts.join(' ')
 }
@@ -86,8 +97,11 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
     const forehead = wrinkleAnalysis.regions.find((r) => r.region === 'forehead')
     if (forehead && forehead.score >= 12 && isReliable(forehead)) {
       const intensity = getIntensity(forehead.score, forehead.evidenceStrength)
+      const detail = forehead.score >= 45
+        ? ' Hekiminiz uygun görürse mimik çizgilerine yönelik değerlendirme yapılabilir.'
+        : ''
       candidates.push({
-        text: `Alın bölgesinde ${intensity} yatay çizgi belirginliği gözlenmektedir.${forehead.score >= 30 ? ' İstenirse bu bölgeye yönelik mimik çizgisi uygulamaları değerlendirilebilir.' : ''}`,
+        text: `Alın bölgesinde ${intensity} yatay çizgilenme gözlenmektedir.${detail}`,
         priority: forehead.score + 10,
         region: 'forehead',
       })
@@ -97,7 +111,7 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
     if (glabella && glabella.score >= 20 && isReliable(glabella)) {
       const intensity = getIntensity(glabella.score, glabella.evidenceStrength)
       candidates.push({
-        text: `Kaş arası bölgede ${intensity} mimik çizgileri gözlenmektedir.`,
+        text: `Kaş arası bölgede ${intensity} mimik aktivitesi izleri dikkat çekmektedir.`,
         priority: glabella.score,
         region: 'glabella',
       })
@@ -110,7 +124,7 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
     if (crowMax >= 20 && bestCrow && isReliable(bestCrow)) {
       const intensity = getIntensity(crowMax, bestCrow.evidenceStrength)
       candidates.push({
-        text: `Göz kenarı bölgesinde ${intensity} kaz ayağı çizgileri dikkat çekmektedir.`,
+        text: `Göz kenarında ${intensity} mimik çizgileri gözlenmektedir.`,
         priority: crowMax,
         region: 'crow_feet',
       })
@@ -122,8 +136,9 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
     const ueMax = bestUe?.score ?? 0
     if (ueMax >= 25 && bestUe && isReliable(bestUe)) {
       const intensity = getIntensity(ueMax, bestUe.evidenceStrength)
+      const detail = ueMax >= 45 ? ' Klinik değerlendirme ile netleştirilebilir.' : ''
       candidates.push({
-        text: `Göz altı dokusunda ${intensity} tekstür değişimi gözlenmektedir.${ueMax >= 40 ? ' İstenirse bu bölge için klinik değerlendirme düşünülebilir.' : ''}`,
+        text: `Göz altı bölgesinde ${intensity} doku farklılığı gözlenmektedir.${detail}`,
         priority: ueMax,
         region: 'under_eye',
       })
@@ -135,8 +150,9 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
     const nlMax = bestNl?.score ?? 0
     if (nlMax >= 25 && bestNl && isReliable(bestNl)) {
       const intensity = getIntensity(nlMax, bestNl.evidenceStrength)
+      const detail = nlMax >= 45 ? ' Minimal dokunuşlarla desteklenebilir.' : ''
       candidates.push({
-        text: `Nazolabial bölgede ${intensity} kıvrım derinliği gözlenmektedir.${nlMax >= 40 ? ' İstenirse hacim desteği açısından değerlendirme düşünülebilir.' : ''}`,
+        text: `Nazolabial bölgede ${intensity} kıvrım derinliği gözlenmektedir.${detail}`,
         priority: nlMax,
         region: 'nasolabial',
       })
@@ -146,19 +162,19 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
     if (jawline && jawline.score >= 25 && isReliable(jawline)) {
       const intensity = getIntensity(jawline.score, jawline.evidenceStrength)
       candidates.push({
-        text: `Çene hattında ${intensity} kontur değişimi gözlenmektedir.`,
+        text: `Çene hattında ${intensity} kontur yumuşaması gözlenmektedir.`,
         priority: jawline.score,
         region: 'jawline',
       })
     }
 
-    // If most regions have insufficient evidence, add a quality caveat
+    // Quality caveat only if majority of regions lack evidence
     const insufficientCount = wrinkleAnalysis.regions.filter(
       (r) => r.evidenceStrength === 'insufficient'
     ).length
-    if (insufficientCount > wrinkleAnalysis.regions.length * 0.5) {
+    if (insufficientCount > wrinkleAnalysis.regions.length * 0.6) {
       candidates.push({
-        text: 'Görüntü kalitesi bazı bölgelerde güvenilir değerlendirme için yetersiz — daha net ışıkta tekrar analiz önerilir.',
+        text: 'Bazı bölgelerde görüntü koşulları detaylı değerlendirmeyi sınırlamaktadır.',
         priority: 5,
         region: 'quality_caveat',
       })
@@ -168,16 +184,16 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
   // ── 2. Geometry-based findings ──
   if (geometry.metrics.symmetryRatio < 0.85) {
     candidates.push({
-      text: 'Yüz simetrisi standart aralığın altında gözlenmektedir. Klinik değerlendirme ile desteklenebilir.',
-      priority: Math.round((1 - geometry.metrics.symmetryRatio) * 100),
+      text: 'Yüz simetrisinde hafif farklılıklar dikkat çekmektedir; çoğu yüzde doğal olarak gözlenen bir durumdur.',
+      priority: Math.round((1 - geometry.metrics.symmetryRatio) * 80),
       region: 'symmetry',
     })
   }
 
   if (geometry.metrics.noseToFaceWidth > 0.32) {
     candidates.push({
-      text: 'Burun genişliğinde yüz oranlarına göre farklılık dikkat çekmektedir.',
-      priority: Math.round((geometry.metrics.noseToFaceWidth - 0.25) * 200),
+      text: 'Burun oranlarında yüz geneline kıyasla farklılık gözlenmektedir.',
+      priority: Math.round((geometry.metrics.noseToFaceWidth - 0.25) * 140),
       region: 'nose',
     })
   }
@@ -228,20 +244,71 @@ function selectTopFindings(candidates: Finding[], limit: number): Finding[] {
  * soft advisories. Includes wrinkle analysis findings (especially forehead),
  * balances across all facial regions, and limits to top 3–5 findings.
  *
+ * When observations are available (from the observation engine), uses them
+ * for richer, evidence-grounded text. Falls back to legacy candidates.
+ *
  * Tone: clinical, calm, non-commercial. Never prescriptive.
  */
 export function generateSuggestions(
-  result: EnhancedAnalysisResult
+  result: EnhancedAnalysisResult,
+  observations?: StructuredObservation[],
 ): string[] {
+  if (observations && observations.length > 0) {
+    return generateSuggestionsFromObservations(observations)
+  }
+
   const candidates = buildCandidates(result)
   const top = selectTopFindings(candidates, 5)
   const suggestions = top.map((c) => c.text)
 
   if (suggestions.length === 0) {
-    suggestions.push('Yüz oranları genel olarak dengeli görünmektedir. Detaylı değerlendirme için klinik görüşme önerilir.')
+    suggestions.push('Yüz oranları genel olarak dengeli ve uyumlu görünmektedir. Detaylı değerlendirme için uzman görüşü önerilir.')
   }
 
   return suggestions
+}
+
+/**
+ * Generate suggestions from structured observations.
+ * Picks the most impactful non-positive findings + 1 positive strength.
+ * Each suggestion text is unique because observations are area-specific.
+ */
+function generateSuggestionsFromObservations(
+  observations: StructuredObservation[],
+): string[] {
+  // Sort by weighted importance
+  const sorted = [...observations]
+    .filter(o => o.visibility !== 'not_evaluable')
+    .sort((a, b) => {
+      const aw = (IMPACT_WEIGHT[a.impact] ?? 1) * a.score
+      const bw = (IMPACT_WEIGHT[b.impact] ?? 1) * b.score
+      return bw - aw
+    })
+
+  const suggestions: string[] = []
+  const usedAreas = new Set<string>()
+
+  // Top non-positive findings (max 4)
+  for (const o of sorted) {
+    if (suggestions.length >= 4) break
+    if (o.isPositive) continue
+    if (usedAreas.has(o.area)) continue
+    if (o.confidence < 25) continue
+    suggestions.push(o.observation)
+    usedAreas.add(o.area)
+  }
+
+  // Add best positive observation as a strength note
+  const bestPositive = sorted.find(o => o.isPositive && !usedAreas.has(o.area) && o.visibility === 'clear')
+  if (bestPositive && suggestions.length < 5) {
+    suggestions.push(bestPositive.observation)
+  }
+
+  if (suggestions.length === 0) {
+    suggestions.push('Yüz oranları genel olarak dengeli ve uyumlu görünmektedir. Detaylı değerlendirme için uzman görüşü önerilir.')
+  }
+
+  return suggestions.slice(0, 5)
 }
 
 // ─── Focus area labels derived from the same findings ───────
@@ -266,8 +333,21 @@ const REGION_LABEL_MAP: Record<string, string> = {
  * Returns 2–4 clean Turkish labels for the top findings.
  */
 export function generateFocusAreaLabels(
-  resultOrFocusAreas: EnhancedAnalysisResult | FocusArea[]
+  resultOrFocusAreas: EnhancedAnalysisResult | FocusArea[],
+  observations?: StructuredObservation[],
 ): string[] {
+  // Observation-based path: use structured observations for labels
+  if (observations && observations.length > 0) {
+    return observations
+      .filter(o => !o.isPositive && o.visibility !== 'not_evaluable' && o.score > 20)
+      .sort((a, b) => (IMPACT_WEIGHT[b.impact] ?? 1) * b.score - (IMPACT_WEIGHT[a.impact] ?? 1) * a.score)
+      .slice(0, 4)
+      .map(o => o.label)
+      .filter(Boolean)
+      .concat([] as string[]) // Ensure array
+      || ['Genel Yüz Dengesi']
+  }
+
   // Support both new (EnhancedAnalysisResult) and legacy (FocusArea[]) call signatures
   if (Array.isArray(resultOrFocusAreas)) {
     // Legacy path: plain FocusArea[] — map labels directly (backward compat)

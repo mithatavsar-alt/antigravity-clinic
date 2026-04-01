@@ -13,6 +13,8 @@ import type {
   AgeEstimation,
   SymmetryAnalysis,
   SkinTextureProfile,
+  LipAnalysis,
+  RegionConfidence,
 } from '../types'
 
 // ─── Confidence System ─────────────────────────────────────
@@ -136,6 +138,8 @@ export interface YoungFaceProfile {
 export interface TrustGatedResult {
   /** Quality gate result — if blocked, nothing else is populated */
   qualityGate: QualityGateResult
+  /** Image quality classification (high / medium / low) */
+  qualityLevel: 'high' | 'medium' | 'low'
   /** Young face profile — determines threshold adjustments */
   youngFaceProfile: YoungFaceProfile
   /** Raw analysis (always computed if quality gate passes) */
@@ -150,12 +154,22 @@ export interface TrustGatedResult {
   symmetryMetric: ValidatedMetric<SymmetryAnalysis> | null
   /** Validated skin texture */
   skinTextureMetric: ValidatedMetric<SkinTextureProfile> | null
+  /** Validated lip analysis */
+  lipMetric: ValidatedMetric<LipAnalysis> | null
+  /** Per-region confidence assessments (forehead, crow_feet, under_eye, lips) */
+  regionConfidences: RegionConfidence[]
   /** Trust-first patient summary (Turkish) */
   patientSummary: string
+  /** Strong features — positive observations (only if clearly visible) */
+  strongFeatures: string[]
+  /** Limited areas — regions that could not be evaluated reliably */
+  limitedAreasText: string | null
   /** Trust-first findings (only shown items) */
   findings: TrustFinding[]
   /** Focus area labels (only shown items) */
   focusLabels: string[]
+  /** Structured per-area observations (14 areas) */
+  observations: StructuredObservation[]
   /** Overall analysis confidence 0–100 */
   overallConfidence: number
   /** How many metrics were suppressed */
@@ -173,6 +187,81 @@ export interface TrustFinding {
   band: ConfidenceBand
   /** Whether this is a soft-language finding */
   isSoft: boolean
+}
+
+// ─── Structured Observations ──────────────────────────────
+
+/** The 14 observable facial areas */
+export type ObservationArea =
+  | 'forehead'
+  | 'glabella'
+  | 'eye_contour'
+  | 'under_eye'
+  | 'crow_feet'
+  | 'skin_texture'
+  | 'skin_tone'
+  | 'cheek_support'
+  | 'nasolabial'
+  | 'jawline'
+  | 'lower_face'
+  | 'lip_area'
+  | 'symmetry'
+  | 'fatigue_freshness'
+
+/** How clearly the area was visible for analysis */
+export type VisibilityLevel = 'clear' | 'partial' | 'limited' | 'not_evaluable'
+
+/** Impact of this area on the overall aesthetic impression */
+export type ImpactLevel = 'primary' | 'secondary' | 'minor' | 'neutral'
+
+/**
+ * A single structured observation for one facial area.
+ *
+ * Each observation is grounded in actual metric data:
+ * - wrinkle density, geometry ratios, symmetry scores, texture measures.
+ * - Confidence reflects how much the engine trusts this specific finding.
+ * - The observation text is unique per area, never templated.
+ */
+export interface StructuredObservation {
+  /** Which area this observation covers */
+  area: ObservationArea
+  /** Turkish display label */
+  label: string
+  /** Human-readable observation text (Turkish, premium tone) */
+  observation: string
+  /** How clearly the area was visible */
+  visibility: VisibilityLevel
+  /** Confidence in this observation (0–100) */
+  confidence: number
+  /** How much this finding contributes to overall impression */
+  impact: ImpactLevel
+  /** Optional limitation note — only if truly relevant */
+  limitation?: string
+  /** Whether this is a positive (strength) observation */
+  isPositive: boolean
+  /** Numeric score 0–100 for weighted aggregation */
+  score: number
+  /** Which data sources informed this observation */
+  sources: ObservationSource[]
+}
+
+/** What raw data contributed to an observation */
+export type ObservationSource =
+  | 'wrinkle_density'
+  | 'geometry_ratio'
+  | 'symmetry_measure'
+  | 'texture_analysis'
+  | 'depth_estimate'
+  | 'age_signal'
+  | 'lip_structure'
+  | 'quality_gate'
+
+/** Shared weight map for sorting observations by impact */
+export const IMPACT_WEIGHT: Record<string, number> = {
+  primary: 4,
+  secondary: 3,
+  minor: 2,
+  neutral: 1,
 }
 
 // ─── Pipeline Configuration ────────────────────────────────

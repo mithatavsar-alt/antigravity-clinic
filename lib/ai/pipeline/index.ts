@@ -32,14 +32,25 @@ import {
   validateAgeEstimation,
   validateSymmetry,
   validateSkinTexture,
+  validateLipAnalysis,
 } from './confidence-engine'
 import { applyDecisionFilter } from './decision-filter'
-import { generateTrustSummary } from './trust-output'
+import { generateObservations } from './observation-engine'
+import { generateTrustSummary, generateStrongFeatures, generateLimitedAreasText, generateRegionConfidences } from './trust-output'
+import { classifyImageQuality } from './system-prompt'
 
 export { DEFAULT_PIPELINE_CONFIG } from './types'
-export type { TrustGatedResult, PipelineConfig, QualityGateResult, ValidatedMetric } from './types'
+export type { TrustGatedResult, PipelineConfig, QualityGateResult, ValidatedMetric, StructuredObservation } from './types'
 export type { FilteredResults } from './decision-filter'
-export { generateDisclaimer, confidenceBandLabel } from './trust-output'
+export {
+  generateDisclaimer,
+  confidenceBandLabel,
+  generateLimitedAreasText,
+  generateStrongFeatures,
+  generateRegionConfidences,
+} from './trust-output'
+export { classifyImageQuality, STRICT_RULES, TONE, CORE_PRINCIPLE } from './system-prompt'
+export type { ImageQualityLevel, QualityClassification } from './system-prompt'
 
 /**
  * Run the trust-first pipeline on raw analysis results.
@@ -47,6 +58,10 @@ export { generateDisclaimer, confidenceBandLabel } from './trust-output'
  * This is called AFTER the existing analysis pipeline completes.
  * It wraps the raw results with confidence scoring, multi-layer
  * validation, young face protection, and decision filtering.
+ *
+ * POST-CAPTURE RULE: Since capture now enforces strict quality gates,
+ * any captured photo has already passed minimum quality. The pipeline
+ * NEVER blocks post-capture — it downgrades to 'degrade' with warnings.
  *
  * @param rawAnalysis - The EnhancedAnalysisResult from the existing pipeline
  * @param landmarks - Detected landmarks (for expression checks)
@@ -63,17 +78,35 @@ export function runTrustPipeline(
   // STAGE 1: QUALITY GATE
   // ═══════════════════════════════════════════════════════════
 
-  const qualityGate = runQualityGate(
+  const rawQualityGate = runQualityGate(
     landmarks,
     rawAnalysis.confidence,
     image,
     config,
   )
 
-  // If blocked → return minimal result with block message
-  if (qualityGate.verdict === 'block' && config.strictQualityGate) {
-    return buildBlockedResult(qualityGate, rawAnalysis)
-  }
+  // POST-CAPTURE SAFETY: Never block after capture.
+  // If the quality gate wants to block, downgrade to 'degrade' instead.
+  // The pre-capture gate already filtered out truly unusable frames.
+  const qualityGate: QualityGateResult = rawQualityGate.verdict === 'block'
+    ? {
+        ...rawQualityGate,
+        verdict: 'degrade' as const,
+        blockMessage: undefined,
+        degradeMessage: rawQualityGate.blockMessage
+          ? rawQualityGate.blockMessage
+              .replace(/^Analiz yapılamadı:\s*/i, '')
+              .replace(/\.\s*Lütfen.*$/i, '')
+            ? `Görüntüde ${rawQualityGate.blockMessage.replace(/^Analiz yapılamadı:\s*/i, '').replace(/\.\s*Lütfen.*$/i, '')} tespit edildi — analiz tamamlandı ancak bazı alanlarda doğruluk sınırlı olabilir.`
+            : 'Analiz tamamlandı, ancak bazı alanlarda doğruluk sınırlı olabilir.'
+          : 'Analiz tamamlandı, ancak bazı alanlarda doğruluk sınırlı olabilir.',
+      }
+    : rawQualityGate
+
+  // Classify image quality (high / medium / low)
+  const qualityClassification = classifyImageQuality(qualityGate.verdict, qualityGate.score)
+
+  // POST-CAPTURE: Never return blocked result. Always proceed with analysis.
 
   // ═══════════════════════════════════════════════════════════
   // STAGE 2: YOUNG FACE GUARD
@@ -138,6 +171,27 @@ export function runTrustPipeline(
     youngFaceProfile,
   )
 
+  // Validate lip analysis
+  const lipMetric = validateLipAnalysis(
+    rawAnalysis.lipAnalysis,
+    qualityGate,
+    youngFaceProfile,
+  )
+
+  // ═══════════════════════════════════════════════════════════
+  // STAGE 3.5: STRUCTURED OBSERVATIONS (14 areas)
+  // ═══════════════════════════════════════════════════════════
+
+  const observations = generateObservations(
+    wrinkleMetrics,
+    focusAreaMetrics,
+    symmetryMetric,
+    skinTextureMetric,
+    lipMetric,
+    youngFaceProfile,
+    qualityGate,
+  )
+
   // ═══════════════════════════════════════════════════════════
   // STAGE 4: DECISION FILTER (FINAL GATE)
   // ═══════════════════════════════════════════════════════════
@@ -148,8 +202,10 @@ export function runTrustPipeline(
     ageMetric,
     symmetryMetric,
     skinTextureMetric,
+    lipMetric,
     youngFaceProfile,
     config,
+    observations,
   )
 
   // ═══════════════════════════════════════════════════════════
@@ -162,6 +218,19 @@ export function runTrustPipeline(
     youngFaceProfile,
   )
 
+  // Strong features (positive observations) — system prompt section 2
+  const strongFeatures = generateStrongFeatures(filtered, youngFaceProfile)
+
+  // Limited areas (what cannot be evaluated) — system prompt section 4
+  const limitedAreasText = generateLimitedAreasText(filtered, qualityGate)
+
+  // Per-region confidence assessments (forehead, crow_feet, under_eye, lips)
+  const regionConfidences = generateRegionConfidences(
+    focusAreaMetrics,
+    wrinkleMetrics,
+    lipMetric,
+  )
+
   // ── Overall confidence ──
   const allConfidences = [
     ...wrinkleMetrics.map(w => w.confidence),
@@ -169,6 +238,7 @@ export function runTrustPipeline(
     ...(ageMetric ? [ageMetric.confidence] : []),
     ...(symmetryMetric ? [symmetryMetric.confidence] : []),
     ...(skinTextureMetric ? [skinTextureMetric.confidence] : []),
+    ...(lipMetric ? [lipMetric.confidence] : []),
   ]
 
   const overallConfidence = allConfidences.length > 0
@@ -177,6 +247,7 @@ export function runTrustPipeline(
 
   return {
     qualityGate,
+    qualityLevel: qualityClassification.level,
     youngFaceProfile,
     rawAnalysis,
     wrinkleMetrics,
@@ -184,9 +255,14 @@ export function runTrustPipeline(
     ageMetric,
     symmetryMetric,
     skinTextureMetric,
+    lipMetric,
+    regionConfidences,
     patientSummary,
+    strongFeatures,
+    limitedAreasText,
     findings: filtered.findings,
     focusLabels: filtered.focusLabels,
+    observations,
     overallConfidence,
     suppressedCount: filtered.totalSuppressed,
     softCount: filtered.totalSoft,
@@ -195,13 +271,18 @@ export function runTrustPipeline(
 
 /**
  * Build a minimal result when quality gate blocks analysis.
+ * NOTE: Post-capture, this is never reached since block is
+ * downgraded to degrade. Kept as safety net with soft language.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function buildBlockedResult(
   qualityGate: QualityGateResult,
+  qualityLevel: 'high' | 'medium' | 'low',
   rawAnalysis: EnhancedAnalysisResult,
 ): TrustGatedResult {
   return {
     qualityGate,
+    qualityLevel,
     youngFaceProfile: {
       active: false,
       ageProfile: 'middle',
@@ -216,14 +297,24 @@ function buildBlockedResult(
     ageMetric: null,
     symmetryMetric: null,
     skinTextureMetric: null,
-    patientSummary: qualityGate.blockMessage ?? 'Analiz için görüntü uygun değil.',
+    lipMetric: null,
+    regionConfidences: [
+      { region: 'forehead', label: 'Alın', confidence: 'low', evaluable: false, limitation: 'Sınırlı değerlendirme' },
+      { region: 'crow_feet', label: 'Kaz Ayağı', confidence: 'low', evaluable: false, limitation: 'Sınırlı değerlendirme' },
+      { region: 'under_eye', label: 'Göz Altı', confidence: 'low', evaluable: false, limitation: 'Sınırlı değerlendirme' },
+      { region: 'lips', label: 'Dudak', confidence: 'low', evaluable: false, limitation: 'Sınırlı değerlendirme' },
+    ],
+    patientSummary: 'Analiz tamamlandı, ancak bazı alanlarda doğruluk sınırlı olabilir. Sonuçlar klinik değerlendirme yerine geçmez.',
+    strongFeatures: [],
+    limitedAreasText: 'Bazı bölgelerde güvenilir analiz yapılamamıştır.',
     findings: [{
-      text: qualityGate.blockMessage ?? 'Analiz için görüntü uygun değil. Lütfen tekrar deneyin.',
+      text: 'Analiz tamamlandı, ancak bazı alanlarda doğruluk sınırlı olabilir.',
       region: 'quality',
-      band: 'insufficient',
-      isSoft: false,
+      band: 'low',
+      isSoft: true,
     }],
     focusLabels: [],
+    observations: [],
     overallConfidence: 0,
     suppressedCount: 0,
     softCount: 0,
@@ -231,6 +322,9 @@ function buildBlockedResult(
 }
 
 // ─── Utility: Check if analysis was blocked ────────────────
+// POST-CAPTURE RULE: This should never return true after the pipeline
+// refactor, since block is always downgraded to degrade. Kept for
+// backwards compatibility with any code that checks it.
 
 export function isAnalysisBlocked(result: TrustGatedResult): boolean {
   return result.qualityGate.verdict === 'block'
@@ -239,9 +333,7 @@ export function isAnalysisBlocked(result: TrustGatedResult): boolean {
 // ─── Utility: Get quality caveat for UI ────────────────────
 
 export function getQualityCaveatText(result: TrustGatedResult): string | null {
-  if (result.qualityGate.verdict === 'block') {
-    return result.qualityGate.blockMessage ?? null
-  }
+  // Post-capture: never show block messages. Degrade messages are soft warnings.
   if (result.qualityGate.verdict === 'degrade') {
     return result.qualityGate.degradeMessage ?? null
   }

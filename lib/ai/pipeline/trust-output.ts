@@ -13,7 +13,14 @@
 
 import type { FilteredResults } from './decision-filter'
 import type { QualityGateResult, YoungFaceProfile, ValidatedMetric } from './types'
-import type { AgeEstimation } from '../types'
+import type {
+  AgeEstimation,
+  RegionConfidence,
+  AnalysisRegionKey,
+  FocusArea,
+  WrinkleRegionResult,
+  LipAnalysis,
+} from '../types'
 
 /**
  * Generate the complete patient summary with trust-first language.
@@ -25,10 +32,10 @@ export function generateTrustSummary(
 ): string {
   const parts: string[] = []
 
-  // ── Opening ──
-  parts.push('AI destekli ön değerlendirme tamamlandı.')
+  // ── Opening — warm and confident ──
+  parts.push('Analiz tamamlandı.')
 
-  // ── Quality caveat (if degraded) ──
+  // ── Quality caveat (soft, only when truly degraded) ──
   if (qualityGate.verdict === 'degrade' && qualityGate.degradeMessage) {
     parts.push(qualityGate.degradeMessage)
   }
@@ -37,30 +44,37 @@ export function generateTrustSummary(
   const ageText = generateAgeSummary(filtered.age)
   if (ageText) parts.push(ageText)
 
-  // ── Symmetry (high reliability) ──
+  // ── Symmetry (high reliability, natural language) ──
   if (filtered.symmetry && filtered.symmetry.decision !== 'hide') {
     const sym = filtered.symmetry.data
     if (sym.overallScore >= 80) {
-      parts.push('Yüz simetrisi dengeli gözlenmektedir.')
+      parts.push('Yüz simetrisi dengeli ve uyumlu gözlenmektedir.')
     } else if (sym.overallScore >= 60) {
-      parts.push('Yüz simetrisinde hafif farklılıklar gözlenmektedir.')
+      parts.push('Yüz simetrisinde doğal düzeyde hafif farklılıklar gözlenmektedir.')
     } else {
-      parts.push('Yüz simetrisinde dikkat çekici farklılıklar gözlenmektedir. Detaylı değerlendirme önerilir.')
+      parts.push('Yüz simetrisinde değerlendirmeye alınabilecek farklılıklar dikkat çekmektedir.')
     }
   }
 
-  // ── Findings count context ──
+  // ── Findings context — natural, not robotic ──
   if (filtered.totalShown > 0) {
-    parts.push(`Görsel analize göre ${filtered.totalShown} bölgede gözlem yapılmıştır.`)
+    const areaCount = filtered.totalShown
+    if (areaCount === 1) {
+      parts.push('Bir bölgede dikkat çekici gözlem bulunmaktadır.')
+    } else if (areaCount <= 3) {
+      parts.push(`${areaCount} bölgede değerlendirmeye alınabilecek gözlemler yapılmıştır.`)
+    } else {
+      parts.push('Birden fazla bölgede değerlendirmeye alınabilecek gözlemler mevcuttur.')
+    }
   } else if (filtered.totalSoft > 0) {
-    parts.push('Sınırlı güven düzeyinde bazı gözlemler mevcuttur.')
+    parts.push('Bazı bölgelerde sınırlı düzeyde gözlemler mevcuttur.')
   } else {
-    parts.push('Belirgin bulgu saptanmadı.')
+    parts.push('Belirgin bir bulgu saptanmamıştır.')
   }
 
-  // ── Suppression transparency ──
-  if (filtered.totalSuppressed > 3) {
-    parts.push('Bu değerlendirme sınırlı veri içerir — bazı bölgeler güvenilir analiz için yeterli değildir.')
+  // ── Suppression transparency (only when significant) ──
+  if (filtered.totalSuppressed > 4) {
+    parts.push('Görüntü koşulları bazı bölgelerde detaylı değerlendirmeyi sınırlamıştır.')
   }
 
   // ── Young face positive note ──
@@ -68,7 +82,7 @@ export function generateTrustSummary(
     parts.push('Cilt dokusu genel olarak sağlıklı ve genç görünüme sahiptir.')
   }
 
-  // ── Closing ──
+  // ── Closing — professional, not clinical ──
   parts.push('Detaylı değerlendirme için uzman görüşü önerilir.')
 
   return parts.join(' ')
@@ -100,21 +114,21 @@ function generateAgeSummary(
 /**
  * Generate a quality-aware caveat for the analysis header.
  * Returns null if no caveat is needed.
+ *
+ * POST-CAPTURE RULE: Never returns blocking/harsh messages.
+ * Since capture gate now ensures minimum quality, post-capture
+ * caveats are always soft warnings, never "Analiz yapılamadı".
  */
 export function generateQualityCaveat(
   qualityGate: QualityGateResult,
   filtered: FilteredResults,
 ): string | null {
-  if (qualityGate.verdict === 'block') {
-    return qualityGate.blockMessage ?? 'Analiz için görüntü uygun değil.'
-  }
-
   if (qualityGate.verdict === 'degrade') {
-    return qualityGate.degradeMessage ?? 'Bu değerlendirme sınırlı veri içerir.'
+    return qualityGate.degradeMessage ?? 'Sonuçlar mevcut görüntü koşullarına göre oluşturulmuştur.'
   }
 
   if (filtered.totalSuppressed > filtered.totalShown + filtered.totalSoft) {
-    return 'Çoğu bölgede güvenilir analiz yapılamamıştır — sonuçlar sınırlı veri içermektedir.'
+    return 'Bazı bölgelerde görüntü koşulları nedeniyle değerlendirme kapsamı sınırlı kalmıştır.'
   }
 
   return null
@@ -128,6 +142,49 @@ export function generateDisclaimer(): string {
 }
 
 /**
+ * Generate "Strong Features" — positive observations that are clearly visible.
+ *
+ * System prompt rule: "STRONG FEATURES (only if clearly visible)"
+ * e.g. symmetry, skin clarity, proportions
+ *
+ * Returns empty array if nothing can be confidently stated as positive.
+ */
+export function generateStrongFeatures(
+  filtered: FilteredResults,
+  youngProfile: YoungFaceProfile,
+): string[] {
+  const features: string[] = []
+
+  // Symmetry — high reliability, warm language
+  if (filtered.symmetry && filtered.symmetry.decision === 'show') {
+    if (filtered.symmetry.data.overallScore >= 80) {
+      features.push('Yüz simetrisi dengeli ve uyumlu bir profil ortaya koymaktadır.')
+    } else if (filtered.symmetry.data.overallScore >= 65) {
+      features.push('Yüz simetrisi genel olarak dengeli gözlenmektedir.')
+    }
+  }
+
+  // Young face — positive, natural
+  if (youngProfile.active) {
+    features.push('Cilt genel olarak dinlenmiş ve sağlıklı bir görünüme sahiptir.')
+  }
+
+  // Skin texture — smoothness as a positive
+  if (filtered.skinTexture && filtered.skinTexture.decision === 'show') {
+    if (filtered.skinTexture.data.smoothness > 70) {
+      features.push('Cilt dokusu düzgün ve pürüzsüz görünmektedir.')
+    }
+  }
+
+  // Few wrinkle findings = positive
+  if (!youngProfile.active && filtered.shownWrinkles.length <= 1 && filtered.hiddenWrinkles.length < 3) {
+    features.push('Belirgin çizgilenme veya doku değişimi gözlenmemiştir.')
+  }
+
+  return features.slice(0, 3) // Max 3 strong features
+}
+
+/**
  * Map a confidence band to a Turkish display label.
  */
 export function confidenceBandLabel(band: string): string {
@@ -137,5 +194,171 @@ export function confidenceBandLabel(band: string): string {
     case 'low': return 'Düşük güven'
     case 'insufficient': return 'Yetersiz veri'
     default: return ''
+  }
+}
+
+/**
+ * Generate "Limited Areas" text — regions that could NOT be evaluated.
+ *
+ * System prompt rule: "Clearly state what cannot be evaluated."
+ * e.g. "Forehead region not clearly visible due to lighting"
+ *
+ * Returns null if all regions were evaluable.
+ */
+export function generateLimitedAreasText(
+  filtered: FilteredResults,
+  qualityGate: QualityGateResult,
+): string | null {
+  const limited: string[] = []
+
+  // Collect hidden wrinkle regions with their suppression reasons
+  for (const w of filtered.hiddenWrinkles) {
+    if (w.suppressionReason) {
+      limited.push(w.suppressionReason)
+    }
+  }
+
+  // Quality-based limitations
+  if (qualityGate.warnings.includes('uneven_lighting')) {
+    limited.push('Aydınlatma koşulları bazı bölgelerde ince detay değerlendirmesini sınırlamıştır.')
+  }
+
+  if (qualityGate.warnings.includes('moderate_angle')) {
+    limited.push('Hafif açı farklılığı simetri ölçümünün doğruluğunu etkilemiş olabilir.')
+  }
+
+  if (qualityGate.warnings.includes('mild_blur')) {
+    limited.push('Hafif bulanıklık doku detaylarının değerlendirilmesini sınırlamıştır.')
+  }
+
+  if (qualityGate.warnings.includes('mild_filter')) {
+    limited.push('Görüntüde olası yazılımsal düzeltme izleri — cilt dokusu değerlendirmesi sınırlı olabilir.')
+  }
+
+  if (limited.length === 0) return null
+
+  return limited.slice(0, 3).join(' ')
+}
+
+// ─── Per-Region Confidence ────────────────────────────────
+
+/** Region key → wrinkle region prefix mapping */
+const REGION_WRINKLE_MAP: Record<AnalysisRegionKey, string[]> = {
+  forehead: ['forehead', 'glabella'],
+  crow_feet: ['crow_feet_left', 'crow_feet_right'],
+  under_eye: ['under_eye_left', 'under_eye_right'],
+  lips: [],
+}
+
+/** Region key → focus area region mapping */
+const REGION_FOCUS_MAP: Record<AnalysisRegionKey, string[]> = {
+  forehead: ['forehead_glabella'],
+  crow_feet: ['crow_feet'],
+  under_eye: ['under_eye'],
+  lips: ['lip_chin_jawline'],
+}
+
+const REGION_LABELS: Record<AnalysisRegionKey, string> = {
+  forehead: 'Alın',
+  crow_feet: 'Kaz Ayağı',
+  under_eye: 'Göz Altı',
+  lips: 'Dudak',
+}
+
+/**
+ * Generate per-region confidence assessments for the 4 critical regions.
+ *
+ * Each region's confidence is derived from:
+ * - Matching wrinkle region validations (forehead, crow_feet, under_eye)
+ * - Matching focus area validations
+ * - Lip analysis validation (lips only)
+ */
+export function generateRegionConfidences(
+  focusAreaMetrics: ValidatedMetric<FocusArea>[],
+  wrinkleMetrics: ValidatedMetric<WrinkleRegionResult>[],
+  lipMetric: ValidatedMetric<LipAnalysis> | null,
+): RegionConfidence[] {
+  const regions: AnalysisRegionKey[] = ['forehead', 'crow_feet', 'under_eye', 'lips']
+
+  return regions.map((region): RegionConfidence => {
+    if (region === 'lips') {
+      return buildLipRegionConfidence(lipMetric)
+    }
+
+    // Find matching wrinkle metrics
+    const wrinkleKeys = REGION_WRINKLE_MAP[region]
+    const matchingWrinkles = wrinkleMetrics.filter(w => wrinkleKeys.includes(w.data.region))
+
+    // Find matching focus area metrics
+    const focusKeys = REGION_FOCUS_MAP[region]
+    const matchingFocus = focusAreaMetrics.filter(f => focusKeys.includes(f.data.region))
+
+    // Aggregate confidence: take the best confidence from wrinkle or focus
+    const allConfidences = [
+      ...matchingWrinkles.map(w => w.confidence),
+      ...matchingFocus.map(f => f.confidence),
+    ]
+
+    if (allConfidences.length === 0) {
+      return {
+        region,
+        label: REGION_LABELS[region],
+        confidence: 'low',
+        evaluable: false,
+        limitation: 'Bu bölge için yeterli veri elde edilemedi.',
+      }
+    }
+
+    const bestConfidence = Math.max(...allConfidences)
+    const anyShown = [...matchingWrinkles, ...matchingFocus].some(m => m.decision !== 'hide')
+    const allHidden = [...matchingWrinkles, ...matchingFocus].every(m => m.decision === 'hide')
+
+    const confidenceLevel: 'high' | 'medium' | 'low' =
+      bestConfidence >= 70 ? 'high' :
+      bestConfidence >= 40 ? 'medium' : 'low'
+
+    let limitation: string | null = null
+    if (allHidden) {
+      const reasons = [...matchingWrinkles, ...matchingFocus]
+        .filter(m => m.suppressionReason)
+        .map(m => m.suppressionReason!)
+      limitation = reasons[0] ?? 'Güven düzeyi yetersiz.'
+    }
+
+    return {
+      region,
+      label: REGION_LABELS[region],
+      confidence: confidenceLevel,
+      evaluable: anyShown,
+      limitation,
+    }
+  })
+}
+
+function buildLipRegionConfidence(
+  lipMetric: ValidatedMetric<LipAnalysis> | null,
+): RegionConfidence {
+  if (!lipMetric) {
+    return {
+      region: 'lips',
+      label: REGION_LABELS.lips,
+      confidence: 'low',
+      evaluable: false,
+      limitation: 'Dudak analizi yapılamadı.',
+    }
+  }
+
+  const confidenceLevel: 'high' | 'medium' | 'low' =
+    lipMetric.confidence >= 70 ? 'high' :
+    lipMetric.confidence >= 40 ? 'medium' : 'low'
+
+  return {
+    region: 'lips',
+    label: REGION_LABELS.lips,
+    confidence: confidenceLevel,
+    evaluable: lipMetric.data.evaluable && lipMetric.decision !== 'hide',
+    limitation: lipMetric.decision === 'hide'
+      ? lipMetric.suppressionReason ?? lipMetric.data.limitationReason
+      : lipMetric.data.limitationReason,
   }
 }

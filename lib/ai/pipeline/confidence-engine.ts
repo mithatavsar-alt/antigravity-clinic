@@ -15,6 +15,7 @@ import type {
   AgeEstimation,
   SymmetryAnalysis,
   SkinTextureProfile,
+  LipAnalysis,
 } from '../types'
 import type {
   ValidatedMetric,
@@ -432,6 +433,86 @@ export function validateSkinTexture(
     decision: toDecision(band),
     validationsPassed: passed,
     validationsFailed: failed,
+  }
+}
+
+// ─── Lip Analysis Validation ──────────────────────────────
+
+/**
+ * Validate lip analysis through multi-layer validation.
+ *
+ * STRICT: Do NOT assume thin or full lips without clear visual evidence.
+ * Surface condition from geometry alone is inherently limited — mark as 'unclear'
+ * unless detection confidence is very high.
+ */
+export function validateLipAnalysis(
+  lip: LipAnalysis | null,
+  qualityGate: QualityGateResult,
+  youngProfile: YoungFaceProfile,
+): ValidatedMetric<LipAnalysis> | null {
+  if (!lip) return null
+
+  const passed: ValidationLayer[] = []
+  const failed: ValidationLayer[] = []
+
+  // ── Layer 1: Evaluability (lip module's own assessment) ──
+  if (lip.evaluable) {
+    passed.push('ai_model')
+  } else {
+    failed.push('ai_model')
+  }
+
+  // ── Layer 2: Quality gate (image quality sufficient for lip region) ──
+  if (qualityGate.verdict !== 'block' && qualityGate.score >= 35) {
+    passed.push('geometric')
+  } else {
+    failed.push('geometric')
+  }
+
+  // ── Layer 3: Lip confidence from measurement ──
+  if (lip.confidence >= 0.4) {
+    passed.push('texture')
+  } else {
+    failed.push('texture')
+  }
+
+  // ── Layer 4: Expression check — mouth open degrades lip analysis ──
+  const mouthOpenWarning = qualityGate.warnings.includes('moderate_angle')
+  if (!mouthOpenWarning) {
+    passed.push('expression')
+  } else {
+    failed.push('expression')
+  }
+
+  // ── Confidence ──
+  let confidence = clamp(Math.round(lip.confidence * 100), 0, 100)
+
+  // Quality gate factor
+  const qualityFactor = qualityGate.score / 100
+  confidence = clamp(Math.round(confidence * 0.6 + qualityFactor * 30 + (passed.length / Math.max(passed.length + failed.length, 1)) * 10), 0, 100)
+
+  // Young faces: lip analysis is geometry-neutral (no age penalty)
+  // But boost confidence slightly for young faces with good detection
+  if (youngProfile.active && lip.evaluable) {
+    confidence = Math.min(confidence + 5, 100)
+  }
+
+  const band = toConfidenceBand(confidence)
+  const decision = toDecision(band)
+
+  return {
+    data: lip,
+    confidence,
+    band,
+    decision,
+    validationsPassed: passed,
+    validationsFailed: failed,
+    softLanguage: decision === 'soft'
+      ? 'Dudak yapısı sınırlı veri nedeniyle kesin değerlendirilemedi — uzman görüşü önerilir.'
+      : undefined,
+    suppressionReason: decision === 'hide'
+      ? lip.limitationReason ?? 'Dudak analizi: yetersiz güven düzeyi'
+      : undefined,
   }
 }
 

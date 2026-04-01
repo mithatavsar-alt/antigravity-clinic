@@ -13,7 +13,10 @@ const ease = [0.16, 1, 0.3, 1] as const
 
 export function HeroSection() {
   return (
-    <section className="relative min-h-screen flex items-center overflow-hidden bg-[var(--color-bg)]">
+    <section
+      className="hero-section relative flex items-center justify-center overflow-hidden bg-[var(--color-bg)]"
+      style={{ minHeight: 'clamp(640px, 92vh, 960px)' }}
+    >
       {/* Warm gradient wash */}
       <div
         className="absolute inset-0 pointer-events-none"
@@ -28,7 +31,7 @@ export function HeroSection() {
         style={{ background: 'radial-gradient(circle, var(--color-gold-glow) 0%, transparent 70%)' }}
       />
 
-      <div className="relative z-10 container-main grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-12 items-center py-24 lg:py-0">
+      <div className="relative z-10 container-main grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center py-28 sm:py-32 lg:py-16">
         {/* Mobile hero portrait — visible only below lg */}
         <motion.div
           initial={{ opacity: 0, scale: 0.97 }}

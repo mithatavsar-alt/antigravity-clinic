@@ -32,6 +32,8 @@ export interface CaptureMetadata {
 interface FaceMeshCameraProps {
   onCapture: (dataUrl: string, meta?: CaptureMetadata) => void
   onClose: () => void
+  /** When true, auto-captured high-confidence frames skip the preview and call onCapture immediately */
+  autoConfirm?: boolean
 }
 
 type Phase =
@@ -248,7 +250,7 @@ function estimateBrightness(ctx: CanvasRenderingContext2D, w: number, h: number)
 }
 
 /* ─── Component ─────────────────────────────────────────────── */
-export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
+export function FaceMeshCamera({ onCapture, onClose, autoConfirm = false }: FaceMeshCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const meshCanvasRef = useRef<HTMLCanvasElement>(null)
   const cropCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -386,9 +388,18 @@ export function FaceMeshCamera({ onCapture, onClose }: FaceMeshCameraProps) {
     setShowFlash(true)
     setTimeout(() => setShowFlash(false), 400)
     captureMetaRef.current = { confidence: 'high', missingCheck: null }
-    setPhaseSync('captured')
     bestFramesRef.current = []
-  }, [setPhaseSync])
+
+    // Auto-confirm: skip preview, call onCapture immediately
+    const capturedUrl = best ? best.dataUrl : capCanvas.toDataURL('image/jpeg', 0.92)
+    if (autoConfirm) {
+      setPhaseSync('captured')
+      // Small delay for flash animation, then auto-advance
+      setTimeout(() => onCapture(capturedUrl, captureMetaRef.current), 500)
+    } else {
+      setPhaseSync('captured')
+    }
+  }, [setPhaseSync, autoConfirm, onCapture])
 
   /* ── Score and buffer a frame during countdown ── */
   const bufferFrame = useCallback((v: ValidationState, brightness: number) => {

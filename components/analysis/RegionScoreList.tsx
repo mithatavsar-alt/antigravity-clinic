@@ -64,7 +64,7 @@ export default function RegionScoreList({ regions, currentIndex, locked, onSelec
                 }}
               />
               <span
-                className="font-body text-[13px] tracking-[0.01em] truncate transition-colors duration-300"
+                className="font-body text-[15px] tracking-[0.01em] truncate transition-colors duration-300"
                 style={{
                   color: active ? 'rgba(248,246,242,0.85)' : 'rgba(248,246,242,0.35)',
                   fontWeight: active ? 500 : 400,
@@ -76,7 +76,7 @@ export default function RegionScoreList({ regions, currentIndex, locked, onSelec
               {/* "Seçildi" marker */}
               {active && locked && (
                 <span
-                  className="font-body text-[8px] tracking-[0.12em] uppercase px-2 py-0.5 rounded-full flex-shrink-0"
+                  className="font-body text-[9px] tracking-[0.12em] uppercase px-2 py-0.5 rounded-full flex-shrink-0"
                   style={{
                     color: 'rgba(214,185,140,0.50)',
                     background: 'rgba(214,185,140,0.05)',
@@ -90,7 +90,7 @@ export default function RegionScoreList({ regions, currentIndex, locked, onSelec
 
             {/* Right: score */}
             <span
-              className="font-mono text-[16px] font-light tabular-nums tracking-tight flex-shrink-0 transition-colors duration-300"
+              className="font-mono text-[18px] font-light tabular-nums tracking-tight flex-shrink-0 transition-colors duration-300"
               style={{ color: active ? c : 'rgba(248,246,242,0.20)' }}
             >
               {item.score}
@@ -121,7 +121,7 @@ export default function RegionScoreList({ regions, currentIndex, locked, onSelec
             <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
           </svg>
           <span
-            className="font-body text-[10px] tracking-[0.10em] uppercase"
+            className="font-body text-[11px] tracking-[0.10em] uppercase"
             style={{ color: 'rgba(214,185,140,0.35)' }}
           >
             Otomatik Analize Dön

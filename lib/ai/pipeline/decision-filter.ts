@@ -13,13 +13,16 @@ import type {
   TrustFinding,
   PipelineConfig,
   YoungFaceProfile,
+  StructuredObservation,
 } from './types'
+import { IMPACT_WEIGHT } from './types'
 import type {
   WrinkleRegionResult,
   FocusArea,
   AgeEstimation,
   SymmetryAnalysis,
   SkinTextureProfile,
+  LipAnalysis,
 } from '../types'
 
 // ─── Filter results ────────────────────────────────────────
@@ -43,6 +46,8 @@ export interface FilteredResults {
   symmetry: ValidatedMetric<SymmetryAnalysis> | null
   /** Skin texture — show, soft, or null */
   skinTexture: ValidatedMetric<SkinTextureProfile> | null
+  /** Lip analysis — show, soft, or null */
+  lipAnalysis: ValidatedMetric<LipAnalysis> | null
   /** Trust-gated findings for the patient */
   findings: TrustFinding[]
   /** Focus area labels (only for shown/soft items) */
@@ -63,8 +68,10 @@ export function applyDecisionFilter(
   age: ValidatedMetric<AgeEstimation> | null,
   symmetry: ValidatedMetric<SymmetryAnalysis> | null,
   skinTexture: ValidatedMetric<SkinTextureProfile> | null,
+  lipAnalysis: ValidatedMetric<LipAnalysis> | null,
   youngProfile: YoungFaceProfile,
   _config: PipelineConfig,
+  observations?: StructuredObservation[],
 ): FilteredResults {
   // ── Wrinkles ──
   const shownWrinkles = wrinkles.filter(w => w.decision === 'show')
@@ -85,38 +92,48 @@ export function applyDecisionFilter(
   // ── Skin texture ──
   const filteredSkinTexture = skinTexture && skinTexture.decision !== 'hide' ? skinTexture : null
 
+  // ── Lip analysis ──
+  const filteredLipAnalysis = lipAnalysis && lipAnalysis.decision !== 'hide' ? lipAnalysis : null
+
   // ── Build findings ──
-  const findings = buildFindings(
-    shownWrinkles,
-    softWrinkles,
-    shownFocusAreas,
-    softFocusAreas,
-    filteredSymmetry,
-    youngProfile,
-  )
+  const findings = observations
+    ? buildFindingsFromObservations(observations, youngProfile)
+    : buildFindings(
+      shownWrinkles,
+      softWrinkles,
+      shownFocusAreas,
+      softFocusAreas,
+      filteredSymmetry,
+      youngProfile,
+    )
 
   // ── Focus labels ──
-  const focusLabels = buildFocusLabels(
-    shownWrinkles,
-    softWrinkles,
-    shownFocusAreas,
-    softFocusAreas,
-  )
+  const focusLabels = observations
+    ? buildFocusLabelsFromObservations(observations)
+    : buildFocusLabels(
+      shownWrinkles,
+      softWrinkles,
+      shownFocusAreas,
+      softFocusAreas,
+    )
 
   const totalShown = shownWrinkles.length + shownFocusAreas.length +
     (filteredAge?.decision === 'show' ? 1 : 0) +
     (filteredSymmetry?.decision === 'show' ? 1 : 0) +
-    (filteredSkinTexture?.decision === 'show' ? 1 : 0)
+    (filteredSkinTexture?.decision === 'show' ? 1 : 0) +
+    (filteredLipAnalysis?.decision === 'show' ? 1 : 0)
 
   const totalSoft = softWrinkles.length + softFocusAreas.length +
     (filteredAge?.decision === 'soft' ? 1 : 0) +
     (filteredSymmetry?.decision === 'soft' ? 1 : 0) +
-    (filteredSkinTexture?.decision === 'soft' ? 1 : 0)
+    (filteredSkinTexture?.decision === 'soft' ? 1 : 0) +
+    (filteredLipAnalysis?.decision === 'soft' ? 1 : 0)
 
   const totalSuppressed = hiddenWrinkles.length + hiddenFocusAreas.length +
     (age && age.decision === 'hide' ? 1 : 0) +
     (symmetry && symmetry.decision === 'hide' ? 1 : 0) +
-    (skinTexture && skinTexture.decision === 'hide' ? 1 : 0)
+    (skinTexture && skinTexture.decision === 'hide' ? 1 : 0) +
+    (lipAnalysis && lipAnalysis.decision === 'hide' ? 1 : 0)
 
   return {
     shownWrinkles,
@@ -128,6 +145,7 @@ export function applyDecisionFilter(
     age: filteredAge,
     symmetry: filteredSymmetry,
     skinTexture: filteredSkinTexture,
+    lipAnalysis: filteredLipAnalysis,
     findings,
     focusLabels,
     totalShown,
@@ -136,7 +154,105 @@ export function applyDecisionFilter(
   }
 }
 
-// ─── Finding Builder ───────────────────────────────────────
+// ─── Observation-Based Finding Builder ─────────────────────
+
+/**
+ * Build findings from structured observations.
+ * Uses the observation engine's per-area output for richer, more varied text.
+ * Each finding is unique because observations are area-specific.
+ */
+function buildFindingsFromObservations(
+  observations: StructuredObservation[],
+  youngProfile: YoungFaceProfile,
+): TrustFinding[] {
+  const findings: TrustFinding[] = []
+
+  // Sort by impact weight and score — most notable findings first
+  const sorted = [...observations]
+    .filter(o => o.visibility !== 'not_evaluable')
+    .sort((a, b) => {
+      const aw = (IMPACT_WEIGHT[a.impact] ?? 1) * a.score
+      const bw = (IMPACT_WEIGHT[b.impact] ?? 1) * b.score
+      return bw - aw
+    })
+
+  // Priority 1: Non-positive observations with clear/partial visibility (notable findings)
+  for (const o of sorted) {
+    if (findings.length >= 4) break
+    if (o.isPositive) continue
+    if (o.visibility === 'limited' && o.confidence < 30) continue
+
+    const isSoft = o.visibility === 'limited' || o.confidence < 45
+    const band = o.confidence >= 70 ? 'high' as const
+      : o.confidence >= 40 ? 'moderate' as const
+      : 'low' as const
+
+    findings.push({
+      text: o.observation,
+      region: o.area,
+      band,
+      isSoft,
+    })
+  }
+
+  // Priority 2: Best positive observation (strength)
+  const bestPositive = sorted.find(o => o.isPositive && o.visibility !== 'limited')
+  if (bestPositive && findings.length < 5) {
+    findings.push({
+      text: bestPositive.observation,
+      region: bestPositive.area,
+      band: 'high',
+      isSoft: false,
+    })
+  }
+
+  // Young face: ensure positive note if few findings
+  if (youngProfile.active && findings.filter(f => !f.isSoft).length <= 1) {
+    const freshness = observations.find(o => o.area === 'fatigue_freshness')
+    if (freshness && freshness.isPositive) {
+      findings.push({
+        text: freshness.observation,
+        region: 'fatigue_freshness',
+        band: 'high',
+        isSoft: false,
+      })
+    } else {
+      findings.push({
+        text: 'Cilt dokusu genel olarak düzgün ve sağlıklı görünmektedir.',
+        region: 'skin_health',
+        band: 'high',
+        isSoft: false,
+      })
+    }
+  }
+
+  // Fallback
+  if (findings.length === 0) {
+    findings.push({
+      text: 'Belirgin bulgu saptanmadı. Genel değerlendirme için uzman görüşü önerilir.',
+      region: 'general',
+      band: 'high',
+      isSoft: false,
+    })
+  }
+
+  return findings.slice(0, 5)
+}
+
+/** Build focus labels from observations — top non-positive areas by impact */
+function buildFocusLabelsFromObservations(
+  observations: StructuredObservation[],
+): string[] {
+  const labels = observations
+    .filter(o => !o.isPositive && o.visibility !== 'not_evaluable' && o.score > 20)
+    .sort((a, b) => (IMPACT_WEIGHT[b.impact] ?? 1) * b.score - (IMPACT_WEIGHT[a.impact] ?? 1) * a.score)
+    .slice(0, 4)
+    .map(o => o.label)
+
+  return labels.length > 0 ? labels : ['Genel Yüz Dengesi']
+}
+
+// ─── Legacy Finding Builder ───────────────────────────────
 
 /** Region key → Turkish label for findings */
 const FINDING_LABELS: Record<string, string> = {

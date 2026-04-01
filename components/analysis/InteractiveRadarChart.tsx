@@ -22,12 +22,12 @@ const VB = 500
 const CX = VB / 2
 const CY = VB / 2
 const R = VB * 0.34
-const LABEL_R = R + VB * 0.10
+const LABEL_R = R + VB * 0.13
 const DOT_R = VB * 0.009
 const DOT_R_ACTIVE = VB * 0.014
 const STROKE_W = VB * 0.003
-const LABEL_FONT = VB * 0.024
-const LABEL_FONT_ACTIVE = VB * 0.028
+const LABEL_FONT = VB * 0.036
+const LABEL_FONT_ACTIVE = VB * 0.042
 const LEVELS = [0.25, 0.5, 0.75, 1.0]
 const MIN_VISUAL_PCT = 0.30
 
@@ -294,12 +294,12 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
             <text
               x={lx} y={ly + dy + lift}
               textAnchor={anchor}
-              fill={active ? scoreColor(r.score) : 'rgba(248,246,242,0.35)'}
+              fill={active ? scoreColor(r.score) : 'rgba(248,246,242,0.50)'}
               style={{
                 fontSize: `${active ? LABEL_FONT_ACTIVE : LABEL_FONT}px`,
                 fontFamily: "'Outfit', system-ui, sans-serif",
                 letterSpacing: active ? '0.06em' : '0.04em',
-                fontWeight: active ? 600 : 400,
+                fontWeight: active ? 600 : 500,
                 transition: 'fill 0.35s, font-size 0.25s, font-weight 0.35s, y 0.3s ease-out',
               }}
             >
@@ -307,11 +307,11 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
             </text>
             {/* Score on active */}
             <text
-              x={lx} y={ly + dy + 15 + lift}
+              x={lx} y={ly + dy + 18 + lift}
               textAnchor={anchor}
               fill={scoreColor(r.score)}
               style={{
-                fontSize: `${VB * 0.020}px`,
+                fontSize: `${VB * 0.028}px`,
                 fontFamily: "'JetBrains Mono', monospace",
                 fontWeight: 400,
                 opacity: active ? 0.8 : 0,
@@ -334,12 +334,12 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
         />
         {/* Soft center glow */}
         <text
-          x={CX} y={CY - VB * 0.015}
+          x={CX} y={CY - VB * 0.020}
           textAnchor="middle" dominantBaseline="central"
           fill={centerColor}
           filter="url(#irCenterGlow)"
           style={{
-            fontSize: `${VB * 0.09}px`,
+            fontSize: `${VB * 0.14}px`,
             fontFamily: "'Cormorant Garamond', serif",
             fontWeight: 300,
             opacity: 0.25,
@@ -350,11 +350,11 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
         </text>
         {/* Crisp score number */}
         <text
-          x={CX} y={CY - VB * 0.015}
+          x={CX} y={CY - VB * 0.020}
           textAnchor="middle" dominantBaseline="central"
           fill={centerColor}
           style={{
-            fontSize: `${VB * 0.09}px`,
+            fontSize: `${VB * 0.14}px`,
             fontFamily: "'Cormorant Garamond', serif",
             fontWeight: 300,
             letterSpacing: '-0.03em',
@@ -369,13 +369,13 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
           {/* Outgoing label (prevIndex — fades out) */}
           {prevIndex !== currentIndex && regions[prevIndex] && (
             <text
-              x={CX} y={CY + VB * 0.052}
+              x={CX} y={CY + VB * 0.062}
               textAnchor="middle"
-              fill="rgba(248,246,242,0.22)"
+              fill="rgba(248,246,242,0.28)"
               style={{
-                fontSize: `${VB * 0.016}px`,
+                fontSize: `${VB * 0.024}px`,
                 fontFamily: "'Outfit', system-ui, sans-serif",
-                letterSpacing: '0.22em',
+                letterSpacing: '0.20em',
                 textTransform: 'uppercase' as const,
                 fontWeight: 500,
                 animation: 'centerLabelOut 0.25s ease-in forwards',
@@ -387,13 +387,13 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
           {/* Incoming label (currentIndex — fades in) */}
           <text
             key={currentIndex}
-            x={CX} y={CY + VB * 0.052}
+            x={CX} y={CY + VB * 0.062}
             textAnchor="middle"
-            fill="rgba(248,246,242,0.22)"
+            fill="rgba(248,246,242,0.28)"
             style={{
-              fontSize: `${VB * 0.016}px`,
+              fontSize: `${VB * 0.024}px`,
               fontFamily: "'Outfit', system-ui, sans-serif",
-              letterSpacing: '0.22em',
+              letterSpacing: '0.20em',
               textTransform: 'uppercase' as const,
               fontWeight: 500,
               animation: 'centerLabelIn 0.35s ease-out 0.1s both',

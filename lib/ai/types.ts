@@ -74,6 +74,8 @@ export interface EnhancedAnalysisResult {
   skinTexture: SkinTextureProfile | null
   /** Detailed symmetry analysis (null if not computed) */
   symmetryAnalysis: SymmetryAnalysis | null
+  /** Lip structure analysis (null if not computed) */
+  lipAnalysis: LipAnalysis | null
 }
 
 // ─── Wrinkle / skin-line analysis types ─────────────────────
@@ -204,6 +206,50 @@ export interface SymmetryAnalysis {
   jawSymmetry: number
   /** Nose deviation from midline 0–1 (0 = centered) */
   noseDeviation: number
+}
+
+// ─── Lip analysis ──────────────────────────────────────────
+
+export type LipVolume = 'low' | 'balanced' | 'full'
+export type LipSymmetry = 'symmetrical' | 'slight_asymmetry' | 'unclear'
+export type LipContour = 'well_defined' | 'soft' | 'unclear'
+export type LipSurface = 'smooth' | 'mildly_dry' | 'unclear'
+
+export interface LipAnalysis {
+  /** Volume assessment */
+  volume: LipVolume
+  /** Symmetry assessment */
+  symmetry: LipSymmetry
+  /** Contour definition */
+  contour: LipContour
+  /** Surface condition */
+  surface: LipSurface
+  /** Whether lip structure could be evaluated reliably */
+  evaluable: boolean
+  /** Reason if not evaluable */
+  limitationReason: string | null
+  /** Measurement confidence 0–1 */
+  confidence: number
+}
+
+// ─── Per-region confidence (used by trust pipeline output) ──
+
+export type AnalysisRegionKey =
+  | 'forehead'
+  | 'crow_feet'
+  | 'under_eye'
+  | 'lips'
+
+export interface RegionConfidence {
+  region: AnalysisRegionKey
+  /** Turkish display label */
+  label: string
+  /** Confidence: high / medium / low */
+  confidence: 'high' | 'medium' | 'low'
+  /** Whether this region was evaluable at all */
+  evaluable: boolean
+  /** If not evaluable or low confidence, reason why */
+  limitation: string | null
 }
 
 // ─── Error types ────────────────────────────────────────────

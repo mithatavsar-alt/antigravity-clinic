@@ -241,7 +241,7 @@ export default function RadarChartSection({ scores, captureQuality, summaryText 
                 }}
               >
                 <span className="text-label-sm" style={{ color: `${avgColor}70` }}>Ortalama</span>
-                <span className="font-mono text-[14px] font-light" style={{ color: avgColor }}>{avg}</span>
+                <span className="font-mono text-[16px] font-light" style={{ color: avgColor }}>{avg}</span>
               </div>
             </div>
 
@@ -271,7 +271,7 @@ export default function RadarChartSection({ scores, captureQuality, summaryText 
             {/* Quality caveat */}
             {captureQuality && captureQuality !== 'high' && (
               <div className="rounded-[10px] px-3.5 py-2.5" style={{ background: 'rgba(214,185,140,0.02)', border: '1px solid rgba(214,185,140,0.05)' }}>
-                <p className="font-body text-[10px] text-[rgba(248,246,242,0.22)] leading-relaxed italic text-center">
+                <p className="font-body text-[11px] text-[rgba(248,246,242,0.22)] leading-relaxed italic text-center">
                   {captureQuality === 'low'
                     ? 'Bu değerlendirme mevcut görüntü kalitesine göre yaklaşık olarak oluşturulmuştur.'
                     : 'Görüntü kalitesi orta düzeydedir. Sonuçlar genel yönelimi yansıtmaktadır.'}

@@ -13,7 +13,7 @@ import {
 } from '@/lib/ai/human-engine'
 import { savePhoto } from '@/lib/photo-bridge'
 import { run as runGeometryAnalysis } from '@/lib/ai/analysis'
-import { computeFocusAreas, computeQualityScore, getSuggestedZones } from '@/lib/ai/aesthetic-scoring'
+import { computeFocusAreas, computeQualityScore, getSuggestedZones, computeLipAnalysis } from '@/lib/ai/aesthetic-scoring'
 import { generateSuggestions, generateFocusAreaLabels, mapFocusAreasToRegionScores } from '@/lib/ai/result-generator'
 import { deriveRadarAnalysis } from '@/lib/ai/radar-scores'
 import { deriveDoctorAnalysis, deriveConsultationReadiness } from '@/lib/ai/derive-doctor-analysis'
@@ -29,7 +29,7 @@ import {
 } from '@/lib/ai/face-guide'
 import type { EnhancedAnalysisResult } from '@/lib/ai/types'
 import type { Landmark } from '@/lib/ai/types'
-import { runTrustPipeline, isAnalysisBlocked, getQualityCaveatText } from '@/lib/ai/pipeline'
+import { runTrustPipeline, getQualityCaveatText } from '@/lib/ai/pipeline'
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -437,7 +437,7 @@ async function runLocalAnalysisPipeline(
     }
 
     const det = await withTimeout(detectFace(image), 8000, 'Yüz algılama')
-    if (!det || det.landmarks.length < 400) {
+    if (!det || det.landmarks.length < 200) {
       throw new Error('Yüz algılanamadı. Lütfen tekrar deneyin.')
     }
 
@@ -549,13 +549,22 @@ async function runLocalAnalysisPipeline(
       console.warn('[Pipeline] Symmetry analysis failed (non-fatal):', err)
     }
 
-    return { iq, wa, st, sym }
+    // Lip analysis
+    let lip = null
+    try {
+      lip = computeLipAnalysis(detection.landmarks, detection.confidence)
+    } catch (err) {
+      console.warn('[Pipeline] Lip analysis failed (non-fatal):', err)
+    }
+
+    return { iq, wa, st, sym, lip }
   }, MIN_STAGE_MS)
 
   const imageQuality = stage3Result.iq
   const wrinkleAnalysis = stage3Result.wa
   const skinTexture = stage3Result.st
   const symmetryAnalysis = stage3Result.sym
+  const lipAnalysis = stage3Result.lip
 
   // ── Stage 4: AI Prediction / Age Estimation / Build result ──
   onStage(4)
@@ -591,6 +600,7 @@ async function runLocalAnalysisPipeline(
       ageEstimation: ageEst,
       skinTexture,
       symmetryAnalysis,
+      lipAnalysis,
     }
     return result
   }, MIN_STAGE_MS)
@@ -838,21 +848,19 @@ function ProcessingContent() {
           trustImage,
         )
 
-        // If quality gate blocked analysis, use trust pipeline output only
-        const analysisBlocked = isAnalysisBlocked(trustResult)
+        // Post-capture: quality gate never blocks (downgraded to degrade in pipeline).
+        // Only soft warnings are shown on the result page.
         const qualityCaveat = getQualityCaveatText(trustResult)
 
         // ── Save results ──
         const { geometry, estimatedAge, focusAreas, suggestedZones, confidence, qualityScore, wrinkleAnalysis, ageEstimation } = enhanced
 
-        // Use trust-gated outputs instead of raw when available
-        const suggestions = analysisBlocked
-          ? trustResult.findings.map(f => f.text)
-          : generateSuggestions(enhanced)
+        // Always show real analysis results — post-capture only shows warning banners, never blocks
+        const suggestions = generateSuggestions(enhanced, trustResult.observations)
         const summaryText = trustResult.patientSummary
         const focusLabels = trustResult.focusLabels.length > 0
           ? trustResult.focusLabels
-          : generateFocusAreaLabels(enhanced)
+          : generateFocusAreaLabels(enhanced, trustResult.observations)
         const radarAnalysis = deriveRadarAnalysis(enhanced, lead.capture_confidence as 'high' | 'medium' | 'low' | undefined)
 
         const doctorAnalysis = deriveDoctorAnalysis(leadId, geometry, lead)
@@ -935,19 +943,49 @@ function ProcessingContent() {
             overall_confidence: trustResult.overallConfidence,
             quality_gate_verdict: trustResult.qualityGate.verdict,
             quality_gate_score: trustResult.qualityGate.score,
+            quality_level: trustResult.qualityLevel,
             young_face_active: trustResult.youngFaceProfile.active,
             age_profile: trustResult.youngFaceProfile.ageProfile,
             metrics_shown: trustResult.findings.filter(f => !f.isSoft).length,
             metrics_soft: trustResult.softCount,
             metrics_suppressed: trustResult.suppressedCount,
             quality_caveat: qualityCaveat,
+            strong_features: trustResult.strongFeatures,
+            limited_areas: trustResult.limitedAreasText,
             findings: trustResult.findings.map(f => ({
               text: f.text,
               region: f.region,
               band: f.band,
               isSoft: f.isSoft,
             })),
+            observations: trustResult.observations.map(o => ({
+              area: o.area,
+              label: o.label,
+              observation: o.observation,
+              visibility: o.visibility,
+              confidence: o.confidence,
+              impact: o.impact,
+              isPositive: o.isPositive,
+              score: o.score,
+              ...(o.limitation ? { limitation: o.limitation } : {}),
+            })),
+            region_confidences: trustResult.regionConfidences.map(rc => ({
+              region: rc.region,
+              label: rc.label,
+              confidence: rc.confidence,
+              evaluable: rc.evaluable,
+              limitation: rc.limitation,
+            })),
           },
+          lip_analysis: trustResult.lipMetric ? {
+            volume: trustResult.lipMetric.data.volume,
+            symmetry: trustResult.lipMetric.data.symmetry,
+            contour: trustResult.lipMetric.data.contour,
+            surface: trustResult.lipMetric.data.surface,
+            evaluable: trustResult.lipMetric.data.evaluable,
+            limitationReason: trustResult.lipMetric.data.limitationReason,
+            confidence: trustResult.lipMetric.data.confidence,
+          } : undefined,
         })
 
         // ── Final freeze 0.5s then navigate ──

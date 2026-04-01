@@ -155,7 +155,7 @@ export const NO_FACE_STATUS: FaceGuideStatus = {
   foreheadVisible: false,
   faceDetected: false,
   allOk: false,
-  mainMessage: 'Yüzünüzü çerçeveye yerleştirin',
+  mainMessage: 'Yüzünüzü çerçevenin içine yerleştirin',
   validCount: 0,
   qualityScore: 0,
   qualityBreakdown: { distance: 0, alignment: 0, lighting: 0, sharpness: 0, stability: 0 },
@@ -511,20 +511,20 @@ export function evaluateFaceGuide(
     eyesVisible &&
     foreheadVisible
 
-  // Main message priority
-  let mainMessage = 'Pozisyon uygun'
-  if (distance === 'too_far') mainMessage = 'Lütfen kameraya yaklaşın'
-  else if (distance === 'too_close') mainMessage = 'Biraz uzaklaşın'
-  else if (centering === 'off_center') mainMessage = 'Yüzünüzü ortalayın'
-  else if (angle === 'tilt') mainMessage = 'Başınızı düz tutun'
-  else if (angle === 'look_left' || angle === 'look_right') mainMessage = 'Düz bakın'
-  else if (angle === 'look_up') mainMessage = 'Kamerayı göz hizasına alın'
-  else if (angle === 'look_down') mainMessage = 'Başınızı kaldırın'
-  else if (!foreheadVisible) mainMessage = 'Alnınızı tamamen gösterin'
-  else if (!eyesVisible) mainMessage = 'Gözleriniz görünmeli'
-  else if (lighting === 'too_dark') mainMessage = 'Işık yetersiz'
-  else if (lighting === 'too_bright') mainMessage = 'Işık fazla'
-  else if (lighting === 'shadow') mainMessage = 'Yüzünüzde gölge var'
+  // Main message priority — premium, calm guidance
+  let mainMessage = 'Harika, pozisyon uygun'
+  if (distance === 'too_far') mainMessage = 'Biraz daha yaklaşın'
+  else if (distance === 'too_close') mainMessage = 'Biraz geri çekilin'
+  else if (centering === 'off_center') mainMessage = 'Yüzünüzü çerçevenin ortasına getirin'
+  else if (angle === 'tilt') mainMessage = 'Başınızı hafifçe düzeltin'
+  else if (angle === 'look_left' || angle === 'look_right') mainMessage = 'Doğrudan kameraya bakın'
+  else if (angle === 'look_up') mainMessage = 'Başınızı hafifçe indirin'
+  else if (angle === 'look_down') mainMessage = 'Başınızı hafifçe kaldırın'
+  else if (!foreheadVisible) mainMessage = 'Alnınız görünür olsun'
+  else if (!eyesVisible) mainMessage = 'Gözleriniz açık ve görünür olmalı'
+  else if (lighting === 'too_dark') mainMessage = 'Daha aydınlık bir ortam tercih edin'
+  else if (lighting === 'too_bright') mainMessage = 'Işık çok güçlü, hafifçe ayarlayın'
+  else if (lighting === 'shadow') mainMessage = 'Yüzünüze eşit ışık düşmeli'
 
   // ── Continuous quality sub-scores (0–1) ──
 

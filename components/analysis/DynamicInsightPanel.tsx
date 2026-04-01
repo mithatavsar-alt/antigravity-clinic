@@ -72,7 +72,7 @@ export default function DynamicInsightPanel({ insight, score, regionIndex }: Pro
               />
             </div>
             <span
-              className="font-mono text-[20px] sm:text-[22px] font-light tabular-nums"
+              className="font-mono text-[22px] sm:text-[24px] font-light tabular-nums"
               style={{ color: c }}
             >
               {score}
@@ -84,13 +84,13 @@ export default function DynamicInsightPanel({ insight, score, regionIndex }: Pro
             {/* Title + grade */}
             <div className="flex items-center gap-3 mb-2.5">
               <h3
-                className="font-body text-[16px] sm:text-[17px] font-medium leading-snug tracking-[0.01em]"
+                className="font-body text-[17px] sm:text-[18px] font-medium leading-snug tracking-[0.01em]"
                 style={{ color: 'rgba(248,246,242,0.85)' }}
               >
                 {insight.title}
               </h3>
               <span
-                className="font-body text-[7px] tracking-[0.14em] uppercase px-2.5 py-[3px] rounded-full border flex-shrink-0"
+                className="font-body text-[8px] tracking-[0.14em] uppercase px-2.5 py-[3px] rounded-full border flex-shrink-0"
                 style={{
                   color: c,
                   backgroundColor: `${c}0A`,
@@ -103,7 +103,7 @@ export default function DynamicInsightPanel({ insight, score, regionIndex }: Pro
 
             {/* Analysis */}
             <p
-              className="font-body text-[12px] sm:text-[13px] leading-[1.7] mb-2"
+              className="font-body text-[13px] sm:text-[14px] leading-[1.7] mb-2"
               style={{ color: 'rgba(248,246,242,0.50)' }}
             >
               {insight.analysis}
@@ -111,7 +111,7 @@ export default function DynamicInsightPanel({ insight, score, regionIndex }: Pro
 
             {/* Info */}
             <p
-              className="font-body text-[11px] sm:text-[12px] leading-[1.7]"
+              className="font-body text-[12px] sm:text-[13px] leading-[1.7]"
               style={{ color: 'rgba(248,246,242,0.30)' }}
             >
               {insight.info}
@@ -122,7 +122,7 @@ export default function DynamicInsightPanel({ insight, score, regionIndex }: Pro
           <div className="flex-shrink-0 self-start sm:self-center">
             <Link
               href={insight.treatmentSlug}
-              className="inline-flex items-center gap-2 font-body text-[11px] sm:text-[12px] tracking-[0.02em] px-4 sm:px-5 py-2.5 rounded-full transition-all duration-300 group/cta whitespace-nowrap"
+              className="inline-flex items-center gap-2 font-body text-[12px] sm:text-[13px] tracking-[0.02em] px-4 sm:px-5 py-2.5 rounded-full transition-all duration-300 group/cta whitespace-nowrap"
               style={{
                 color: 'rgba(214,185,140,0.55)',
                 background: 'rgba(214,185,140,0.03)',

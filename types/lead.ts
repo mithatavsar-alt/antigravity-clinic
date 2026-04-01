@@ -288,18 +288,50 @@ export interface Lead {
     overall_confidence: number
     quality_gate_verdict: 'pass' | 'degrade' | 'block'
     quality_gate_score: number
+    quality_level: 'high' | 'medium' | 'low'
     young_face_active: boolean
     age_profile: 'young' | 'middle' | 'mature'
     metrics_shown: number
     metrics_soft: number
     metrics_suppressed: number
     quality_caveat: string | null
+    strong_features: string[]
+    limited_areas: string | null
     findings: Array<{
       text: string
       region: string
       band: 'high' | 'moderate' | 'low' | 'insufficient'
       isSoft: boolean
     }>
+    observations?: Array<{
+      area: string
+      label: string
+      observation: string
+      visibility: 'clear' | 'partial' | 'limited' | 'not_evaluable'
+      confidence: number
+      impact: 'primary' | 'secondary' | 'minor' | 'neutral'
+      isPositive: boolean
+      score: number
+      limitation?: string
+    }>
+    region_confidences?: Array<{
+      region: string
+      label: string
+      confidence: 'high' | 'medium' | 'low'
+      evaluable: boolean
+      limitation: string | null
+    }>
+  }
+
+  /** Lip analysis results */
+  lip_analysis?: {
+    volume: 'low' | 'balanced' | 'full'
+    symmetry: 'symmetrical' | 'slight_asymmetry' | 'unclear'
+    contour: 'well_defined' | 'soft' | 'unclear'
+    surface: 'smooth' | 'mildly_dry' | 'unclear'
+    evaluable: boolean
+    limitationReason: string | null
+    confidence: number
   }
 
   doctor_notes?: string

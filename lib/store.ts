@@ -25,6 +25,7 @@ interface LeadAnalysisUpdate {
   radar_analysis?: Lead['radar_analysis']
   analysis_source?: Lead['analysis_source']
   trust_pipeline?: Lead['trust_pipeline']
+  lip_analysis?: Lead['lip_analysis']
   status?: LeadStatus
 }
 

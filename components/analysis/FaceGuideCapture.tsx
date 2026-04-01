@@ -51,19 +51,38 @@ type InitState = 'loading' | 'ready' | 'error'
 type ValidationPhase = 'idle' | 'detecting' | 'tracking' | 'stabilizing' | 'validated' | 'advancing'
 
 // ─── Constants ──────────────────────────────────────────────
-const AUTO_CAPTURE_QUALITY_THRESHOLD = 0.82
-const VALIDATION_HOLD_MS = 1200
+const AUTO_CAPTURE_QUALITY_THRESHOLD = 0.85
+const VALIDATION_HOLD_MS = 1400
 const ADVANCE_DELAY_MS = 600
-const FAILSAFE_MS = 8000
+const FAILSAFE_MS = 10000
 const BEST_FRAME_BUFFER_SIZE = 20
 const BEST_FRAME_WINDOW_MS = 3000
+const STABILITY_FRAMES_REQUIRED = 10
+
+// ─── Strict READY gate ─────────────────────────────────────
+// Capture is only allowed when ALL of these conditions are met simultaneously.
+// This prevents weak frames from ever being captured.
+function isReadyForCapture(status: FaceGuideStatus): boolean {
+  const { qualityBreakdown: qb } = status
+  return (
+    status.faceDetected &&
+    status.allOk &&
+    status.faceLocked &&
+    qb.distance >= 0.55 &&
+    qb.alignment >= 0.55 &&
+    qb.lighting >= 0.50 &&
+    qb.sharpness >= 0.50 &&
+    qb.stability >= 0.50 &&
+    status.qualityScore >= AUTO_CAPTURE_QUALITY_THRESHOLD
+  )
+}
 
 const TIPS = [
-  'Nötr ifade kullanın',
-  'Saçlar yüzünüzü kapatmasın',
-  'Gözlük varsa çıkarın',
-  'Doğal ışık tercih edin',
-  'Arka planınız düz olsun',
+  'Doğal ve nötr bir ifade koruyun',
+  'Saçlarınız yüzünüzü örtmesin',
+  'Varsa gözlüğünüzü çıkarın',
+  'Doğal, dengeli ışık tercih edin',
+  'Sade bir arka plan en iyi sonucu verir',
 ]
 const MULTI_LABELS: Record<MultiStep, string> = {
   front: 'Önden',
@@ -397,6 +416,11 @@ function diagnoseCameraError(err: unknown): string {
   }
 }
 
+// ─── Target aspect ratio for the capture frame ─────────────
+// 3:4 portrait — matches the UI container and prevents distortion.
+// All capture/mesh canvases use this ratio for consistency.
+const TARGET_ASPECT = 3 / 4
+
 async function acquireCamera(): Promise<MediaStream> {
   if (typeof window !== 'undefined' && !window.isSecureContext) {
     throw new DOMException('Kamera HTTPS veya localhost gerektirir.', 'SecurityError')
@@ -404,25 +428,20 @@ async function acquireCamera(): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new DOMException('Bu tarayıcı kamera erişimini desteklemiyor.', 'NotFoundError')
   }
-  try {
-    return await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 } },
-    })
-  } catch (err) {
-    if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'NotFoundError')) throw err
+  // Prefer 3:4 portrait to match the UI frame exactly
+  const portraitConstraints = [
+    { facingMode: 'user' as const, width: { ideal: 720 }, height: { ideal: 960 } },
+    { facingMode: 'user' as const, width: { ideal: 640 }, height: { ideal: 480 } },
+    { facingMode: 'user' as const },
+  ]
+  for (const constraints of portraitConstraints) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({ video: constraints })
+    } catch (err) {
+      if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'NotFoundError')) throw err
+    }
   }
-  try {
-    return await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-    })
-  } catch (err) {
-    if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'NotFoundError')) throw err
-  }
-  try {
-    return await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'NotAllowedError') throw err
-  }
+  // Last resort: enumerate devices
   try {
     const devices = await navigator.mediaDevices.enumerateDevices()
     const videoDevices = devices.filter((d) => d.kind === 'videoinput')
@@ -434,6 +453,46 @@ async function acquireCamera(): Promise<MediaStream> {
     if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'NotFoundError')) throw err
   }
   return await navigator.mediaDevices.getUserMedia({ video: true })
+}
+
+/**
+ * Captures a center-cropped 3:4 frame from the video, matching exactly
+ * what the user sees in the UI. Prevents stretched or squeezed faces.
+ */
+function captureAlignedFrame(video: HTMLVideoElement, canvas: HTMLCanvasElement): string | null {
+  const vw = video.videoWidth
+  const vh = video.videoHeight
+  if (vw === 0 || vh === 0) return null
+
+  const videoAspect = vw / vh
+  let sx = 0, sy = 0, sw = vw, sh = vh
+
+  if (videoAspect > TARGET_ASPECT) {
+    // Video is wider than 3:4 — crop sides
+    sw = Math.round(vh * TARGET_ASPECT)
+    sx = Math.round((vw - sw) / 2)
+  } else if (videoAspect < TARGET_ASPECT) {
+    // Video is taller than 3:4 — crop top/bottom
+    sh = Math.round(vw / TARGET_ASPECT)
+    sy = Math.round((vh - sh) / 2)
+  }
+
+  // Output at a clean resolution
+  const outW = Math.min(sw, 720)
+  const outH = Math.round(outW / TARGET_ASPECT)
+  canvas.width = outW
+  canvas.height = outH
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  // Mirror horizontally (front camera) and draw cropped region
+  ctx.resetTransform()
+  ctx.translate(outW, 0)
+  ctx.scale(-1, 1)
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH)
+
+  return canvas.toDataURL('image/jpeg', 0.92)
 }
 
 // ─── Best-frame scoring ─────────────────────────────────────
@@ -462,6 +521,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
   const validationStartRef = useRef<number | null>(null)
   const faceFirstSeenRef = useRef<number | null>(null)
   const frameBufferRef = useRef<ScoredFrame[]>([])
+  const stableReadyFrames = useRef(0)
 
   const [initState, setInitState] = useState<InitState>('loading')
   const [initError, setInitError] = useState<string | null>(null)
@@ -489,16 +549,11 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
     if (buffer.length > 0) {
       return buffer.reduce((a, b) => (b.score > a.score ? b : a)).dataUrl
     }
+    // Fallback: capture current frame with proper alignment
     const video = videoRef.current
     const canvas = captureCanvasRef.current
-    if (video && canvas && video.videoWidth > 0) {
-      canvas.width = video.videoWidth; canvas.height = video.videoHeight
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        ctx.resetTransform(); ctx.translate(canvas.width, 0); ctx.scale(-1, 1)
-        ctx.drawImage(video, 0, 0)
-        return canvas.toDataURL('image/jpeg', 0.92)
-      }
+    if (video && canvas) {
+      return captureAlignedFrame(video, canvas)
     }
     return null
   }, [])
@@ -527,6 +582,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
     validationStartRef.current = null
     faceFirstSeenRef.current = null
     frameBufferRef.current = []
+    stableReadyFrames.current = 0
     setPhase('idle')
     setValidationProgress(0)
     setFailsafeActive(false)
@@ -628,7 +684,15 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
           // Phase transitions
           if (phase === 'detecting' || phase === 'idle') setPhase('tracking')
 
-          if (guide.qualityScore >= AUTO_CAPTURE_QUALITY_THRESHOLD && guide.faceLocked && !preview) {
+          // Strict READY gate: all sub-scores must meet minimums
+          const readyNow = isReadyForCapture(guide)
+          if (readyNow) {
+            stableReadyFrames.current++
+          } else {
+            stableReadyFrames.current = 0
+          }
+
+          if (readyNow && stableReadyFrames.current >= STABILITY_FRAMES_REQUIRED && !preview) {
             if (!validationStartRef.current) {
               validationStartRef.current = now
               setPhase('stabilizing')
@@ -639,21 +703,19 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
               triggerAutoAdvance()
             }
           } else if (phase === 'stabilizing' || phase === 'tracking') {
-            validationStartRef.current = null
-            setValidationProgress(0)
-            if (phase === 'stabilizing') setPhase('tracking')
+            if (!readyNow) {
+              validationStartRef.current = null
+              setValidationProgress(0)
+              if (phase === 'stabilizing') setPhase('tracking')
+            }
           }
 
-          // Buffer best frames
+          // Buffer best frames — uses aligned 3:4 capture to match UI
           if (guide.qualityScore >= 0.6 && !preview && phase !== 'validated' && phase !== 'advancing') {
             const cc = captureCanvasRef.current
             if (cc && video.videoWidth > 0) {
-              cc.width = video.videoWidth; cc.height = video.videoHeight
-              const cctx = cc.getContext('2d')
-              if (cctx) {
-                cctx.resetTransform(); cctx.translate(cc.width, 0); cctx.scale(-1, 1)
-                cctx.drawImage(video, 0, 0)
-                const dataUrl = cc.toDataURL('image/jpeg', 0.92)
+              const dataUrl = captureAlignedFrame(video, cc)
+              if (dataUrl) {
                 frameBufferRef.current.push({ dataUrl, score: computeFrameScore(guide), time: now })
                 const cutoff = now - BEST_FRAME_WINDOW_MS
                 frameBufferRef.current = frameBufferRef.current.filter((f) => f.time > cutoff).slice(-BEST_FRAME_BUFFER_SIZE)
@@ -678,8 +740,9 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
     return () => cancelAnimationFrame(animFrameRef.current)
   }, [initState, preview, processFrame])
 
-  // Manual capture (failsafe)
+  // Manual capture — only allowed when READY (all quality gates passed)
   const takeSnapshot = () => {
+    if (!isReadyForCapture(status)) return
     const dataUrl = captureBestFrame()
     if (!dataUrl) return
     setShowFlash(true); setTimeout(() => setShowFlash(false), 350)
@@ -714,14 +777,14 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
     switch (phase) {
       case 'idle':
       case 'detecting':
-        return isMulti ? MULTI_INSTRUCTIONS[multiStep] : 'Yüz algılanıyor'
+        return isMulti ? MULTI_INSTRUCTIONS[multiStep] : 'Yüzünüz aranıyor'
       case 'tracking':
         return status.mainMessage
       case 'stabilizing':
-        return 'Sabit kalın'
+        return 'Harika, biraz daha sabit kalın'
       case 'validated':
       case 'advancing':
-        return 'Yüz doğrulandı'
+        return 'Mükemmel — çekim tamamlandı'
       default:
         return status.mainMessage
     }
@@ -787,10 +850,10 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
       </div>
 
       {/* ═══ SECTION 2: Camera preview (flex-1, fills available space) ═══ */}
-      <div className="flex-1 min-h-0 flex items-center justify-center px-4 py-2 sm:py-4">
+      <div className="flex-1 min-h-0 flex items-center justify-center px-3 sm:px-4 py-2 sm:py-4">
         <div
-          className="relative w-full max-w-[min(88vw,400px)] sm:max-w-[340px] rounded-[20px] sm:rounded-[28px] overflow-hidden border border-[rgba(214,185,140,0.12)] shadow-[0_0_60px_rgba(0,0,0,0.5),0_0_0_1px_rgba(214,185,140,0.05)]"
-          style={{ aspectRatio: '3/4', maxHeight: '100%' }}
+          className="relative w-full rounded-[20px] sm:rounded-[28px] overflow-hidden border border-[rgba(214,185,140,0.12)] shadow-[0_0_60px_rgba(0,0,0,0.5),0_0_0_1px_rgba(214,185,140,0.05)]"
+          style={{ aspectRatio: '3/4', maxWidth: 'min(92vw, 420px)', maxHeight: '100%' }}
         >
           {/* Loading */}
           {initState === 'loading' && (
@@ -927,7 +990,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
             )}
             {(phase === 'idle' || phase === 'detecting') && !status.faceDetected && (
               <p className="font-body text-[10px] text-white/20 text-center">
-                Yüzünüzü kameraya gösterin
+                Yüzünüzü çerçevenin içine yerleştirin
               </p>
             )}
           </div>
@@ -964,12 +1027,24 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
               {/* Capture button / status */}
               {failsafeActive && status.faceDetected && phase !== 'validated' && phase !== 'advancing' ? (
                 <div className="flex flex-col items-center gap-1.5">
-                  <button type="button" onClick={takeSnapshot} className="group relative" aria-label="Fotoğraf çek">
-                    <div className="w-[64px] h-[64px] sm:w-[76px] sm:h-[76px] rounded-full border-[3px] border-[rgba(196,163,90,0.4)] shadow-[0_0_16px_rgba(196,163,90,0.12)] transition-all duration-500 flex items-center justify-center">
-                      <div className="w-[52px] h-[52px] sm:w-[62px] sm:h-[62px] rounded-full bg-[rgba(255,255,255,0.12)] group-hover:bg-[rgba(255,255,255,0.22)] group-active:scale-90 transition-all duration-300" />
+                  <button
+                    type="button"
+                    onClick={takeSnapshot}
+                    disabled={!isReadyForCapture(status)}
+                    className="group relative disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="Fotoğraf çek"
+                  >
+                    <div className={`w-[64px] h-[64px] sm:w-[76px] sm:h-[76px] rounded-full border-[3px] transition-all duration-500 flex items-center justify-center ${
+                      isReadyForCapture(status)
+                        ? 'border-[rgba(196,163,90,0.4)] shadow-[0_0_16px_rgba(196,163,90,0.12)]'
+                        : 'border-[rgba(255,255,255,0.08)]'
+                    }`}>
+                      <div className="w-[52px] h-[52px] sm:w-[62px] sm:h-[62px] rounded-full bg-[rgba(255,255,255,0.12)] group-hover:bg-[rgba(255,255,255,0.22)] group-active:scale-90 transition-all duration-300 group-disabled:bg-[rgba(255,255,255,0.04)]" />
                     </div>
                   </button>
-                  <p className="font-body text-[9px] text-white/20 tracking-[0.12em] uppercase">Manuel çekim</p>
+                  <p className="font-body text-[9px] text-white/20 tracking-[0.12em] uppercase">
+                    {isReadyForCapture(status) ? 'Manuel çekim' : 'Pozisyonunuzu ayarlayın'}
+                  </p>
                 </div>
               ) : phase === 'validated' || phase === 'advancing' ? (
                 <p className="font-body text-[11px] text-[#00DC82] tracking-[0.1em] uppercase py-2">Çekim tamamlandı</p>
@@ -979,7 +1054,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', onMultiC
                     <div className="w-[52px] h-[52px] sm:w-[62px] sm:h-[62px] rounded-full bg-[rgba(255,255,255,0.04)]" />
                   </div>
                   <p className="font-body text-[9px] text-white/20 tracking-[0.12em] uppercase">
-                    {phase === 'stabilizing' ? 'Doğrulanıyor...' : 'Otomatik çekim'}
+                    {phase === 'stabilizing' ? 'Doğrulanıyor…' : 'Otomatik çekim aktif'}
                   </p>
                 </div>
               )}

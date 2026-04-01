@@ -29,7 +29,7 @@ function RadialGauge({ score, label, color }: { score: number; label: string; co
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="relative">
-        <svg width="88" height="88" viewBox="0 0 88 88" fill="none">
+        <svg className="w-[96px] h-[96px] sm:w-[88px] sm:h-[88px]" viewBox="0 0 88 88" fill="none">
           {/* Track */}
           <circle cx="44" cy="44" r={r} stroke="rgba(248,246,242,0.05)" strokeWidth="3.5" />
           {/* Fill */}
@@ -49,22 +49,22 @@ function RadialGauge({ score, label, color }: { score: number; label: string; co
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
           <span
-            className="font-mono text-[22px] font-light leading-none"
+            className="font-mono text-[24px] sm:text-[22px] font-light leading-none"
             style={{ color, animation: mounted ? 'numberBloom 0.5s ease-out both' : 'none' }}
           >{score}</span>
-          <span className="font-body text-[8px] text-[rgba(248,246,242,0.25)] tracking-wider uppercase">/ 100</span>
+          <span className="font-body text-[9px] sm:text-[8px] text-[rgba(248,246,242,0.25)] tracking-wider uppercase">/ 100</span>
         </div>
       </div>
-      <span className="font-body text-[9px] tracking-[0.18em] uppercase text-center text-[rgba(248,246,242,0.4)]">{label}</span>
+      <span className="font-body text-[10px] sm:text-[9px] tracking-[0.16em] sm:tracking-[0.18em] uppercase text-center text-[rgba(248,246,242,0.45)] sm:text-[rgba(248,246,242,0.4)]">{label}</span>
     </div>
   )
 }
 
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between items-center py-2.5 border-b border-[rgba(214,185,140,0.05)] last:border-b-0 group">
-      <span className="font-body text-[12px] text-[rgba(248,246,242,0.42)] group-hover:text-[rgba(248,246,242,0.6)] transition-colors duration-200">{label}</span>
-      <span className="font-mono text-[14px] font-light text-[#F8F6F2] tabular-nums tracking-tight">{value}</span>
+    <div className="flex justify-between items-center py-3 sm:py-2.5 border-b border-[rgba(214,185,140,0.05)] last:border-b-0 group">
+      <span className="font-body text-[13px] sm:text-[12px] text-[rgba(248,246,242,0.45)] sm:text-[rgba(248,246,242,0.42)] group-hover:text-[rgba(248,246,242,0.6)] transition-colors duration-200">{label}</span>
+      <span className="font-mono text-[15px] sm:text-[14px] font-light text-[#F8F6F2] tabular-nums tracking-tight">{value}</span>
     </div>
   )
 }
@@ -282,7 +282,7 @@ function ScoresPanel({ aiScores, qualityScore }: {
 
       {/* Measurements table */}
       <div>
-        <p className="font-body text-[9px] tracking-[0.22em] uppercase text-[rgba(248,246,242,0.3)] mb-3">Ölçümler</p>
+        <p className="font-body text-[10px] sm:text-[9px] tracking-[0.20em] sm:tracking-[0.22em] uppercase text-[rgba(248,246,242,0.35)] sm:text-[rgba(248,246,242,0.3)] mb-3">Ölçümler</p>
         <MetricRow label="Yüz Genişlik / Uzunluk" value={aiScores.metrics.faceRatio.toFixed(2)} />
         <MetricRow label="Göz Mesafesi Oranı"      value={aiScores.metrics.eyeDistanceRatio.toFixed(2)} />
         <MetricRow label="Burun Genişliği Oranı"   value={aiScores.metrics.noseToFaceWidth.toFixed(2)} />
@@ -309,7 +309,7 @@ function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence
     return (
       <div className="flex flex-col gap-3">
         <p className="font-body text-[9px] tracking-[0.22em] uppercase text-[rgba(248,246,242,0.4)]">Yaş Tahmini</p>
-        <p className="font-body text-[12px] text-[rgba(248,246,242,0.35)] italic">Yaş tahmini yapılamadı</p>
+        <p className="font-body text-[12px] text-[rgba(248,246,242,0.35)] italic">Bu görüntüde yaş tahmini sınırlı güvenle değerlendirilememiştir.</p>
       </div>
     )
   }
@@ -406,7 +406,7 @@ function FocusAreasPanel({ focusAreas }: { focusAreas: NonNullable<Lead['focus_a
                   <span className="font-mono text-[18px] font-light leading-none" style={{ color }}>{area.score}</span>
                 </div>
               </div>
-              <p className="font-body text-[12px] text-[rgba(248,246,242,0.42)] leading-relaxed">{area.insight}</p>
+              <p className="font-body text-[13px] sm:text-[12px] text-[rgba(248,246,242,0.48)] sm:text-[rgba(248,246,242,0.42)] leading-[1.65] sm:leading-relaxed">{area.insight}</p>
               <div className="h-[2px] rounded-full bg-[rgba(248,246,242,0.05)] overflow-hidden mt-3">
                 <div
                   className="h-full rounded-full"
@@ -518,7 +518,7 @@ function WrinkleAnalysisPanel({ wrinkleScores }: { wrinkleScores: NonNullable<Le
                       <span className="font-mono text-[17px] font-light leading-none" style={{ color }}>{region.score}</span>
                     </div>
                   </div>
-                  <p className="font-body text-[11px] text-[rgba(248,246,242,0.40)] leading-relaxed">{region.insight}</p>
+                  <p className="font-body text-[12px] sm:text-[11px] text-[rgba(248,246,242,0.45)] sm:text-[rgba(248,246,242,0.40)] leading-relaxed">{region.insight}</p>
                   <div className="h-[2px] rounded-full bg-[rgba(248,246,242,0.05)] overflow-hidden mt-2.5">
                     <div className="h-full rounded-full" style={{ width: `${region.score}%`, background: stripGrad, boxShadow: `0 0 8px ${color}40` }} />
                   </div>
@@ -737,7 +737,8 @@ function ResultContent() {
   const trustFindings = trustPipeline?.findings ?? []
   const trustCaveat = trustPipeline?.quality_caveat
   const trustConfidence = trustPipeline?.overall_confidence ?? 0
-  const isBlocked = trustPipeline?.quality_gate_verdict === 'block'
+  const strongFeatures = trustPipeline?.strong_features ?? []
+  const limitedAreas = trustPipeline?.limited_areas
   // Photo may have been stripped from localStorage (quota protection).
   // Recover from sessionStorage bridge if needed.
   const photoUrl = selectedLead.patient_photo_url || (id ? getPhoto(id) : null)
@@ -746,11 +747,11 @@ function ResultContent() {
     <div className="theme-dark min-h-screen relative" style={{ background: 'linear-gradient(160deg, #0A0908 0%, #141110 20%, #0F1214 50%, #0A0B0D 100%)' }}>
       {/* Ambient depth glows — cinematic layering */}
       <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 70% 50% at 25% 20%, rgba(214,185,140,0.035) 0%, transparent 60%), radial-gradient(ellipse 60% 40% at 80% 75%, rgba(61,155,122,0.02) 0%, transparent 50%), radial-gradient(ellipse 80% 60% at 50% 50%, rgba(10,9,8,0.4) 0%, transparent 70%)' }} />
-      <div className="max-w-5xl mx-auto flex flex-col px-5 sm:px-8" style={{ paddingTop: 'clamp(5rem, 10vh, 8rem)', paddingBottom: 'clamp(3rem, 6vh, 5rem)', gap: 'clamp(2.5rem, 5vw, 4rem)' }}>
+      <div className="max-w-5xl mx-auto flex flex-col px-4 sm:px-8" style={{ paddingTop: 'clamp(3.5rem, 8vh, 8rem)', paddingBottom: 'clamp(2.5rem, 6vh, 5rem)', gap: 'clamp(2rem, 4vw, 4rem)' }}>
         {/* ── Premium Header ──────────────────────────── */}
         <div className="text-center flex flex-col items-center" style={{ animation: 'heroFadeUp 0.8s ease-out both' }}>
           {/* Floating icon */}
-          <div className="relative w-16 h-16 mb-8">
+          <div className="relative w-14 h-14 sm:w-16 sm:h-16 mb-6 sm:mb-8">
             <div className="absolute inset-[-8px] rounded-full" style={{ background: 'radial-gradient(circle, rgba(61,155,122,0.15) 0%, transparent 70%)', animation: 'subtleFloat 4s ease-in-out infinite' }} />
             <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: 'rgba(61,155,122,0.06)', border: '1px solid rgba(61,155,122,0.18)' }}>
               <svg className="w-6 h-6 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -760,7 +761,7 @@ function ResultContent() {
           </div>
 
           {/* Status label */}
-          <span className="text-label text-[rgba(214,185,140,0.50)] mb-5">
+          <span className="text-label text-[rgba(214,185,140,0.55)] sm:text-[rgba(214,185,140,0.50)] mb-4 sm:mb-5">
             {isHumanLocal ? 'AI Analiz Tamamlandı' : isCombined ? 'AI Analiz Tamamlandı' : isFallback ? 'Ön Değerlendirme (Sınırlı)' : hasAI || hasSkin ? 'AI Analiz Tamamlandı' : 'Ön Değerlendirme Tamamlandı'}
           </span>
 
@@ -776,47 +777,45 @@ function ResultContent() {
             <div className="h-px w-20" style={{ background: 'linear-gradient(90deg, rgba(214,185,140,0.30), transparent)', animation: 'lineExpand 0.8s ease-out 0.3s both', transformOrigin: 'left' }} />
           </div>
 
-          {/* Capture confidence notice */}
-          {captureConfidence && captureConfidence !== 'high' && (
-            <div className="mt-6 max-w-md">
-              <div className="flex items-center justify-center gap-2.5 px-5 py-2.5 rounded-full" style={{
-                background: 'rgba(229,168,59,0.05)',
-                border: '1px solid rgba(229,168,59,0.12)',
-              }}>
-                <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#E5A83B' }} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                </svg>
-                <span className="font-body text-[11px] text-[rgba(229,168,59,0.75)]">
-                  Fotoğraf ideal koşullar dışında çekildi — sonuçlar referans niteliğindedir
-                </span>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* ── Trust Pipeline Quality Caveat ────────────────────── */}
-        {hasTrust && trustCaveat && (
-          <div className="max-w-2xl mx-auto w-full" style={{ animation: 'sectionReveal 0.6s ease-out 0.1s both' }}>
-            <div className="flex items-start gap-3 px-5 py-4 rounded-xl border border-[rgba(229,168,59,0.12)] bg-[rgba(229,168,59,0.04)]">
-              <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#E5A83B]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
-              </svg>
-              <div className="flex flex-col gap-1">
-                <span className="font-body text-[12px] text-[rgba(229,168,59,0.85)] leading-[1.6]">
-                  {trustCaveat}
-                </span>
-                {trustPipeline.metrics_suppressed > 0 && (
-                  <span className="font-body text-[10px] text-[rgba(229,168,59,0.50)]">
-                    {trustPipeline.metrics_suppressed} bölge yetersiz güven nedeniyle gösterilmemiştir.
-                  </span>
-                )}
+        {/* ── Consolidated Status Banner (single warning area) ────── */}
+        {(() => {
+          const warningLines: string[] = []
+          if (captureConfidence && captureConfidence !== 'high') {
+            warningLines.push('Bazı alanlarda doğruluk sınırlı olabilir.')
+          }
+          if (hasTrust && trustCaveat) {
+            // Filter out any legacy block-style messages
+            const safeCaveat = trustCaveat
+              .replace(/^Analiz yapılamadı[^.]*\.\s*/i, '')
+              .replace(/^Analiz için görüntü uygun değil\.\s*/i, '')
+            if (safeCaveat.trim()) warningLines.push(safeCaveat)
+          }
+          if (hasTrust && trustPipeline.metrics_suppressed > 3) {
+            warningLines.push(`${trustPipeline.metrics_suppressed} bölge yetersiz güven nedeniyle gösterilmemiştir.`)
+          }
+          if (warningLines.length === 0) return null
+          return (
+            <div className="max-w-2xl mx-auto w-full" style={{ animation: 'sectionReveal 0.6s ease-out 0.1s both' }}>
+              <div className="flex items-start gap-3 px-5 py-4 rounded-xl border border-[rgba(229,168,59,0.12)] bg-[rgba(229,168,59,0.04)]">
+                <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#E5A83B]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
+                </svg>
+                <div className="flex flex-col gap-1">
+                  {warningLines.map((line, i) => (
+                    <span key={i} className="font-body text-[13px] sm:text-[12px] text-[rgba(229,168,59,0.85)] leading-[1.7] sm:leading-[1.6]">
+                      {line}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* ── Trust Pipeline Confidence Badge ────────────────────── */}
-        {hasTrust && !isBlocked && (
+        {hasTrust && (
           <div className="flex justify-center" style={{ animation: 'sectionReveal 0.5s ease-out 0.15s both' }}>
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[rgba(214,185,140,0.08)] bg-[rgba(214,185,140,0.03)]">
               <div
@@ -825,7 +824,7 @@ function ResultContent() {
                   background: trustConfidence >= 70 ? '#3D9B7A' : trustConfidence >= 40 ? '#E5A83B' : '#A05252',
                 }}
               />
-              <span className="font-body text-[10px] tracking-[0.12em] text-[rgba(248,246,242,0.40)]">
+              <span className="font-body text-[11px] sm:text-[10px] tracking-[0.10em] sm:tracking-[0.12em] text-[rgba(248,246,242,0.45)] sm:text-[rgba(248,246,242,0.40)]">
                 Analiz Güveni: {trustConfidence >= 70 ? 'Yüksek' : trustConfidence >= 40 ? 'Orta' : 'Düşük'}
                 {trustPipeline.young_face_active && ' · Genç Yüz Profili'}
               </span>
@@ -855,9 +854,9 @@ function ResultContent() {
               <PhotoPlaceholder />
             )}
             {/* Photo quality badge */}
-            <div className="flex items-center justify-center gap-2.5 py-1">
+            <div className="flex items-center justify-center gap-2.5 py-2 sm:py-1">
               <div className="w-1.5 h-1.5 rounded-full bg-[rgba(61,155,122,0.35)]" />
-              <span className="font-body text-[10px] tracking-[0.14em] text-[rgba(248,246,242,0.30)]">
+              <span className="font-body text-[11px] sm:text-[10px] tracking-[0.12em] sm:tracking-[0.14em] text-[rgba(248,246,242,0.35)] sm:text-[rgba(248,246,242,0.30)]">
                 Fotoğraf Kalitesi: {photoQuality ? photoQualityLabels[photoQuality] : 'Değerlendiriliyor'}
               </span>
             </div>
@@ -919,10 +918,10 @@ function ResultContent() {
                     </svg>
                   </div>
                   <p className="font-body text-[14px] text-[rgba(248,246,242,0.55)] leading-relaxed">
-                    AI analiz sonuçları henüz hazır değil veya oluşturulamadı.
+                    Analiz sonuçları hazırlanıyor.
                   </p>
                   <p className="font-body text-[12px] text-[rgba(248,246,242,0.30)] leading-relaxed">
-                    Bazı metrikler sınırlı kalite nedeniyle üretilememiş olabilir.
+                    Sonuçlar klinik değerlendirme yerine geçmez.
                   </p>
                 </div>
               </GlassCard>
@@ -932,12 +931,42 @@ function ResultContent() {
             <GlassCard elevated padding="lg" rounded="xl" className="[animation:sectionReveal_0.6s_ease-out_0.55s_both]">
               <div className="flex flex-col gap-7">
                 <div>
-                  <span className="text-label text-[rgba(248,246,242,0.40)] mb-3 block">Ön Değerlendirme</span>
-                  <p className="font-body text-[14px] text-[rgba(248,246,242,0.55)] leading-[1.8]">
-                    {selectedLead.patient_summary?.summary_text ??
-                      'Yüklediğiniz görsel ve paylaştığınız bilgiler üzerinden yapılan ön incelemede, doktor değerlendirmesine uygun odak alanları çıkarıldı.'}
+                  <span className="text-label text-[rgba(248,246,242,0.45)] sm:text-[rgba(248,246,242,0.40)] mb-3 block">Ön Değerlendirme</span>
+                  <p className="font-body text-[15px] sm:text-[14px] text-[rgba(248,246,242,0.58)] sm:text-[rgba(248,246,242,0.55)] leading-[1.85] sm:leading-[1.8]">
+                    {(() => {
+                      const raw = selectedLead.patient_summary?.summary_text
+                        ?? 'Analiz tamamlandı. Sonuçlar fotoğraf kalite kriterlerini karşılayan kare üzerinden oluşturuldu.'
+                      // Strip any legacy block messages that may have leaked into stored data
+                      return raw
+                        .replace(/^Analiz yapılamadı[^.]*\.\s*/gi, '')
+                        .replace(/^Analiz için görüntü uygun değil\.\s*/gi, '')
+                        || 'Analiz tamamlandı. Sonuçlar fotoğraf kalite kriterlerini karşılayan kare üzerinden oluşturuldu.'
+                    })()}
                   </p>
                 </div>
+
+                {/* Strong Features — system prompt section 2 */}
+                {strongFeatures.length > 0 && (
+                  <>
+                    <ThinLine />
+                    <div>
+                      <span className="text-label text-[rgba(248,246,242,0.35)] sm:text-[rgba(248,246,242,0.30)] mb-4 block">Güçlü Özellikler</span>
+                      <div className="flex flex-col gap-2.5 sm:gap-2">
+                        {strongFeatures.map((feature, i) => (
+                          <div
+                            key={i}
+                            className="flex gap-3 items-start rounded-md border border-[rgba(61,155,122,0.12)] bg-[rgba(61,155,122,0.03)] px-4 py-3.5 sm:py-3"
+                          >
+                            <svg className="w-4 h-4 sm:w-3.5 sm:h-3.5 mt-0.5 flex-shrink-0 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75" />
+                            </svg>
+                            <span className="font-body text-[13px] sm:text-[12px] text-[rgba(248,246,242,0.58)] sm:text-[rgba(248,246,242,0.55)] leading-[1.75] sm:leading-[1.7]">{feature}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <ThinLine />
 
@@ -945,12 +974,12 @@ function ResultContent() {
                 {hasTrust && trustFindings.length > 0 ? (
                   <>
                     <div>
-                      <span className="text-label text-[rgba(248,246,242,0.30)] mb-4 block">Estetik Tespitler</span>
-                      <div className="flex flex-col gap-2.5">
+                      <span className="text-label text-[rgba(248,246,242,0.35)] sm:text-[rgba(248,246,242,0.30)] mb-4 block">Estetik Tespitler</span>
+                      <div className="flex flex-col gap-3 sm:gap-2.5">
                         {trustFindings.map((finding, i) => (
                           <div
                             key={i}
-                            className="flex gap-3 items-start rounded-md border px-4 py-3"
+                            className="flex gap-3 items-start rounded-md border px-4 py-3.5 sm:py-3"
                             style={{
                               borderColor: finding.isSoft ? 'rgba(229,168,59,0.10)' : 'rgba(214,185,140,0.08)',
                               background: finding.isSoft ? 'rgba(229,168,59,0.02)' : 'rgba(214,185,140,0.025)',
@@ -967,9 +996,9 @@ function ResultContent() {
                               />
                             </div>
                             <div className="flex flex-col gap-1">
-                              <span className="font-body text-[12px] text-[rgba(248,246,242,0.55)] leading-[1.7]">{finding.text}</span>
+                              <span className="font-body text-[13px] sm:text-[12px] text-[rgba(248,246,242,0.58)] sm:text-[rgba(248,246,242,0.55)] leading-[1.75] sm:leading-[1.7]">{finding.text}</span>
                               {finding.isSoft && (
-                                <span className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(229,168,59,0.50)]">sınırlı güven</span>
+                                <span className="font-body text-[10px] sm:text-[9px] tracking-[0.1em] uppercase text-[rgba(229,168,59,0.55)] sm:text-[rgba(229,168,59,0.50)]">sınırlı güven</span>
                               )}
                             </div>
                           </div>
@@ -1000,14 +1029,30 @@ function ResultContent() {
                   </>
                 ) : null}
 
+                {/* Limited Areas — system prompt section 4 */}
+                {limitedAreas && (
+                  <>
+                    <div>
+                      <span className="text-label text-[rgba(248,246,242,0.30)] mb-3 block">Sınırlı Değerlendirme Alanları</span>
+                      <div className="flex gap-3 items-start rounded-md border border-[rgba(248,246,242,0.06)] bg-[rgba(248,246,242,0.015)] px-4 py-3">
+                        <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[rgba(248,246,242,0.25)]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                        </svg>
+                        <span className="font-body text-[11px] text-[rgba(248,246,242,0.35)] leading-[1.7]">{limitedAreas}</span>
+                      </div>
+                    </div>
+                    <ThinLine />
+                  </>
+                )}
+
                 {/* Focus areas */}
                 <div>
-                  <span className="text-label text-[rgba(248,246,242,0.30)] mb-4 block">Odak Alanları</span>
+                  <span className="text-label text-[rgba(248,246,242,0.35)] sm:text-[rgba(248,246,242,0.30)] mb-4 block">Odak Alanları</span>
                   <div className="flex flex-wrap gap-2.5">
                     {focusAreas.map((area) => (
                       <span
                         key={area}
-                        className="font-body text-[11px] px-4 py-2 rounded-full border border-[rgba(214,185,140,0.10)] text-[rgba(214,185,140,0.65)] bg-[rgba(214,185,140,0.03)]"
+                        className="font-body text-[12px] sm:text-[11px] px-4 py-2.5 sm:py-2 rounded-full border border-[rgba(214,185,140,0.12)] sm:border-[rgba(214,185,140,0.10)] text-[rgba(214,185,140,0.70)] sm:text-[rgba(214,185,140,0.65)] bg-[rgba(214,185,140,0.04)] sm:bg-[rgba(214,185,140,0.03)]"
                       >
                         {area}
                       </span>
@@ -1016,16 +1061,16 @@ function ResultContent() {
                 </div>
 
                 {/* Next step info — elevated card */}
-                <div className="rounded-lg border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.5)] px-5 py-4">
-                  <span className="text-label-sm text-[rgba(248,246,242,0.30)] mb-2 block">
+                <div className="rounded-lg border border-[rgba(214,185,140,0.10)] sm:border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.5)] px-5 py-5 sm:py-4">
+                  <span className="text-label-sm text-[rgba(248,246,242,0.35)] sm:text-[rgba(248,246,242,0.30)] mb-2 block">
                     Sonraki Adım
                   </span>
-                  <p className="font-body text-[15px] font-light text-[#F8F6F2] tracking-[0.01em]">Doktor ön incelemesi ve randevu planlama</p>
+                  <p className="font-body text-[16px] sm:text-[15px] font-light text-[#F8F6F2] tracking-[0.01em]">Doktor ön incelemesi ve randevu planlama</p>
                 </div>
 
                 {/* Disclaimer */}
-                <div className="rounded-md px-5 py-4" style={{ background: 'rgba(214,185,140,0.02)', border: '1px solid rgba(214,185,140,0.05)' }}>
-                  <p className="font-body text-[11px] text-[rgba(248,246,242,0.28)] leading-[1.7] italic">
+                <div className="rounded-md px-5 py-4" style={{ background: 'rgba(214,185,140,0.02)', border: '1px solid rgba(214,185,140,0.06)' }}>
+                  <p className="font-body text-[12px] sm:text-[11px] text-[rgba(248,246,242,0.32)] sm:text-[rgba(248,246,242,0.28)] leading-[1.75] sm:leading-[1.7] italic">
                     Bu sistem doktor kararını destekler, yerine geçmez. Kesin tedavi planı klinik muayene ve doktor değerlendirmesi sonrasında oluşturulur.
                   </p>
                 </div>
@@ -1035,7 +1080,7 @@ function ResultContent() {
         </div>
 
         {/* ── CTA Buttons ─────────────────────────────── */}
-        <div className="flex flex-col gap-4 max-w-md mx-auto w-full" style={{ animation: 'sectionReveal 0.6s ease-out 0.6s both' }}>
+        <div className="flex flex-col gap-4 max-w-md mx-auto w-full px-1 sm:px-0" style={{ animation: 'sectionReveal 0.6s ease-out 0.6s both' }}>
           <a
             href={contact.whatsappBookingUrl}
             target="_blank"
@@ -1058,8 +1103,8 @@ function ResultContent() {
       </div>
 
       {/* ── Trust Pipeline Disclaimer ──────────────────────── */}
-      <div className="max-w-3xl mx-auto px-5 sm:px-8 pb-8">
-        <p className="font-body text-[10px] text-[rgba(248,246,242,0.20)] leading-[1.7] text-center">
+      <div className="max-w-3xl mx-auto px-4 sm:px-8 pb-8">
+        <p className="font-body text-[11px] sm:text-[10px] text-[rgba(248,246,242,0.22)] sm:text-[rgba(248,246,242,0.20)] leading-[1.75] sm:leading-[1.7] text-center">
           Bu değerlendirme AI destekli bir ön analiz olup tanı niteliği taşımamaktadır.
           Kesin değerlendirme ve tedavi kararı yalnızca klinik muayene sonrasında uzman hekim tarafından verilir.
         </p>

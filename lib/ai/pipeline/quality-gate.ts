@@ -51,7 +51,7 @@ export function runQualityGate(
       score: 0,
       blockers: ['no_face'],
       warnings: [],
-      blockMessage: 'Analiz için görüntü uygun değil. Lütfen yüzünüzün net göründüğü bir fotoğraf ile tekrar deneyin.',
+      blockMessage: 'Yüz tespit edilemedi — analiz sınırlı veri ile tamamlandı.',
       rawAssessment: null,
     }
   }
@@ -115,11 +115,19 @@ export function runQualityGate(
   }
 
   // ── VERDICT ──
+  // Only truly unrecoverable cases block (no face detected at all).
+  // Single quality issues degrade — analysis still runs with a warning.
   let verdict: QualityGateVerdict
 
-  if (blockers.length > 0) {
+  const hasHardBlock = blockers.includes('no_face')
+  const hasCriticalBlockers = blockers.length >= 2
+
+  if (hasHardBlock || hasCriticalBlockers) {
     verdict = 'block'
-  } else if (warnings.length >= 3 || iq.overallScore < config.minQualityScore) {
+  } else if (blockers.length > 0 || warnings.length >= 3 || iq.overallScore < config.minQualityScore) {
+    // Single blockers (e.g. only partial_face, only too_dark) → degrade, don't block
+    verdict = 'degrade'
+  } else if (warnings.length > 0) {
     verdict = 'degrade'
   } else {
     verdict = 'pass'
@@ -131,7 +139,7 @@ export function runQualityGate(
     : undefined
 
   const degradeMessage = verdict === 'degrade'
-    ? buildDegradeMessage(warnings)
+    ? buildDegradeMessage(warnings, blockers)
     : undefined
 
   return {
@@ -212,46 +220,59 @@ function buildBlockMessage(blockers: QualityBlocker[]): string {
   for (const b of blockers) {
     switch (b) {
       case 'no_face':
-        reasons.push('yüz tespit edilemedi')
+        reasons.push('sınırlı yüz tespiti')
         break
       case 'partial_face':
-        reasons.push('yüz tam olarak görüntülenemedi')
+        reasons.push('kısmi yüz görünümü')
         break
       case 'extreme_angle':
-        reasons.push('yüz açısı çok yüksek — lütfen kameraya doğrudan bakın')
+        reasons.push('yüksek açı sapması')
         break
       case 'too_dark':
-        reasons.push('görüntü çok karanlık')
+        reasons.push('düşük aydınlatma')
         break
       case 'too_bright':
-        reasons.push('görüntü aşırı parlak')
+        reasons.push('aşırı parlaklık')
         break
       case 'too_blurry':
-        reasons.push('görüntü çok bulanık')
+        reasons.push('bulanık görüntü')
         break
       case 'too_low_resolution':
-        reasons.push('görüntü çözünürlüğü çok düşük')
+        reasons.push('düşük çözünürlük')
         break
       case 'heavy_filter':
-        reasons.push('güzellik filtresi tespit edildi — filtresiz fotoğraf gereklidir')
+        reasons.push('olası görüntü düzeltme')
         break
     }
   }
 
   if (reasons.length === 0) {
-    return 'Analiz için görüntü uygun değil. Lütfen tekrar deneyin.'
+    return 'Sonuçlar mevcut görüntü koşullarına göre oluşturulmuştur.'
   }
 
-  return `Analiz yapılamadı: ${reasons.join(', ')}. Lütfen dengeli ışıkta, filtresiz ve doğrudan kameraya bakarak tekrar deneyin.`
+  return `Sonuçlar mevcut görüntü koşullarına göre oluşturulmuştur (${reasons.join(', ')}).`
 }
 
-function buildDegradeMessage(warnings: QualityWarning[]): string {
+function buildDegradeMessage(warnings: QualityWarning[], blockers: QualityBlocker[] = []): string {
   const parts: string[] = []
+
+  // Include softened blockers as degrade-level notes
+  for (const b of blockers) {
+    switch (b) {
+      case 'partial_face': parts.push('kısmi yüz görüntüsü'); break
+      case 'extreme_angle': parts.push('belirgin açı farkı'); break
+      case 'too_dark': parts.push('düşük aydınlatma'); break
+      case 'too_bright': parts.push('yoğun parlaklık'); break
+      case 'too_blurry': parts.push('bulanıklık'); break
+      case 'too_low_resolution': parts.push('düşük çözünürlük'); break
+      case 'heavy_filter': parts.push('yazılımsal görüntü düzeltme'); break
+    }
+  }
 
   for (const w of warnings) {
     switch (w) {
       case 'moderate_angle':
-        parts.push('hafif açı sapması')
+        parts.push('hafif açı farkı')
         break
       case 'low_contrast':
         parts.push('düşük kontrast')
@@ -260,7 +281,7 @@ function buildDegradeMessage(warnings: QualityWarning[]): string {
         parts.push('hafif bulanıklık')
         break
       case 'mild_filter':
-        parts.push('olası görüntü düzeltme')
+        parts.push('olası yazılımsal düzeltme')
         break
       case 'uneven_lighting':
         parts.push('dengesiz aydınlatma')
@@ -269,8 +290,8 @@ function buildDegradeMessage(warnings: QualityWarning[]): string {
   }
 
   if (parts.length === 0) {
-    return 'Bu değerlendirme sınırlı görüntü kalitesi ile oluşturulmuştur — sonuçlar referans niteliğindedir.'
+    return 'Sonuçlar mevcut görüntü koşullarına göre oluşturulmuştur.'
   }
 
-  return `Görüntüde ${parts.join(', ')} tespit edildi — bu değerlendirme sınırlı veri içerir. Uzman değerlendirmesi önerilir.`
+  return `Görüntü koşulları (${parts.join(', ')}) dikkate alınarak analiz tamamlanmıştır.`
 }
