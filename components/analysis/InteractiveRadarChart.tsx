@@ -8,6 +8,7 @@ export interface ShowcaseRegion {
   id: string
   label: string
   score: number
+  confidence?: number
 }
 
 interface Props {
@@ -22,14 +23,17 @@ const VB = 500
 const CX = VB / 2
 const CY = VB / 2
 const R = VB * 0.34
-const LABEL_R = R + VB * 0.13
+const LABEL_R = R + VB * 0.155       // pushed out (was 0.13) for label breathing room
 const DOT_R = VB * 0.009
 const DOT_R_ACTIVE = VB * 0.014
 const STROKE_W = VB * 0.003
-const LABEL_FONT = VB * 0.036
-const LABEL_FONT_ACTIVE = VB * 0.042
+const LABEL_FONT = VB * 0.034        // slightly smaller (was 0.036) for long labels
+const LABEL_FONT_ACTIVE = VB * 0.040 // slightly smaller (was 0.042) for long labels
 const LEVELS = [0.25, 0.5, 0.75, 1.0]
 const MIN_VISUAL_PCT = 0.30
+
+// Extra padding around the VB so perimeter labels + active scores are never clipped
+const VB_PAD = 50
 
 // ─── Geometry ─────────────────────────────────────────────────
 
@@ -110,8 +114,9 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
 
   return (
     <svg
-      viewBox={`0 0 ${VB} ${VB}`}
+      viewBox={`${-VB_PAD} ${-VB_PAD} ${VB + VB_PAD * 2} ${VB + VB_PAD * 2}`}
       className="w-full h-auto"
+      style={{ overflow: 'visible' }}
       role="img"
       aria-label="İnteraktif yüz analizi radar grafiği"
     >
@@ -278,21 +283,27 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
         })}
       </g>
 
-      {/* ── Labels (with active lift) ──────────────────── */}
+      {/* ── Labels (with active lift + multi-word wrapping) ── */}
       {regions.map((r, i) => {
         const [lx, ly] = polar(i, n, LABEL_R)
         const a = -Math.PI / 2 + (2 * Math.PI * i) / n
         const cos = Math.cos(a)
         const sin = Math.sin(a)
         const anchor = cos > 0.15 ? 'start' : cos < -0.15 ? 'end' : 'middle'
-        const dy = sin > 0.3 ? 14 : sin < -0.3 ? -6 : 3
+        // Increased spacing for top/bottom to prevent clipping
+        const dy = sin > 0.3 ? 6 : sin < -0.3 ? -4 : 3
         const active = currentIndex === i
         const lift = active ? -2 : 0
+
+        // Split multi-word labels into lines for clean wrapping
+        const words = r.label.split(' ')
+        const isMultiWord = words.length > 1
+        const lineHeight = (active ? LABEL_FONT_ACTIVE : LABEL_FONT) * 1.25
 
         return (
           <g key={`lbl-${i}`} style={{ cursor: 'pointer' }} onClick={() => onSelect(i)}>
             <text
-              x={lx} y={ly + dy + lift}
+              x={lx} y={ly + dy + lift + (isMultiWord && sin < -0.3 ? -lineHeight * 0.4 : 0)}
               textAnchor={anchor}
               fill={active ? scoreColor(r.score) : 'rgba(248,246,242,0.50)'}
               style={{
@@ -300,18 +311,30 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
                 fontFamily: "'Outfit', system-ui, sans-serif",
                 letterSpacing: active ? '0.06em' : '0.04em',
                 fontWeight: active ? 600 : 500,
-                transition: 'fill 0.35s, font-size 0.25s, font-weight 0.35s, y 0.3s ease-out',
+                transition: 'fill 0.35s, font-size 0.25s, font-weight 0.35s',
               }}
             >
-              {r.label}
+              {isMultiWord ? (
+                words.map((word, wi) => (
+                  <tspan
+                    key={wi}
+                    x={lx}
+                    dy={wi === 0 ? 0 : lineHeight}
+                  >
+                    {word}
+                  </tspan>
+                ))
+              ) : (
+                r.label
+              )}
             </text>
             {/* Score on active */}
             <text
-              x={lx} y={ly + dy + 18 + lift}
+              x={lx} y={ly + dy + (isMultiWord ? lineHeight + 10 : 16) + lift + (isMultiWord && sin < -0.3 ? -lineHeight * 0.4 : 0)}
               textAnchor={anchor}
               fill={scoreColor(r.score)}
               style={{
-                fontSize: `${VB * 0.028}px`,
+                fontSize: `${VB * 0.026}px`,
                 fontFamily: "'JetBrains Mono', monospace",
                 fontWeight: 400,
                 opacity: active ? 0.8 : 0,

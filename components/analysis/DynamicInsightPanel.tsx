@@ -17,6 +17,8 @@ interface Props {
   score: number
   /** Used as React key externally to trigger entrance animation */
   regionIndex: number
+  /** Optional confidence 0–1 for the region */
+  confidence?: number
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -35,9 +37,10 @@ function scoreGrade(s: number): string {
 
 // ─── Component ────────────────────────────────────────────────
 
-export default function DynamicInsightPanel({ insight, score, regionIndex }: Props) {
+export default function DynamicInsightPanel({ insight, score, regionIndex, confidence }: Props) {
   const c = scoreColor(score)
   const grade = scoreGrade(score)
+  const isLowConfidence = confidence !== undefined && confidence < 0.45
 
   return (
     <div
@@ -116,6 +119,17 @@ export default function DynamicInsightPanel({ insight, score, regionIndex }: Pro
             >
               {insight.info}
             </p>
+
+            {/* Low-confidence caveat */}
+            {isLowConfidence && (
+              <p
+                className="font-body text-[10px] leading-[1.5] mt-2 flex items-center gap-1.5"
+                style={{ color: 'rgba(200,120,90,0.50)' }}
+              >
+                <span className="opacity-60">⚠</span>
+                Bu bölge için güven düzeyi sınırlıdır; sonuçlar referans niteliğindedir.
+              </p>
+            )}
           </div>
 
           {/* Right: CTA */}

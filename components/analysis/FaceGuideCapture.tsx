@@ -67,34 +67,85 @@ type InitState = 'loading' | 'ready' | 'error'
 type ValidationPhase = 'idle' | 'detecting' | 'tracking' | 'stabilizing' | 'validated' | 'advancing'
 
 // ─── Constants ──────────────────────────────────────────────
-const AUTO_CAPTURE_QUALITY_THRESHOLD = 0.85
-const VALIDATION_HOLD_MS = 1400
 const ADVANCE_DELAY_MS = 600
 const FAILSAFE_MS = 10000
 const BEST_FRAME_BUFFER_SIZE = 20
 const BEST_FRAME_WINDOW_MS = 3000
-const STABILITY_FRAMES_REQUIRED = 10
 
-// ─── Strict READY gate ─────────────────────────────────────
-// Capture is only allowed when ALL of these conditions are met simultaneously.
-// When `relaxed` is true (failsafe after extended wait), thresholds are lowered.
-function isReadyForCapture(status: FaceGuideStatus, relaxed = false): boolean {
+// ─── Auto-fit (software preview fitting) ───────────────────
+// Smoothly zooms/pans the camera preview so the detected face
+// is brought into the target oval, giving the camera an
+// "assisted" feeling. Purely visual — does NOT affect capture.
+const AUTOFIT_SMOOTHING = 0.07          // Per-frame blend toward target (gentle)
+const AUTOFIT_RELEASE_SPEED = 0.035     // Slower return to neutral when face lost
+const AUTOFIT_MAX_SCALE = 1.35          // Max zoom to preserve image quality
+const AUTOFIT_IDEAL_FACE_HEIGHT = 0.45  // Target face-height ratio in frame (lower = less aggressive zoom, fits larger oval)
+const AUTOFIT_MAX_SHIFT = 10            // Max translate in % of container
+const AUTOFIT_DEAD_ZONE = 0.03          // Ignore offsets smaller than this (reduces jitter)
+
+interface AutoFitState {
+  scale: number
+  tx: number   // translateX in %
+  ty: number   // translateY in %
+}
+
+// ─── Countdown constants (all captures) ────────────────────
+// Every capture (front, left, right) uses a visible 3→2→1 countdown.
+const COUNTDOWN_SECONDS = 3
+const COUNTDOWN_MS = COUNTDOWN_SECONDS * 1000
+
+// ─── FRONT readiness: STRICT ──────────────────────────────
+// Front is the primary reference — requires tight alignment on all axes.
+// These thresholds are the CAPTURE GATE: if a frame passes these, it's
+// guaranteed to produce a clean result page with no blocking errors.
+const FRONT_STABILITY_FRAMES = 10
+
+function isFrontReady(status: FaceGuideStatus, relaxed = false): boolean {
   const { qualityBreakdown: qb } = status
-  const qThresh = relaxed ? 0.65 : AUTO_CAPTURE_QUALITY_THRESHOLD
-  const subThresh = relaxed ? 0.35 : 0.50
-  const angleThresh = relaxed ? 0.40 : 0.55
-  const centerThresh = relaxed ? 0.25 : 0.40
   return (
     status.faceDetected &&
     status.allOk &&
     status.faceLocked &&
-    qb.distance >= (relaxed ? 0.40 : 0.55) &&
-    qb.angle >= angleThresh &&
-    qb.centering >= centerThresh &&
-    qb.lighting >= subThresh &&
-    qb.sharpness >= subThresh &&
-    qb.stability >= (relaxed ? 0.30 : 0.50) &&
-    status.qualityScore >= qThresh
+    // Single face: faceDetected is true (multi-face blocked at detection level)
+    // Face in frame and large enough
+    qb.distance >= (relaxed ? 0.55 : 0.60) &&
+    // Head angle acceptable
+    qb.angle >= (relaxed ? 0.55 : 0.60) &&
+    // Face centered in frame
+    qb.centering >= (relaxed ? 0.45 : 0.50) &&
+    // Adequate lighting
+    qb.lighting >= (relaxed ? 0.50 : 0.55) &&
+    // Sharp enough (no heavy blur)
+    qb.sharpness >= (relaxed ? 0.50 : 0.55) &&
+    // Stable across frames (eyes open, landmarks consistent)
+    qb.stability >= (relaxed ? 0.50 : 0.55) &&
+    // Overall composite quality
+    status.qualityScore >= (relaxed ? 0.75 : 0.85)
+  )
+}
+
+// ─── SIDE readiness: MODERATE ─────────────────────────────
+// Side captures allow some centering flexibility but still require
+// face visible, correct side angle, acceptable light + sharpness.
+//
+// IMPORTANT: Does NOT use composite qualityScore because it includes
+// centering penalty, which naturally drops when the face is angled.
+// Instead, checks only the sub-scores that matter for side views.
+const SIDE_CROW_FEET_THRESHOLD = 0.35    // relaxed from 0.45
+
+function isSideReady(status: FaceGuideStatus, relaxed = false): boolean {
+  const { qualityBreakdown: qb } = status
+  return (
+    status.faceDetected &&
+    status.faceLocked &&
+    // Angle is the key gate — must be 'ok' (within the angled window)
+    (status.angle === 'ok') &&
+    // Individual sub-scores — stricter to ensure clean results
+    qb.distance >= (relaxed ? 0.30 : 0.40) &&
+    qb.angle >= (relaxed ? 0.30 : 0.40) &&
+    qb.lighting >= (relaxed ? 0.30 : 0.40) &&
+    qb.sharpness >= (relaxed ? 0.25 : 0.35) &&
+    qb.stability >= (relaxed ? 0.15 : 0.25)
   )
 }
 
@@ -126,13 +177,23 @@ const MULTI_INSTRUCTIONS: Record<MultiStep, string> = {
 //  YELLOW ≥ 0.30  (drops back to RED at < 0.20)
 //  RED    < 0.30  (initial state)
 
-const BADGE_LABELS: Record<string, Record<string, string>> = {
-  lighting: { ok: 'Işık', too_dark: 'Karanlık', too_bright: 'Parlak', shadow: 'Gölge' },
-  angle: { ok: 'Açı', tilt: 'Açı', look_left: 'Açı', look_right: 'Açı', look_up: 'Açı', look_down: 'Açı' },
-  distance: { ok: 'Mesafe', too_close: 'Yakın', too_far: 'Uzak' },
-  centering: { ok: 'Konum', off_center: 'Ortalama' },
-  forehead: { ok: 'Alın', hidden: 'Alın Gizli' },
+// ─── Quality pill definitions ─────────────────────────────
+// 6 visible checks: Mesafe, Işık, Açı, Konum, Netlik, İfade
+// Each shows a fixed Turkish label + a colored dot driven by the sub-score.
+
+interface PillDef {
+  key: string
+  label: string
 }
+
+const PILL_DEFS: PillDef[] = [
+  { key: 'distance', label: 'Mesafe' },
+  { key: 'lighting', label: 'Işık' },
+  { key: 'angle', label: 'Açı' },
+  { key: 'centering', label: 'Konum' },
+  { key: 'sharpness', label: 'Netlik' },
+  { key: 'expression', label: 'İfade' },
+]
 
 type BadgeTier = 'red' | 'yellow' | 'green'
 const badgeTierCache: Record<string, BadgeTier> = {}
@@ -141,35 +202,38 @@ function scoreToBadgeTier(category: string, score: number): BadgeTier {
   const prev = badgeTierCache[category] ?? 'red'
   let next: BadgeTier
   if (prev === 'green') {
-    // Hysteresis: stay green until score drops below 0.50
     next = score >= 0.50 ? 'green' : score >= 0.20 ? 'yellow' : 'red'
   } else if (prev === 'yellow') {
-    // Promote to green at 0.60, drop to red below 0.20
     next = score >= 0.60 ? 'green' : score >= 0.20 ? 'yellow' : 'red'
   } else {
-    // red: promote to yellow at 0.30, green at 0.60
     next = score >= 0.60 ? 'green' : score >= 0.30 ? 'yellow' : 'red'
   }
   badgeTierCache[category] = next
   return next
 }
 
-function Badge({ category, value, score }: { category: string; value: string; score: number }) {
-  const label = BADGE_LABELS[category]?.[value] ?? value
-  const tier = scoreToBadgeTier(category, score)
-  const styles = {
-    green: 'bg-[rgba(0,255,180,0.10)] text-[#7CFFC8] border-[rgba(0,255,180,0.2)]',
-    yellow: 'bg-[rgba(196,163,90,0.12)] text-[#D4B96A] border-[rgba(196,163,90,0.2)]',
-    red: 'bg-[rgba(160,82,82,0.1)] text-[#D89090] border-[rgba(160,82,82,0.15)]',
-  }
-  const dotColors = { green: 'bg-[#00FFB4]', yellow: 'bg-[#C4A35A]', red: 'bg-[#A05252]' }
+const DOT_COLORS: Record<BadgeTier, string> = {
+  green: '#00FFB4',
+  yellow: '#C4A35A',
+  red: '#A05252',
+}
+
+function QualityPillStrip({ scores }: { scores: Record<string, number> }) {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-medium tracking-[0.12em] uppercase border backdrop-blur-xl transition-all duration-500 ${styles[tier]}`}
-    >
-      <span className={`w-1 h-1 rounded-full ${dotColors[tier]}`} />
-      {label}
-    </span>
+    <div className="flex items-center justify-center gap-[6px] flex-wrap">
+      {PILL_DEFS.map(({ key, label }) => {
+        const tier = scoreToBadgeTier(key, scores[key] ?? 0)
+        return (
+          <span key={key} className="inline-flex items-center gap-[5px] text-[9px] font-medium tracking-[0.06em] text-white/40 transition-colors duration-500">
+            <span
+              className="w-[6px] h-[6px] rounded-full transition-colors duration-500"
+              style={{ backgroundColor: DOT_COLORS[tier], boxShadow: `0 0 4px ${DOT_COLORS[tier]}50` }}
+            />
+            {label}
+          </span>
+        )
+      })}
+    </div>
   )
 }
 
@@ -533,6 +597,10 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   const lastFrameTime = useRef(0)
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Auto-fit: smooth software preview fitting
+  const autoFitWrapperRef = useRef<HTMLDivElement>(null)
+  const autoFitRef = useRef<AutoFitState>({ scale: 1, tx: 0, ty: 0 })
+
   const validationStartRef = useRef<number | null>(null)
   const faceFirstSeenRef = useRef<number | null>(null)
   const frameBufferRef = useRef<ScoredFrame[]>([])
@@ -551,6 +619,32 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
 
   const [multiStep, setMultiStep] = useState<MultiStep>('front')
   const [multiPhotos, setMultiPhotos] = useState<{ front?: string; left?: string; right?: string }>({})
+
+  // 3-second countdown (all captures: front, left, right)
+  const countdownStartRef = useRef<number | null>(null)
+  const [countdown, setCountdown] = useState<number | null>(null)
+
+  // ── Refs that mirror state for use inside processFrame ──
+  // processFrame runs in a rAF loop. If it depends on React state (phase,
+  // countdown, preview), each setState recreates the callback and
+  // re-registers the animation frame, causing timing gaps that prevent
+  // the countdown from completing. These refs let processFrame read
+  // current values without being in the dependency array.
+  const phaseRef = useRef<ValidationPhase>('idle')
+  const previewRef = useRef<string | null>(null)
+
+  // Keep refs in sync with state
+  const updatePhase = useCallback((p: ValidationPhase) => {
+    phaseRef.current = p
+    setPhase(p)
+  }, [])
+  const updatePreview = useCallback((p: string | null) => {
+    previewRef.current = p
+    setPreview(p)
+  }, [])
+
+  // AI mesh overlay visibility — ON by default
+  const [showMesh, setShowMesh] = useState(true)
 
   // Rotating tips
   useEffect(() => {
@@ -576,21 +670,21 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   // Auto-advance
   const triggerAutoAdvance = useCallback(() => {
     if (advanceTimerRef.current) return
-    setPhase('validated')
+    updatePhase('validated')
     setShowFlash(true)
     setTimeout(() => setShowFlash(false), 350)
 
     advanceTimerRef.current = setTimeout(() => {
-      setPhase('advancing')
+      updatePhase('advancing')
       const bestDataUrl = captureBestFrame()
       if (bestDataUrl) {
         if (mode === 'multi') setMultiPhotos((prev) => ({ ...prev, [multiStep]: bestDataUrl }))
-        setPreview(bestDataUrl)
+        updatePreview(bestDataUrl)
       }
       frameBufferRef.current = []
       advanceTimerRef.current = null
     }, ADVANCE_DELAY_MS)
-  }, [captureBestFrame, mode, multiStep])
+  }, [captureBestFrame, mode, multiStep, updatePhase, updatePreview])
 
   // Reset
   const resetValidation = useCallback(() => {
@@ -598,14 +692,19 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     faceFirstSeenRef.current = null
     frameBufferRef.current = []
     stableReadyFrames.current = 0
-    setPhase('idle')
+    countdownStartRef.current = null
+    setCountdown(null)
+    updatePhase('idle')
     setValidationProgress(0)
     setFailsafeActive(false)
     if (advanceTimerRef.current) { clearTimeout(advanceTimerRef.current); advanceTimerRef.current = null }
     resetSmoothing(); resetStability(); resetFaceLock()
     // Reset badge hysteresis so next step starts at red
     for (const key of Object.keys(badgeTierCache)) delete badgeTierCache[key]
-  }, [])
+    // Reset auto-fit to neutral (will animate out via release speed)
+    autoFitRef.current = { scale: 1, tx: 0, ty: 0 }
+    if (autoFitWrapperRef.current) autoFitWrapperRef.current.style.transform = ''
+  }, [updatePhase])
 
   // Init camera + engine
   useEffect(() => {
@@ -622,7 +721,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
         if (cancelled) return
         engineReadyRef.current = true
         resetSmoothing(); resetStability(); resetFaceLock()
-        setInitState('ready'); setPhase('detecting')
+        setInitState('ready'); updatePhase('detecting')
       } catch (err) {
         if (!cancelled) { setInitState('error'); setInitError(diagnoseCameraError(err)) }
       }
@@ -645,7 +744,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     const mc = meshCanvasRef.current
 
     if (!video || !engineReadyRef.current || !bc || !mc || processingRef.current || video.readyState < 2) {
-      animFrameRef.current = requestAnimationFrame(processFrame) // eslint-disable-line react-hooks/immutability -- rAF self-ref
+      animFrameRef.current = requestAnimationFrame(processFrame)
       return
     }
 
@@ -679,9 +778,23 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
             landmarksRef.current = null
             validationStartRef.current = null
             setValidationProgress(0)
-            if (phase === 'stabilizing' || phase === 'tracking') setPhase('detecting')
+            if (phaseRef.current === 'stabilizing' || phaseRef.current === 'tracking') updatePhase('detecting')
             const ctx = mc.getContext('2d')
             if (ctx) ctx.clearRect(0, 0, mc.width, mc.height)
+          }
+          // Auto-fit: smoothly release back to neutral when no face
+          {
+            const af = autoFitRef.current
+            const wrapper = autoFitWrapperRef.current
+            if (wrapper && (Math.abs(af.scale - 1) > 0.002 || Math.abs(af.tx) > 0.02 || Math.abs(af.ty) > 0.02)) {
+              af.scale += (1 - af.scale) * AUTOFIT_RELEASE_SPEED
+              af.tx += (0 - af.tx) * AUTOFIT_RELEASE_SPEED
+              af.ty += (0 - af.ty) * AUTOFIT_RELEASE_SPEED
+              wrapper.style.transform = `scale(${af.scale.toFixed(4)}) translate(${af.tx.toFixed(2)}%, ${af.ty.toFixed(2)}%)`
+            } else if (wrapper && af.scale !== 1) {
+              af.scale = 1; af.tx = 0; af.ty = 0
+              wrapper.style.transform = ''
+            }
           }
         } else {
           // ── Face detected — all logic from real landmarks ──
@@ -695,49 +808,167 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           const guide = evaluateFaceGuide(smoothed, brightness, shadowScore, targetAngle)
           setStatus(guide)
 
+          // ── AUTO-FIT: software preview fitting ──────────────
+          // Compute signed face offset from landmarks (face guide uses abs values)
+          // Landmarks are in raw camera coords (0-1); video is CSS-mirrored.
+          // Because of CSS scaleX(-1) on the video, raw X offsets translate
+          // directly to correct visual shifts (mirror cancels the sign flip).
+          {
+            const wrapper = autoFitWrapperRef.current
+            if (wrapper && guide.faceLocked && !preview) {
+              const af = autoFitRef.current
+              const leftCheek = smoothed[234]
+              const rightCheek = smoothed[454]
+              const foreheadLm = smoothed[10]
+              const chinLm = smoothed[152]
+
+              if (leftCheek && rightCheek && foreheadLm && chinLm) {
+                const faceCX = (leftCheek.x + rightCheek.x) / 2
+                const faceCY = (foreheadLm.y + chinLm.y) / 2
+                const fh = guide.faceHeightRatio
+
+                // Target scale: bring face to ideal size in frame
+                let tScale = 1
+                if (fh > 0.08 && fh < AUTOFIT_IDEAL_FACE_HEIGHT * 1.5) {
+                  tScale = Math.min(AUTOFIT_MAX_SCALE, Math.max(1, AUTOFIT_IDEAL_FACE_HEIGHT / Math.max(fh, 0.15)))
+                }
+                // Don't zoom in if face is already large enough
+                if (fh >= AUTOFIT_IDEAL_FACE_HEIGHT * 0.9) tScale = Math.max(1, Math.min(tScale, 1.05))
+
+                // Signed offset from center (raw landmark space)
+                const rawOffX = faceCX - 0.5     // positive = face right of center in raw
+                const rawOffY = faceCY - 0.45    // positive = face below ideal center
+
+                // Apply dead zone to reduce jitter on small movements
+                const offX = Math.abs(rawOffX) > AUTOFIT_DEAD_ZONE ? rawOffX : 0
+                const offY = Math.abs(rawOffY) > AUTOFIT_DEAD_ZONE ? rawOffY : 0
+
+                // Translate to center the face — scaled by current zoom
+                // Raw X maps directly to visual X because CSS mirror cancels
+                const tTx = Math.max(-AUTOFIT_MAX_SHIFT, Math.min(AUTOFIT_MAX_SHIFT,
+                  offX * 100 * tScale * 0.7))
+                const tTy = Math.max(-AUTOFIT_MAX_SHIFT * 0.7, Math.min(AUTOFIT_MAX_SHIFT * 0.7,
+                  -offY * 100 * tScale * 0.5))
+
+                // Smooth toward target
+                af.scale += (tScale - af.scale) * AUTOFIT_SMOOTHING
+                af.tx += (tTx - af.tx) * AUTOFIT_SMOOTHING
+                af.ty += (tTy - af.ty) * AUTOFIT_SMOOTHING
+
+                wrapper.style.transform = `scale(${af.scale.toFixed(4)}) translate(${af.tx.toFixed(2)}%, ${af.ty.toFixed(2)}%)`
+              }
+            }
+          }
+
           if (!faceFirstSeenRef.current) faceFirstSeenRef.current = now
-          if (now - faceFirstSeenRef.current > FAILSAFE_MS && phase !== 'validated' && phase !== 'advancing') {
+          if (now - faceFirstSeenRef.current > FAILSAFE_MS && phaseRef.current !== 'validated' && phaseRef.current !== 'advancing') {
             setFailsafeActive(true)
           }
 
           // Phase transitions
-          if (phase === 'detecting' || phase === 'idle') setPhase('tracking')
+          if (phaseRef.current === 'detecting' || phaseRef.current === 'idle') updatePhase('tracking')
 
-          // Strict READY gate: all sub-scores must meet minimums
-          // Use relaxed thresholds after failsafe timer (10s+ of trying)
-          const readyNow = isReadyForCapture(guide, failsafeActive)
-          if (readyNow) {
-            stableReadyFrames.current++
+          // ── READINESS + COUNTDOWN ────────────────────────────
+          // Uses phaseRef/previewRef (not state) to avoid stale closures.
+          //
+          // ═══ SIDE RULE (RIGHT / LEFT) ═══
+          // Single source of truth: a numeric "side score" (0–100).
+          //   score > 60 → start 3-second countdown
+          //   score stays > 60 for 3 full seconds → auto-capture
+          //   score drops to ≤ 60 → cancel countdown immediately
+          //   No isSideReady(), no green-state matching, no stability frames.
+          //
+          // The side score is computed from the sub-scores that matter for
+          // side views, EXCLUDING centering (which drops when face is angled).
+          // Gate: face must be detected, locked, and at the correct angle.
+          //
+          // ═══ FRONT RULE ═══
+          // Unchanged — uses isFrontReady() + stability frames.
+          //
+          const isSideStep = mode === 'multi' && multiStep !== 'front'
+          const curPhase = phaseRef.current
+          const canAct = !previewRef.current && curPhase !== 'validated' && curPhase !== 'advancing'
+
+          if (isSideStep) {
+            // ── Compute side score (0–100) ──
+            // Only sub-scores relevant for side capture, no centering.
+            const qb = guide.qualityBreakdown
+            const sideScore = guide.faceDetected && guide.faceLocked && guide.angle === 'ok'
+              ? Math.round(
+                  (qb.distance * 0.30 +
+                   qb.angle * 0.30 +
+                   qb.lighting * 0.20 +
+                   qb.stability * 0.10 +
+                   qb.sharpness * 0.10) * 100
+                )
+              : 0
+
+            const SIDE_THRESHOLD = 65
+
+            if (sideScore > SIDE_THRESHOLD && canAct) {
+              // ABOVE 60 — start or continue countdown
+              if (!countdownStartRef.current) {
+                countdownStartRef.current = now
+                updatePhase('stabilizing')
+              }
+              const elapsed = now - countdownStartRef.current
+              const remaining = Math.ceil((COUNTDOWN_MS - elapsed) / 1000)
+              setCountdown(Math.max(0, remaining))
+              setValidationProgress(Math.min(1, elapsed / COUNTDOWN_MS))
+
+              if (elapsed >= COUNTDOWN_MS) {
+                setCountdown(null)
+                triggerAutoAdvance()
+              }
+            } else if (sideScore <= SIDE_THRESHOLD && canAct) {
+              // AT OR BELOW 60 — cancel countdown immediately
+              if (countdownStartRef.current || curPhase === 'stabilizing') {
+                countdownStartRef.current = null
+                setCountdown(null)
+                setValidationProgress(0)
+                if (curPhase === 'stabilizing') updatePhase('tracking')
+              }
+            }
           } else {
-            // Decay instead of hard reset — prevents single dropped frames from restarting
-            stableReadyFrames.current = Math.floor(stableReadyFrames.current * 0.5)
-          }
+            // ═══ FRONT CAPTURE: unchanged — isFrontReady + stability frames ═══
+            const readyNow = isFrontReady(guide, failsafeActive)
 
-          // After failsafe, also reduce required stability frames
-          const requiredFrames = failsafeActive
-            ? Math.max(3, Math.floor(STABILITY_FRAMES_REQUIRED * 0.5))
-            : STABILITY_FRAMES_REQUIRED
+            if (readyNow) {
+              stableReadyFrames.current++
+            } else {
+              stableReadyFrames.current = Math.floor(stableReadyFrames.current * 0.5)
+            }
 
-          if (readyNow && stableReadyFrames.current >= requiredFrames && !preview) {
-            if (!validationStartRef.current) {
-              validationStartRef.current = now
-              setPhase('stabilizing')
-            }
-            const elapsed = now - validationStartRef.current
-            setValidationProgress(Math.min(1, elapsed / VALIDATION_HOLD_MS))
-            if (elapsed >= VALIDATION_HOLD_MS && phase !== 'validated' && phase !== 'advancing') {
-              triggerAutoAdvance()
-            }
-          } else if (phase === 'stabilizing' || phase === 'tracking') {
-            if (!readyNow) {
-              validationStartRef.current = null
-              setValidationProgress(0)
-              if (phase === 'stabilizing') setPhase('tracking')
+            const requiredStable = failsafeActive ? 4 : FRONT_STABILITY_FRAMES
+
+            if (readyNow && stableReadyFrames.current >= requiredStable && canAct) {
+              if (!countdownStartRef.current) {
+                countdownStartRef.current = now
+                updatePhase('stabilizing')
+              }
+              const elapsed = now - countdownStartRef.current
+              const remaining = Math.ceil((COUNTDOWN_MS - elapsed) / 1000)
+              setCountdown(Math.max(0, remaining))
+              setValidationProgress(Math.min(1, elapsed / COUNTDOWN_MS))
+
+              if (elapsed >= COUNTDOWN_MS) {
+                setCountdown(null)
+                triggerAutoAdvance()
+              }
+            } else if (!readyNow) {
+              if (countdownStartRef.current || curPhase === 'stabilizing') {
+                countdownStartRef.current = null
+                setCountdown(null)
+                setValidationProgress(0)
+                if (curPhase === 'stabilizing') updatePhase('tracking')
+              }
             }
           }
 
           // Buffer best frames — uses aligned 3:4 capture to match UI
-          if (guide.qualityScore >= 0.6 && !preview && phase !== 'validated' && phase !== 'advancing') {
+          // Only buffer frames that meet minimum quality for clean results
+          const bufferThreshold = isSideStep ? 0.40 : 0.65
+          if (guide.qualityScore >= bufferThreshold && !previewRef.current && curPhase !== 'validated' && curPhase !== 'advancing') {
             const cc = captureCanvasRef.current
             if (cc && video.videoWidth > 0) {
               const dataUrl = captureAlignedFrame(video, cc)
@@ -759,7 +990,8 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
       .catch(() => { processingRef.current = false })
 
     animFrameRef.current = requestAnimationFrame(processFrame)
-  }, [landmarksRef, preview, phase, status.faceLocked, triggerAutoAdvance, mode, multiStep, failsafeActive])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- phase/preview/countdown read via refs to avoid stale-closure restarts
+  }, [landmarksRef, status.faceLocked, triggerAutoAdvance, mode, multiStep, failsafeActive, updatePhase])
 
   useEffect(() => {
     if (initState === 'ready' && !preview) {
@@ -773,30 +1005,34 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     if (autoConfirm && mode === 'single' && preview && phase === 'advancing') {
       const q = status.qualityScore
       const meta: CaptureMetadata = {
-        confidence: q >= 0.85 ? 'high' : q >= 0.5 ? 'medium' : 'low',
+        confidence: q >= 0.85 ? 'high' : 'medium',
         qualityScore: q,
       }
       onCapture(preview, meta)
     }
   }, [autoConfirm, mode, preview, phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Manual capture — permissive threshold (75%) so user can capture
-  // angled shots even when auto-capture's stricter gate hasn't fired.
-  const MANUAL_CAPTURE_THRESHOLD = 0.75
-  const manualCaptureEnabled = status.faceDetected && status.faceLocked && status.qualityScore >= MANUAL_CAPTURE_THRESHOLD
+  // Manual capture — requires READY state (same gate as auto-capture).
+  // This ensures every captured frame produces a clean result page.
+  // The button is disabled until the quality gate criteria are met.
+  const isSideStep = mode === 'multi' && multiStep !== 'front'
+  const manualCaptureEnabled = isSideStep
+    ? isSideReady(status, failsafeActive)
+    : isFrontReady(status, failsafeActive)
   const takeSnapshot = () => {
     if (!manualCaptureEnabled) return
     const dataUrl = captureBestFrame()
     if (!dataUrl) return
     setShowFlash(true); setTimeout(() => setShowFlash(false), 350)
     if (mode === 'multi') setMultiPhotos((prev) => ({ ...prev, [multiStep]: dataUrl }))
-    setPreview(dataUrl); setPhase('advancing')
+    updatePreview(dataUrl); updatePhase('advancing')
   }
 
   const buildMeta = useCallback((): CaptureMetadata => {
     const q = status.qualityScore
+    // Since capture gate is strict, captured frames are at least 'medium'
     return {
-      confidence: q >= 0.85 ? 'high' : q >= 0.5 ? 'medium' : 'low',
+      confidence: q >= 0.85 ? 'high' : 'medium',
       qualityScore: q,
     }
   }, [status.qualityScore])
@@ -805,9 +1041,9 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
 
   const confirmMulti = () => {
     if (multiStep === 'front') {
-      setPreview(null); setMultiStep('left'); resetValidation(); setPhase('detecting')
+      updatePreview(null); setMultiStep('left'); resetValidation(); updatePhase('detecting')
     } else if (multiStep === 'left') {
-      setPreview(null); setMultiStep('right'); resetValidation(); setPhase('detecting')
+      updatePreview(null); setMultiStep('right'); resetValidation(); updatePhase('detecting')
     } else if (multiStep === 'right') {
       // Final step — finalize multi-capture
       const photos = { ...multiPhotos, right: preview! }
@@ -817,7 +1053,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     }
   }
 
-  const retake = () => { setPreview(null); resetValidation(); setPhase('detecting') }
+  const retake = () => { updatePreview(null); resetValidation(); updatePhase('detecting') }
 
   // ─── Render ───────────────────────────────────────────────
   const isMulti = mode === 'multi'
@@ -825,34 +1061,6 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   const STEP_ORDER: MultiStep[] = ['front', 'left', 'right']
   const stepNumber = STEP_ORDER.indexOf(multiStep) + 1
   const totalSteps = STEP_ORDER.length
-
-  const phaseMessage = (() => {
-    if (preview) return null
-    switch (phase) {
-      case 'idle':
-      case 'detecting':
-        return isMulti ? MULTI_INSTRUCTIONS[multiStep] : 'Yüzünüz aranıyor'
-      case 'tracking':
-        return status.mainMessage
-      case 'stabilizing':
-        return 'Harika, biraz daha sabit kalın'
-      case 'validated':
-      case 'advancing':
-        return 'Mükemmel — çekim tamamlandı'
-      default:
-        return status.mainMessage
-    }
-  })()
-
-  const messageColor = (() => {
-    switch (phase) {
-      case 'validated':
-      case 'advancing': return 'text-[#00FFB4]'
-      case 'stabilizing': return 'text-[#D4B96A]'
-      case 'tracking': return status.qualityScore >= 0.5 ? 'text-[#D4B96A]' : 'text-[#C47A7A]'
-      default: return 'text-white/35'
-    }
-  })()
 
   return (
     <div
@@ -908,7 +1116,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
       </div>
 
       {/* ═══ SECTION 2: Camera preview (flex-1, fills available space) ═══ */}
-      <div className="flex-1 min-h-0 flex items-center justify-center px-3 sm:px-4 py-2 sm:py-4">
+      <div className="flex-1 min-h-0 flex items-center justify-center px-3 sm:px-4 pt-2 pb-0.5 sm:pt-4 sm:pb-1">
         <div
           className="relative w-full rounded-[20px] sm:rounded-[28px] overflow-hidden border border-[rgba(214,185,140,0.12)] shadow-[0_0_60px_rgba(0,0,0,0.5),0_0_0_1px_rgba(214,185,140,0.05)]"
           style={{ aspectRatio: '3/4', maxWidth: 'min(92vw, 420px)', maxHeight: '100%' }}
@@ -943,40 +1151,121 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           )}
 
           {/* Live camera + Face Mesh canvas — ALWAYS MOUNTED to keep srcObject attached.
-              When preview is shown, these stay in the DOM but are hidden under the preview layer. */}
+              When preview is shown, these stay in the DOM but are hidden under the preview layer.
+              Wrapped in auto-fit div that smoothly zooms/pans to bring face into the oval. */}
           {(initState === 'ready' || initState === 'loading') && (
             <>
-              <video
-                ref={videoRef}
-                autoPlay playsInline muted
-                className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
-              />
-              <canvas
-                ref={meshCanvasRef}
-                className="absolute inset-0 w-full h-full pointer-events-none"
-              />
+              <div
+                ref={autoFitWrapperRef}
+                className="absolute inset-0"
+                style={{ willChange: 'transform', transformOrigin: '50% 43%' }}
+              >
+                <video
+                  ref={videoRef}
+                  autoPlay playsInline muted
+                  className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+                />
+                <canvas
+                  ref={meshCanvasRef}
+                  className="absolute inset-0 w-full h-full pointer-events-none transition-opacity duration-300"
+                  style={{ opacity: showMesh ? 1 : 0 }}
+                />
+              </div>
 
-              {/* Soft vignette */}
+              {/* Vignette — generous center reveal matching enlarged oval */}
               {!preview && (
                 <div className="absolute inset-0 pointer-events-none" style={{
-                  background: 'radial-gradient(ellipse 70% 65% at 50% 45%, transparent 50%, rgba(3,3,5,0.7) 100%)',
+                  background: 'radial-gradient(ellipse 78% 72% at 50% 46%, transparent 38%, rgba(3,3,5,0.25) 55%, rgba(3,3,5,0.65) 75%, rgba(3,3,5,0.88) 100%)',
                 }} />
               )}
 
-              {/* Stabilization ring */}
+              {/* Face-placement oval guide — luminous border with breathing glow */}
+              {!preview && phase !== 'validated' && phase !== 'advancing' && (
+                <div className="absolute inset-0 z-[2] flex items-center justify-center pointer-events-none" style={{ paddingBottom: '1%' }}>
+                  <div
+                    className="relative"
+                    style={{ width: '82%', aspectRatio: '7/10' }}
+                  >
+                    {/* Outer glow halo — wide diffuse ring */}
+                    <div
+                      className="absolute rounded-[50%]"
+                      style={{
+                        inset: '-14px',
+                        border: `1px solid rgba(${status.faceDetected ? accentFromQuality(status.qualityScore) : '214,185,140'},0.06)`,
+                        boxShadow: `0 0 40px 12px rgba(${status.faceDetected ? accentFromQuality(status.qualityScore) : '214,185,140'},0.06), inset 0 0 40px 12px rgba(${status.faceDetected ? accentFromQuality(status.qualityScore) : '214,185,140'},0.03)`,
+                        animation: 'ovalBreathe 4s ease-in-out infinite',
+                        transition: 'border-color 0.8s ease, box-shadow 0.8s ease',
+                      }}
+                    />
+                    {/* Main oval ring — stronger, clearly visible */}
+                    <div
+                      className="absolute inset-0 rounded-[50%]"
+                      style={{
+                        border: `2px solid rgba(${status.faceDetected ? accentFromQuality(status.qualityScore) : '214,185,140'},${status.faceDetected ? '0.40' : '0.18'})`,
+                        boxShadow: status.faceDetected
+                          ? `0 0 28px 6px rgba(${accentFromQuality(status.qualityScore)},0.12), inset 0 0 28px 6px rgba(${accentFromQuality(status.qualityScore)},0.06), 0 0 0 1px rgba(${accentFromQuality(status.qualityScore)},0.08)`
+                          : '0 0 28px 6px rgba(214,185,140,0.05), inset 0 0 28px 6px rgba(214,185,140,0.03), 0 0 0 1px rgba(214,185,140,0.04)',
+                        transition: 'border-color 0.8s ease, box-shadow 0.8s ease',
+                      }}
+                    />
+                    {/* Corner accent marks — top and bottom crosshairs */}
+                    {(['top-0 left-1/2 -translate-x-1/2 -translate-y-[1px]', 'bottom-0 left-1/2 -translate-x-1/2 translate-y-[1px]'] as const).map((pos, i) => (
+                      <div key={i} className={`absolute ${pos}`}>
+                        <div
+                          className="w-12 h-[1.5px]"
+                          style={{
+                            background: `linear-gradient(90deg, transparent, rgba(${status.faceDetected ? accentFromQuality(status.qualityScore) : '214,185,140'},0.35), transparent)`,
+                            transition: 'background 0.8s ease',
+                          }}
+                        />
+                      </div>
+                    ))}
+                    {/* Side accent marks — left and right crosshairs */}
+                    {(['top-1/2 left-0 -translate-y-1/2 -translate-x-[1px]', 'top-1/2 right-0 -translate-y-1/2 translate-x-[1px]'] as const).map((pos, i) => (
+                      <div key={`side-${i}`} className={`absolute ${pos}`}>
+                        <div
+                          className="w-[1.5px] h-12"
+                          style={{
+                            background: `linear-gradient(180deg, transparent, rgba(${status.faceDetected ? accentFromQuality(status.qualityScore) : '214,185,140'},0.35), transparent)`,
+                            transition: 'background 0.8s ease',
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Stabilization ring + countdown number */}
               {!preview && phase === 'stabilizing' && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-                  <svg width="90" height="90" viewBox="0 0 100 100" className="opacity-60">
-                    <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
-                    <circle
-                      cx="50" cy="50" r="42" fill="none"
-                      stroke={`rgba(${accentFromQuality(status.qualityScore)},0.7)`}
-                      strokeWidth="3" strokeLinecap="round"
-                      strokeDasharray={`${validationProgress * 264} 264`}
-                      transform="rotate(-90 50 50)"
-                      style={{ transition: 'stroke-dasharray 0.15s ease-out' }}
-                    />
-                  </svg>
+                  <div className="relative flex items-center justify-center">
+                    <svg width="90" height="90" viewBox="0 0 100 100" className="opacity-60">
+                      <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+                      <circle
+                        cx="50" cy="50" r="42" fill="none"
+                        stroke={`rgba(${accentFromQuality(status.qualityScore)},0.7)`}
+                        strokeWidth="3" strokeLinecap="round"
+                        strokeDasharray={`${validationProgress * 264} 264`}
+                        transform="rotate(-90 50 50)"
+                        style={{ transition: 'stroke-dasharray 0.15s ease-out' }}
+                      />
+                    </svg>
+                    {/* Countdown number — visible for all captures */}
+                    {countdown !== null && countdown > 0 && (
+                      <span
+                        key={countdown}
+                        className="absolute font-display text-[38px] sm:text-[44px] font-light tabular-nums"
+                        style={{
+                          color: `rgba(${accentFromQuality(status.qualityScore)},0.9)`,
+                          textShadow: `0 0 24px rgba(${accentFromQuality(status.qualityScore)},0.4)`,
+                          animation: 'countdownPop 0.35s ease-out',
+                        }}
+                      >
+                        {countdown}
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1020,92 +1309,159 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
             </div>
           )}
 
-          {/* Status badges — score-driven, not default-green */}
+          {/* ── Quality pill strip — top of frame, compact dots+labels ── */}
           {initState === 'ready' && !preview && phase !== 'validated' && phase !== 'advancing' && (
-            <div className="absolute bottom-2.5 left-2 right-2 z-10 flex justify-center gap-1 flex-wrap">
-              <Badge category="distance" value={status.distance} score={status.faceDetected ? status.qualityBreakdown.distance : 0} />
-              <Badge category="lighting" value={status.lighting} score={status.faceDetected ? status.qualityBreakdown.lighting : 0} />
-              <Badge category="angle" value={status.angle} score={status.faceDetected ? status.qualityBreakdown.angle : 0} />
-              <Badge category="centering" value={status.centering} score={status.faceDetected ? status.qualityBreakdown.centering : 0} />
+            <div className="absolute top-2.5 left-2 right-2 z-10">
+              <QualityPillStrip scores={{
+                distance: status.faceDetected ? status.qualityBreakdown.distance : 0,
+                lighting: status.faceDetected ? status.qualityBreakdown.lighting : 0,
+                angle: status.faceDetected ? status.qualityBreakdown.angle : 0,
+                centering: status.faceDetected ? status.qualityBreakdown.centering : 0,
+                sharpness: status.faceDetected ? status.qualityBreakdown.sharpness : 0,
+                expression: status.faceDetected ? Math.min(status.qualityBreakdown.stability, status.faceLocked ? 1 : 0.3) : 0,
+              }} />
             </div>
           )}
+
+          {/* ── AI Haritası toggle — bottom-left of camera frame ── */}
+          {initState === 'ready' && !preview && (
+            <button
+              type="button"
+              onClick={() => setShowMesh((v) => !v)}
+              className="absolute bottom-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full transition-all duration-200 active:scale-95"
+              style={{
+                background: 'rgba(0,0,0,0.45)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                border: `1px solid ${showMesh ? 'rgba(214,185,140,0.15)' : 'rgba(255,255,255,0.08)'}`,
+              }}
+              aria-label={showMesh ? 'AI Haritasını Gizle' : 'AI Haritasını Göster'}
+            >
+              <svg className={`w-3 h-3 transition-colors duration-200 ${showMesh ? 'text-[#D6B98C]' : 'text-white/30'}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+              </svg>
+              <span className={`font-body text-[9px] tracking-[0.06em] transition-colors duration-200 ${showMesh ? 'text-white/50' : 'text-white/25'}`}>
+                {showMesh ? 'AI Haritası' : 'Harita Kapalı'}
+              </span>
+            </button>
+          )}
+
         </div>
       </div>
 
-      {/* ═══ SECTION 3: Controls (flex-none, never overflows) ═══ */}
-      <div className="flex-none px-5 pb-3 sm:pb-5">
-        {/* Guidance text */}
-        {initState === 'ready' && !preview && (
-          <div className="flex flex-col items-center gap-1 mb-2.5 sm:mb-3">
+      {/* ── Guidance card — directly below camera preview, tight spacing ── */}
+      {initState === 'ready' && !preview && phase !== 'validated' && phase !== 'advancing' && (
+        <div className="flex-none flex justify-center px-4 mt-0.5 sm:mt-1">
+          <div
+            className="flex flex-col items-center gap-1 px-5 sm:px-7 py-2 sm:py-2.5 rounded-[14px] sm:rounded-[16px] max-w-[92%]"
+            style={{
+              background: 'rgba(10,8,6,0.85)',
+              border: '1px solid rgba(214,185,140,0.06)',
+            }}
+          >
             {isMulti && (
-              <span className="px-3 py-0.5 rounded-full bg-[rgba(196,163,90,0.1)] border border-[rgba(196,163,90,0.15)] text-[9px] font-medium tracking-[0.15em] uppercase text-[#D4B96A]">
+              <span className="text-[9px] font-medium tracking-[0.16em] uppercase text-[#D4B96A]/60">
                 {currentStepLabel} — {stepNumber}/{totalSteps}
               </span>
             )}
-            <p className={`font-display text-[16px] sm:text-[18px] font-light tracking-[-0.01em] text-center transition-all duration-500 ${messageColor}`}>
-              {phaseMessage}
+            <p className={`font-display text-[15px] sm:text-[17px] font-normal text-center leading-[1.35] tracking-[0.01em] transition-colors duration-500 whitespace-pre-line ${
+              phase === 'stabilizing' ? 'text-[#D4B96A]'
+                : status.faceDetected && status.qualityScore >= 0.5 ? 'text-white/90'
+                : 'text-white/60'
+            }`}>
+              {(() => {
+                const isSide = isMulti && multiStep !== 'front'
+                // Countdown active (front or side)
+                if (countdown !== null && countdown > 0) {
+                  return isSide ? 'Harika, burada kalın' : 'Hazır olun…'
+                }
+                if (phase === 'stabilizing') return 'Harika, sabit kalın…'
+                // Side-specific: crow's feet not yet visible
+                if (isSide && phase === 'tracking' && status.faceDetected && status.angle === 'ok' && status.crowFeetScore < SIDE_CROW_FEET_THRESHOLD) {
+                  return 'Göz kenarını biraz daha gösterin'
+                }
+                if (phase === 'tracking' && status.faceDetected) return status.mainMessage
+                if (phase === 'idle' || phase === 'detecting' || !status.faceDetected) {
+                  return isMulti ? MULTI_INSTRUCTIONS[multiStep] : 'Yüzünüzü çerçevenin içinde tutun'
+                }
+                return status.mainMessage
+              })()}
             </p>
-            {phase === 'tracking' && status.faceDetected && (
-              <p className="font-body text-[10px] text-white/30 text-center animate-[fadeIn_0.4s_ease]" key={tipIndex}>
-                {TIPS[tipIndex]}
-              </p>
-            )}
-            {(phase === 'idle' || phase === 'detecting') && !status.faceDetected && (
-              <p className="font-body text-[10px] text-white/20 text-center">
-                Yüzünüzü çerçevenin içine yerleştirin
-              </p>
-            )}
+            {/* Secondary hint */}
+            {(() => {
+              const isSide = isMulti && multiStep !== 'front'
+              if (countdown !== null && countdown > 0) {
+                return <p className="font-body text-[10px] text-[#D4B96A]/40 text-center tracking-wide">Çekim hazırlanıyor</p>
+              }
+              if (isSide && phase === 'tracking' && status.faceDetected && status.angle === 'ok' && status.crowFeetScore < SIDE_CROW_FEET_THRESHOLD) {
+                return <p className="font-body text-[10px] text-white/25 text-center tracking-wide">Kaz ayağı bölgesi görünür olmalı</p>
+              }
+              if ((phase === 'idle' || phase === 'detecting') && !status.faceDetected) {
+                return <p className="font-body text-[10px] text-white/30 text-center tracking-wide">Başınızı dik tutun ve kameraya bakın</p>
+              }
+              if (phase === 'tracking' && status.faceDetected) {
+                return <p className="font-body text-[10px] text-white/22 text-center tracking-wide" key={tipIndex}>{TIPS[tipIndex]}</p>
+              }
+              return null
+            })()}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Action area */}
-        <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+      {/* ═══ SECTION 3: Controls (flex-none, compact) ═══ */}
+      <div className="flex-none px-5 pb-3 sm:pb-5 pt-1.5">
+        <div className="flex flex-col items-center gap-2">
           {!preview ? (
             <>
-              {/* Quality bar */}
-              {status.faceDetected && phase !== 'validated' && phase !== 'advancing' && (
-                <div className="flex items-center gap-2 mb-0.5">
-                  <div className="w-24 sm:w-28 h-[4px] sm:h-[5px] rounded-full bg-white/[0.06] overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-700 ease-out"
-                      style={{
-                        width: `${Math.round(status.qualityScore * 100)}%`,
-                        background: `rgb(${accentFromQuality(status.qualityScore)})`,
-                      }}
-                    />
-                  </div>
-                  <span
-                    className="font-body text-[10px] tabular-nums w-7 transition-colors duration-500"
-                    style={{ color: `rgba(${accentFromQuality(status.qualityScore)},0.6)` }}
-                  >
-                    {Math.round(status.qualityScore * 100)}
-                  </span>
-                </div>
-              )}
-
-              {/* Capture button — always visible, enabled at manual threshold */}
+              {/* Quality bar + capture button */}
               {phase === 'validated' || phase === 'advancing' ? (
                 <p className="font-body text-[11px] text-[#00FFB4] tracking-[0.1em] uppercase py-2">Çekim tamamlandı</p>
               ) : (
-                <div className="flex flex-col items-center gap-1.5">
+                <div className="flex items-center gap-5">
+                  {/* Quality bar — left of shutter */}
+                  {status.faceDetected && (
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-16 sm:w-20 h-[3px] rounded-full bg-white/[0.06] overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-700 ease-out"
+                          style={{
+                            width: `${Math.round(status.qualityScore * 100)}%`,
+                            background: `rgb(${accentFromQuality(status.qualityScore)})`,
+                          }}
+                        />
+                      </div>
+                      <span
+                        className="font-mono text-[10px] tabular-nums w-6 transition-colors duration-500"
+                        style={{ color: `rgba(${accentFromQuality(status.qualityScore)},0.55)` }}
+                      >
+                        {Math.round(status.qualityScore * 100)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Shutter button */}
                   <button
                     type="button"
                     onClick={takeSnapshot}
                     disabled={!manualCaptureEnabled}
-                    className="group relative disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="group relative disabled:opacity-25 disabled:cursor-not-allowed flex-shrink-0"
                     aria-label="Fotoğraf çek"
                   >
-                    <div className={`w-[64px] h-[64px] sm:w-[76px] sm:h-[76px] rounded-full border-[3px] transition-all duration-500 flex items-center justify-center ${
+                    <div className={`w-[62px] h-[62px] sm:w-[72px] sm:h-[72px] rounded-full border-[2.5px] transition-all duration-500 flex items-center justify-center ${
                       manualCaptureEnabled
                         ? 'border-[rgba(0,255,180,0.4)] shadow-[0_0_16px_rgba(0,255,180,0.12)]'
                         : 'border-[rgba(255,255,255,0.08)]'
                     }`}>
-                      <div className="w-[52px] h-[52px] sm:w-[62px] sm:h-[62px] rounded-full bg-[rgba(255,255,255,0.12)] group-hover:bg-[rgba(255,255,255,0.22)] group-active:scale-90 transition-all duration-300 group-disabled:bg-[rgba(255,255,255,0.04)]" />
+                      <div className="w-[50px] h-[50px] sm:w-[58px] sm:h-[58px] rounded-full bg-[rgba(255,255,255,0.12)] group-hover:bg-[rgba(255,255,255,0.22)] group-active:scale-90 transition-all duration-300 group-disabled:bg-[rgba(255,255,255,0.04)]" />
                     </div>
                   </button>
-                  <p className="font-body text-[9px] text-white/20 tracking-[0.12em] uppercase">
-                    {manualCaptureEnabled ? 'Manuel çekim' : phase === 'stabilizing' ? 'Doğrulanıyor…' : 'Otomatik çekim aktif'}
-                  </p>
+
+                  {/* Status hint — right of shutter */}
+                  <div className="w-[76px] sm:w-[86px]">
+                    <p className="font-body text-[9px] text-white/20 tracking-[0.08em] uppercase leading-tight text-center">
+                      {manualCaptureEnabled ? 'Manuel çekim' : phase === 'stabilizing' ? 'Doğrulanıyor…' : 'Otomatik çekim'}
+                    </p>
+                  </div>
                 </div>
               )}
             </>

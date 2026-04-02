@@ -87,6 +87,8 @@ export default function AnalysisMediaPage() {
   }, [setCurrentLead, createLeadAndProcess])
 
   /** Fallback single capture (e.g. if multi fails or for legacy compat) */
+  // With strict capture gate, all captured frames meet quality criteria.
+  // Always go directly to processing — no consent detour needed.
   const handleCapture = useCallback((dataUrl: string, meta?: CaptureMetadata) => {
     const confidence = meta?.confidence ?? 'high'
 
@@ -96,12 +98,8 @@ export default function AnalysisMediaPage() {
       capture_confidence: confidence,
     })
 
-    if (confidence === 'high') {
-      createLeadAndProcess(dataUrl, confidence)
-    } else {
-      router.push('/analysis/consent')
-    }
-  }, [setCurrentLead, router, createLeadAndProcess])
+    createLeadAndProcess(dataUrl, confidence)
+  }, [setCurrentLead, createLeadAndProcess])
 
   const handleBack = useCallback(() => {
     router.back()

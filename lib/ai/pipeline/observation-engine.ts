@@ -163,6 +163,17 @@ function toImpact(score: number, areaWeight: number): ImpactLevel {
   return 'neutral'
 }
 
+/**
+ * Soften observation text for partial-visibility regions.
+ * Adds a qualifying hedge so the user understands the finding is tentative.
+ */
+function softenForPartial(text: string, vis: VisibilityLevel): string {
+  if (vis !== 'partial') return text
+  // Don't double-soften if text already contains a hedge
+  if (/sınırlı|referans|değerlendirilememiştir|net olarak/i.test(text)) return text
+  return text.replace(/\.$/, ' — sınırlı görüntü koşullarında elde edilen gözlemdir.')
+}
+
 /** Build a standard observation */
 function obs(
   area: ObservationArea,
@@ -178,7 +189,7 @@ function obs(
   return {
     area,
     label: AREA_LABELS[area],
-    observation,
+    observation: softenForPartial(observation, visibility),
     visibility,
     confidence: clamp(Math.round(confidence), 0, 100),
     impact,

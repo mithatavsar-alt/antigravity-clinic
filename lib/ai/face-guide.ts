@@ -27,6 +27,8 @@ export interface FaceGuideStatus {
   faceHeightRatio: number
   /** Face lock state — true when face has been reliably detected for several frames */
   faceLocked: boolean
+  /** Crow's feet landmark visibility score 0–1 (for side-capture readiness) */
+  crowFeetScore: number
   /** Debug info for overlay */
   debug: FaceDebugInfo
 }
@@ -164,6 +166,7 @@ export const NO_FACE_STATUS: FaceGuideStatus = {
   qualityBreakdown: { distance: 0, angle: 0, centering: 0, lighting: 0, sharpness: 0, stability: 0 },
   faceHeightRatio: 0,
   faceLocked: false,
+  crowFeetScore: 0,
   debug: {
     faceSizePct: 0, centerOffsetX: 0, centerOffsetY: 0,
     tiltDeg: 0, yawDeg: 0, pitchDeg: 0, noseOffset: 0, targetAngle: 'front',
@@ -439,18 +442,21 @@ export function evaluateFaceGuide(
   const faceHeight = Math.abs(chin.y - forehead.y)
   const faceArea = faceWidth * faceHeight
 
-  // ── 1. DISTANCE — face height ratio (target 60–90%, ideal 70–85%) ──
+  // ── 1. DISTANCE — face height ratio ──
+  // With the enlarged outer oval (82% width, 7:10 aspect), the face can be
+  // smaller in frame and still look well-placed. Relaxed lower bound.
   const faceHeightRatio = faceHeight // already normalized 0-1
   let distance: FaceGuideStatus['distance'] = 'ok'
-  if (faceHeightRatio < 0.38) distance = 'too_far'      // < 38% → too far (relaxed from 60% for usability with oval guide)
-  else if (faceHeightRatio > 0.80) distance = 'too_close' // > 80% → too close
+  if (faceHeightRatio < 0.32) distance = 'too_far'
+  else if (faceHeightRatio > 0.80) distance = 'too_close'
 
   // ── 2. CENTERING ──
+  // Y target 0.48 matches the enlarged oval guide (paddingBottom: 1%, nearly centered)
   const offsetX = Math.abs(faceCenterX - 0.5)
-  const offsetY = Math.abs(faceCenterY - 0.45)
-  // Relax centering for angled captures — face naturally shifts when turning
-  const centerThresholdX = targetAngle === 'front' ? 0.08 : 0.14
-  const centerThresholdY = targetAngle === 'front' ? 0.08 : 0.10
+  const offsetY = Math.abs(faceCenterY - 0.48)
+  // Relax centering — larger oval means more tolerance
+  const centerThresholdX = targetAngle === 'front' ? 0.12 : 0.20
+  const centerThresholdY = targetAngle === 'front' ? 0.12 : 0.16
   const centering: FaceGuideStatus['centering'] =
     (offsetX > centerThresholdX || offsetY > centerThresholdY) ? 'off_center' : 'ok'
 
@@ -475,10 +481,11 @@ export function evaluateFaceGuide(
   const PITCH_THRESHOLD = 0.15
 
   // Angle evaluation — target-aware for multi-angle capture
-  // For angled captures: accept yaw in the ±15-30° range (noseOffset ±0.18–0.40)
-  const ANGLED_MIN = 0.15   // minimum turn required
-  const ANGLED_MAX = 0.45   // maximum turn allowed
-  const ANGLED_IDEAL = 0.28 // ideal angle (~20°)
+  // For angled captures: accept yaw in a very wide range (noseOffset ±0.09–0.55)
+  // Very forgiving so users don't have to hunt for an exact pose.
+  const ANGLED_MIN = 0.09   // very slight turn accepted (was 0.12)
+  const ANGLED_MAX = 0.55   // generous max (was 0.50)
+  const ANGLED_IDEAL = 0.24 // ideal angle (~17°, easy target)
 
   // Angle evaluation — target-aware for multi-angle capture.
   //
@@ -504,16 +511,19 @@ export function evaluateFaceGuide(
     else if (pitchOffset > PITCH_THRESHOLD) angle = 'look_down'
   } else if (targetAngle === 'left') {
     // Left face view: expect negative noseOffset (head turned right IRL)
+    // Relaxed pitch threshold — users tilt naturally when turning
+    const sidePitch = PITCH_THRESHOLD * 1.4
     if (noseOffset > -ANGLED_MIN) angle = 'look_right'     // not turned enough
     else if (noseOffset < -ANGLED_MAX) angle = 'look_left'  // turned too far
-    else if (pitchOffset < -PITCH_THRESHOLD) angle = 'look_up'
-    else if (pitchOffset > PITCH_THRESHOLD) angle = 'look_down'
+    else if (pitchOffset < -sidePitch) angle = 'look_up'
+    else if (pitchOffset > sidePitch) angle = 'look_down'
   } else if (targetAngle === 'right') {
     // Right face view: expect positive noseOffset (head turned left IRL)
+    const sidePitch = PITCH_THRESHOLD * 1.4
     if (noseOffset < ANGLED_MIN) angle = 'look_left'       // not turned enough
     else if (noseOffset > ANGLED_MAX) angle = 'look_right'  // turned too far
-    else if (pitchOffset < -PITCH_THRESHOLD) angle = 'look_up'
-    else if (pitchOffset > PITCH_THRESHOLD) angle = 'look_down'
+    else if (pitchOffset < -sidePitch) angle = 'look_up'
+    else if (pitchOffset > sidePitch) angle = 'look_down'
   }
 
   // ── 4. EYES VISIBLE (EAR) ──
@@ -567,10 +577,10 @@ export function evaluateFaceGuide(
   // Angled guidance: "look_right"/"look_left" here refer to the needed physical
   // head movement, but the user sees a mirrored selfie — so screen directions
   // are flipped.  We phrase instructions in terms of showing the cheek.
-  else if (targetAngle === 'left' && angle === 'look_right') mainMessage = 'Sol yanağınızı biraz daha gösterin'
-  else if (targetAngle === 'left' && angle === 'look_left') mainMessage = 'Çok fazla döndünüz, biraz geri gelin'
-  else if (targetAngle === 'right' && angle === 'look_right') mainMessage = 'Sağ yanağınızı biraz daha gösterin'
-  else if (targetAngle === 'right' && angle === 'look_left') mainMessage = 'Çok fazla döndünüz, biraz geri gelin'
+  else if (targetAngle === 'left' && angle === 'look_right') mainMessage = 'Hafif sola dönün'
+  else if (targetAngle === 'left' && angle === 'look_left') mainMessage = 'Biraz geri gelin'
+  else if (targetAngle === 'right' && angle === 'look_right') mainMessage = 'Hafif sağa dönün'
+  else if (targetAngle === 'right' && angle === 'look_left') mainMessage = 'Biraz geri gelin'
   else if (angle === 'look_left' || angle === 'look_right') mainMessage = 'Doğrudan kameraya bakın'
   else if (angle === 'look_up') mainMessage = 'Başınızı hafifçe indirin'
   else if (angle === 'look_down') mainMessage = 'Başınızı hafifçe kaldırın'
@@ -582,12 +592,12 @@ export function evaluateFaceGuide(
 
   // ── Continuous quality sub-scores (0–1) ──
 
-  // Distance score: ideal faceHeightRatio 0.50–0.70 (sweet spot)
+  // Distance score: ideal faceHeightRatio 0.42–0.68 (sweet spot for larger oval)
   let distanceScore = 0
-  if (faceHeightRatio >= 0.38 && faceHeightRatio <= 0.80) {
-    const ideal = 0.58
+  if (faceHeightRatio >= 0.32 && faceHeightRatio <= 0.80) {
+    const ideal = 0.52
     const deviation = Math.abs(faceHeightRatio - ideal) / ideal
-    distanceScore = Math.max(0, 1 - deviation * 1.5)
+    distanceScore = Math.max(0, 1 - deviation * 1.3)
   }
 
   // ── Angle score (pose only: tilt, yaw, pitch) — NO centering ──
@@ -599,10 +609,11 @@ export function evaluateFaceGuide(
     yawScore = Math.max(0, 1 - Math.abs(noseOffset) / YAW_THRESHOLD)
   } else {
     // Both left and right targets use magnitude — direction already validated above
+    // Generous scoring: anywhere in the valid range scores ≥0.6
     if (absNoseOffset >= ANGLED_MIN && absNoseOffset <= ANGLED_MAX) {
-      yawScore = Math.max(0.5, 1 - Math.abs(absNoseOffset - ANGLED_IDEAL) / ANGLED_IDEAL)
+      yawScore = Math.max(0.6, 1 - Math.abs(absNoseOffset - ANGLED_IDEAL) / (ANGLED_IDEAL * 1.5))
     } else {
-      yawScore = Math.max(0, 0.3 - Math.abs(absNoseOffset - ANGLED_IDEAL) * 0.5)
+      yawScore = Math.max(0, 0.3 - Math.abs(absNoseOffset - ANGLED_IDEAL) * 0.4)
     }
   }
   const pitchScore = Math.max(0, 1 - Math.abs(pitchOffset) / PITCH_THRESHOLD)
@@ -615,7 +626,9 @@ export function evaluateFaceGuide(
     : tiltScore * 0.15 + yawScore * 0.45 + pitchScore * 0.20 + eyeScore * 0.15 + fhScore * 0.05
 
   // ── Centering score (position only) — independent from angle ──
-  const centerScore = Math.max(0, 1 - (offsetX + offsetY) / 0.16)
+  // Divisor 0.34: green (≥0.60) reachable when combined offset < 0.136,
+  // matching the enlarged 82%-width oval. Generous but not loose.
+  const centerScore = Math.max(0, 1 - (offsetX + offsetY) / 0.34)
 
   // Lighting score: ideal brightness 90–180 + shadow uniformity
   let lightingScore = 0
@@ -686,11 +699,30 @@ export function evaluateFaceGuide(
     boundingBox: { x: faceCenterX - faceWidth / 2, y: forehead.y, w: faceWidth, h: faceHeight },
   }
 
+  // ── Crow's feet visibility (for side-capture readiness) ──
+  // Check how many of the crow's feet landmarks fall within the visible frame.
+  // Left view → left crow's feet, Right view → right crow's feet.
+  const CROW_FEET_LEFT_LM = [33, 130, 226, 247, 30, 29, 27, 28]
+  const CROW_FEET_RIGHT_LM = [263, 359, 446, 467, 260, 259, 257, 258]
+  const crowLandmarks = targetAngle === 'left' ? CROW_FEET_LEFT_LM
+    : targetAngle === 'right' ? CROW_FEET_RIGHT_LM : []
+
+  let crowFeetScore = targetAngle === 'front' ? 1 : 0
+  if (crowLandmarks.length > 0) {
+    let visible = 0
+    for (const idx of crowLandmarks) {
+      const lm = landmarks[idx]
+      if (lm && lm.x > 0.03 && lm.x < 0.97 && lm.y > 0.03 && lm.y < 0.97) visible++
+    }
+    crowFeetScore = visible / crowLandmarks.length
+  }
+
   return {
     lighting, angle, distance, centering, eyesVisible, foreheadVisible,
     faceDetected: true, allOk, mainMessage, validCount,
     qualityScore, qualityBreakdown, faceHeightRatio,
     faceLocked,
+    crowFeetScore,
     debug,
   }
 }

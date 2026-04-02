@@ -333,8 +333,14 @@ export function deriveRadarAnalysis(
       'Yüz analizinde birden fazla bölgede iyileştirme potansiyeli tespit edilmiştir. Kişiye özel tedavi planı için doktor değerlendirmesi önerilir.'
   }
 
+  // Weight overall confidence by each region's own confidence (self-weighting).
+  // High-confidence regions contribute more; low-confidence regions pull less.
+  const confWeighted = scores.reduce((sum, s) => {
+    const w = s.confidence >= 0.55 ? 1 : s.confidence >= 0.35 ? 0.5 : 0.2
+    return { num: sum.num + s.confidence * w, den: sum.den + w }
+  }, { num: 0, den: 0 })
   const overallConf =
-    Math.round((scores.reduce((sum, s) => sum + s.confidence, 0) / scores.length) * 100) / 100
+    Math.round((confWeighted.den > 0 ? confWeighted.num / confWeighted.den : 0.5) * 100) / 100
   const captureQ =
     captureQuality ?? (iqScore >= 65 ? 'high' : iqScore >= 40 ? 'medium' : 'low')
 

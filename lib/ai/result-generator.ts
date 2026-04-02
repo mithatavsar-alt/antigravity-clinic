@@ -289,11 +289,12 @@ function generateSuggestionsFromObservations(
   const usedAreas = new Set<string>()
 
   // Top non-positive findings (max 4)
+  // Skip limited-visibility regions entirely; they add noise, not insight
   for (const o of sorted) {
     if (suggestions.length >= 4) break
     if (o.isPositive) continue
     if (usedAreas.has(o.area)) continue
-    if (o.confidence < 25) continue
+    if (o.confidence < 25 || o.visibility === 'limited') continue
     suggestions.push(o.observation)
     usedAreas.add(o.area)
   }

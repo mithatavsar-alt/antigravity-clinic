@@ -51,7 +51,7 @@ export function runQualityGate(
       score: 0,
       blockers: ['no_face'],
       warnings: [],
-      blockMessage: 'Yüz tespit edilemedi — analiz sınırlı veri ile tamamlandı.',
+      blockMessage: 'Analiz tamamlandı. Bazı alanlarda doğruluk sınırlı olabilir.',
       rawAssessment: null,
     }
   }
@@ -215,6 +215,8 @@ export function detectMouthOpen(landmarks: Landmark[]): number {
 // ─── Message builders ──────────────────────────────────────
 
 function buildBlockMessage(blockers: QualityBlocker[]): string {
+  // Post-capture safety: block messages are always soft — never "Analiz yapılamadı".
+  // The pre-capture gate already filters unusable frames.
   const reasons: string[] = []
 
   for (const b of blockers) {
@@ -226,16 +228,16 @@ function buildBlockMessage(blockers: QualityBlocker[]): string {
         reasons.push('kısmi yüz görünümü')
         break
       case 'extreme_angle':
-        reasons.push('yüksek açı sapması')
+        reasons.push('belirgin açı farkı')
         break
       case 'too_dark':
         reasons.push('düşük aydınlatma')
         break
       case 'too_bright':
-        reasons.push('aşırı parlaklık')
+        reasons.push('yoğun parlaklık')
         break
       case 'too_blurry':
-        reasons.push('bulanık görüntü')
+        reasons.push('bulanıklık')
         break
       case 'too_low_resolution':
         reasons.push('düşük çözünürlük')
@@ -247,10 +249,10 @@ function buildBlockMessage(blockers: QualityBlocker[]): string {
   }
 
   if (reasons.length === 0) {
-    return 'Sonuçlar mevcut görüntü koşullarına göre oluşturulmuştur.'
+    return 'Analiz tamamlandı. Sonuçlar mevcut görüntü koşullarına göre oluşturulmuştur.'
   }
 
-  return `Sonuçlar mevcut görüntü koşullarına göre oluşturulmuştur (${reasons.join(', ')}).`
+  return `Analiz tamamlandı. Görüntü koşulları (${reasons.join(', ')}) dikkate alınarak sonuçlar oluşturulmuştur.`
 }
 
 function buildDegradeMessage(warnings: QualityWarning[], blockers: QualityBlocker[] = []): string {
@@ -290,8 +292,8 @@ function buildDegradeMessage(warnings: QualityWarning[], blockers: QualityBlocke
   }
 
   if (parts.length === 0) {
-    return 'Sonuçlar mevcut görüntü koşullarına göre oluşturulmuştur.'
+    return 'Bazı alanlarda doğruluk sınırlı olabilir.'
   }
 
-  return `Görüntü koşulları (${parts.join(', ')}) dikkate alınarak analiz tamamlanmıştır.`
+  return `Görüntü koşulları (${parts.join(', ')}) dikkate alınarak sonuçlar oluşturulmuştur.`
 }

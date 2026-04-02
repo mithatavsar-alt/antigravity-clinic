@@ -189,10 +189,10 @@ export function generateStrongFeatures(
  */
 export function confidenceBandLabel(band: string): string {
   switch (band) {
-    case 'high': return 'Yüksek güven'
-    case 'moderate': return 'Orta güven'
-    case 'low': return 'Düşük güven'
-    case 'insufficient': return 'Yetersiz veri'
+    case 'high': return 'Yüksek'
+    case 'moderate': return 'Orta'
+    case 'low': return 'Düşük'
+    case 'insufficient': return 'Sınırlı'
     default: return ''
   }
 }
@@ -344,7 +344,7 @@ function buildLipRegionConfidence(
       label: REGION_LABELS.lips,
       confidence: 'low',
       evaluable: false,
-      limitation: 'Dudak analizi yapılamadı.',
+      limitation: 'Dudak bölgesinde yeterli veri elde edilemedi.',
     }
   }
 

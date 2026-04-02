@@ -88,18 +88,13 @@ export function runTrustPipeline(
   // POST-CAPTURE SAFETY: Never block after capture.
   // If the quality gate wants to block, downgrade to 'degrade' instead.
   // The pre-capture gate already filtered out truly unusable frames.
+  // Messages are always soft — never "Analiz yapılamadı" or blocking language.
   const qualityGate: QualityGateResult = rawQualityGate.verdict === 'block'
     ? {
         ...rawQualityGate,
         verdict: 'degrade' as const,
         blockMessage: undefined,
-        degradeMessage: rawQualityGate.blockMessage
-          ? rawQualityGate.blockMessage
-              .replace(/^Analiz yapılamadı:\s*/i, '')
-              .replace(/\.\s*Lütfen.*$/i, '')
-            ? `Görüntüde ${rawQualityGate.blockMessage.replace(/^Analiz yapılamadı:\s*/i, '').replace(/\.\s*Lütfen.*$/i, '')} tespit edildi — analiz tamamlandı ancak bazı alanlarda doğruluk sınırlı olabilir.`
-            : 'Analiz tamamlandı, ancak bazı alanlarda doğruluk sınırlı olabilir.'
-          : 'Analiz tamamlandı, ancak bazı alanlarda doğruluk sınırlı olabilir.',
+        degradeMessage: 'Bazı alanlarda doğruluk sınırlı olabilir.',
       }
     : rawQualityGate
 
@@ -333,12 +328,18 @@ export function isAnalysisBlocked(result: TrustGatedResult): boolean {
 // ─── Utility: Get quality caveat for UI ────────────────────
 
 export function getQualityCaveatText(result: TrustGatedResult): string | null {
-  // Post-capture: never show block messages. Degrade messages are soft warnings.
+  // Post-capture: only soft warnings. Never "Analiz yapılamadı" or blocking language.
   if (result.qualityGate.verdict === 'degrade') {
-    return result.qualityGate.degradeMessage ?? null
+    // Sanitize: strip any legacy blocking phrases that may leak through
+    const raw = result.qualityGate.degradeMessage ?? 'Bazı alanlarda doğruluk sınırlı olabilir.'
+    return raw
+      .replace(/^Analiz yapılamadı[^.]*\.\s*/gi, '')
+      .replace(/^Yüz tam olarak görüntülenemedi[^.]*\.\s*/gi, '')
+      .replace(/^Yüz açısı çok yüksek[^.]*\.\s*/gi, '')
+      .trim() || null
   }
   if (result.suppressedCount > 3) {
-    return 'Bu değerlendirme sınırlı veri içerir — bazı bölgeler güvenilir analiz için yeterli değildir.'
+    return 'Bazı bölgelerde sınırlı veri nedeniyle değerlendirme yapılamamıştır.'
   }
   return null
 }

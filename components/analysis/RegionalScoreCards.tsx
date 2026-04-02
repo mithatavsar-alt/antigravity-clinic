@@ -33,6 +33,8 @@ export interface RegionCardData {
   isPositive: boolean
   /** Optional consultation relevance note */
   consultationNote?: string
+  /** Optional limitation note for low-confidence regions */
+  limitation?: string
 }
 
 /** Multi-view region shape (from multi-view pipeline) */
@@ -220,6 +222,7 @@ function buildCards(props: RegionalScoreCardsProps): RegionCardData[] {
             ? config?.defaultNote
             : undefined
         ),
+        limitation: assessment.confidence < 45 ? assessment.limitation : undefined,
       })
     }
 
@@ -234,6 +237,8 @@ function buildCards(props: RegionalScoreCardsProps): RegionCardData[] {
     let isPositive = false
     let hasData = false
 
+    let limitation: string | undefined
+
     if (observations && observations.length > 0) {
       const matches = observations.filter(o => config.areas.includes(o.area))
       if (matches.length > 0) {
@@ -246,6 +251,8 @@ function buildCards(props: RegionalScoreCardsProps): RegionCardData[] {
         observation = best.observation
         isPositive = best.isPositive
         hasData = true
+        // Pick limitation from the best match or any match that has one
+        limitation = best.limitation ?? matches.find(o => o.limitation)?.limitation
       }
     }
 
@@ -282,6 +289,7 @@ function buildCards(props: RegionalScoreCardsProps): RegionCardData[] {
       observation,
       isPositive,
       consultationNote: showConsultation ? config.defaultNote : undefined,
+      limitation: confidence < 45 ? limitation : undefined,
     })
   }
 
@@ -303,8 +311,8 @@ function ConfidenceBar({ value }: { value: number }) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => { const t = setTimeout(() => setMounted(true), 300); return () => clearTimeout(t) }, [])
 
-  const color = value >= 70 ? '#3D9B7A' : value >= 40 ? '#D6B98C' : '#C8785A'
-  const label = value >= 70 ? 'Yüksek güven' : value >= 40 ? 'Orta güven' : 'Sınırlı güven'
+  const color = value >= 85 ? '#3D9B7A' : value >= 70 ? '#3D9B7A' : value >= 55 ? '#D6B98C' : value >= 40 ? '#C4883A' : '#C8785A'
+  const label = value >= 85 ? 'Yüksek' : value >= 70 ? 'İyi' : value >= 55 ? 'Orta' : value >= 40 ? 'Düşük' : 'Sınırlı'
 
   return (
     <div className="flex items-center gap-2">
@@ -402,6 +410,14 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
           <ConfidenceBar value={card.confidence} />
         </div>
       </div>
+      {card.limitation && (
+        <div className="px-4 sm:px-3.5 py-2 border-t border-[rgba(200,120,90,0.06)]">
+          <p className="font-body text-[9px] text-[rgba(200,120,90,0.5)] leading-[1.5] flex items-center gap-1.5">
+            <span className="opacity-60">⚠</span>
+            {card.limitation}
+          </p>
+        </div>
+      )}
       {card.consultationNote && (
         <div className="px-4 sm:px-3.5 py-2.5 border-t border-[rgba(214,185,140,0.05)] bg-[rgba(214,185,140,0.015)]">
           <p className="font-body text-[10px] sm:text-[9px] text-[rgba(214,185,140,0.45)] leading-[1.6] italic">

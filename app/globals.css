@@ -629,6 +629,11 @@ input:focus, select:focus, textarea:focus,
 .animate-polygon-breathe { animation: polygonBreathe 4s ease-in-out infinite; }
 .animate-polygon-glow { animation: polygonGlow 4s ease-in-out infinite; }
 
+@keyframes ovalBreathe {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.012); }
+}
+
 /* ── Reduced motion ─────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   * {

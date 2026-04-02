@@ -124,7 +124,12 @@ function mapToShowcase(scores: RadarDataPoint[]): ShowcaseRegion[] {
         ? Math.round(matching.reduce((sum, s) => sum + Math.max(0, Math.min(100, s.score)), 0) / matching.length)
         : 50
 
-    return { id: def.id, label: def.label, score: avg }
+    const avgConf =
+      matching.length > 0
+        ? matching.reduce((sum, s) => sum + s.confidence, 0) / matching.length
+        : 0.5
+
+    return { id: def.id, label: def.label, score: avg, confidence: avgConf }
   })
 }
 
@@ -288,6 +293,7 @@ export default function RadarChartSection({ scores, captureQuality, summaryText 
           insight={currentInsight}
           score={currentRegion.score}
           regionIndex={currentIndex}
+          confidence={currentRegion.confidence}
         />
       </div>
 

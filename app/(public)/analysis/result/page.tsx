@@ -101,7 +101,7 @@ function PhotoLightbox({ src, onClose }: { src: string; onClose: () => void }) {
 
 /* ── Hero photo card with landmark overlay ─────────────────── */
 function AnalysisPhoto({ src, onClick, hasAI, wrinkleRegions }: { src: string; onClick: () => void; hasAI: boolean; wrinkleRegions?: Array<{ region: string; score: number; detected?: boolean }> }) {
-  const [showMesh, setShowMesh] = useState(false)
+  const [showMesh, setShowMesh] = useState(true)
   const [overlayState, setOverlayState] = useState<OverlayState>('idle')
   const [retryKey, setRetryKey] = useState(0)
 
@@ -722,7 +722,7 @@ function ResultContent() {
   const estimatedGenderConfidence = selectedLead.estimated_gender_confidence
   const qualityScore = selectedLead.quality_score
   const analysisConfidence = selectedLead.analysis_confidence
-  const captureConfidence = selectedLead.capture_confidence
+
   const wrinkleScores = selectedLead.wrinkle_scores
   const ageEstimation = selectedLead.age_estimation
   const radarAnalysis = selectedLead.radar_analysis
@@ -735,10 +735,8 @@ function ResultContent() {
   // ── Trust pipeline data ──
   const trustPipeline = selectedLead.trust_pipeline
   const hasTrust = !!trustPipeline
-  const trustFindings = trustPipeline?.findings ?? []
   const trustCaveat = trustPipeline?.quality_caveat
   const trustConfidence = trustPipeline?.overall_confidence ?? 0
-  const strongFeatures = trustPipeline?.strong_features ?? []
   const limitedAreas = trustPipeline?.limited_areas
   // Photo may have been stripped from localStorage (quota protection).
   // Recover from sessionStorage bridge if needed.
@@ -749,66 +747,255 @@ function ResultContent() {
       {/* Ambient depth glows — cinematic layering */}
       <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 70% 50% at 25% 20%, rgba(214,185,140,0.035) 0%, transparent 60%), radial-gradient(ellipse 60% 40% at 80% 75%, rgba(61,155,122,0.02) 0%, transparent 50%), radial-gradient(ellipse 80% 60% at 50% 50%, rgba(10,9,8,0.4) 0%, transparent 70%)' }} />
       <div className="max-w-5xl mx-auto flex flex-col px-4 sm:px-8" style={{ paddingTop: 'clamp(3.5rem, 8vh, 8rem)', paddingBottom: 'clamp(2.5rem, 6vh, 5rem)', gap: 'clamp(2rem, 4vw, 4rem)' }}>
-        {/* ── Premium Header ──────────────────────────── */}
-        <div className="text-center flex flex-col items-center" style={{ animation: 'heroFadeUp 0.8s ease-out both' }}>
-          {/* Floating icon */}
-          <div className="relative w-14 h-14 sm:w-16 sm:h-16 mb-6 sm:mb-8">
-            <div className="absolute inset-[-8px] rounded-full" style={{ background: 'radial-gradient(circle, rgba(61,155,122,0.15) 0%, transparent 70%)', animation: 'subtleFloat 4s ease-in-out infinite' }} />
-            <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: 'rgba(61,155,122,0.06)', border: '1px solid rgba(61,155,122,0.18)' }}>
-              <svg className="w-6 h-6 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+        {/* ── Premium Result Reveal ──────────────────────────── */}
+        <div className="relative text-center flex flex-col items-center" style={{ animation: 'heroFadeUp 0.8s ease-out both' }}>
+
+          {/* ═══ AI Ambiance Layers — background-only, never compete with content ═══ */}
+
+          {/* Central radial glow — soft teal wash behind the hero area */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              top: '-10%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 'min(600px, 90vw)',
+              height: '420px',
+              background: 'radial-gradient(ellipse 70% 55% at 50% 40%, rgba(61,155,122,0.045) 0%, rgba(61,155,122,0.015) 40%, transparent 70%)',
+            }}
+          />
+
+          {/* Side glow — left (desktop only, hidden on mobile) */}
+          <div
+            className="absolute pointer-events-none hidden lg:block"
+            style={{
+              top: '8%',
+              left: '-14%',
+              width: '280px',
+              height: '360px',
+              background: 'radial-gradient(ellipse 80% 70% at 60% 50%, rgba(61,155,122,0.035) 0%, transparent 65%)',
+              filter: 'blur(40px)',
+            }}
+          />
+
+          {/* Side glow — right (desktop only) */}
+          <div
+            className="absolute pointer-events-none hidden lg:block"
+            style={{
+              top: '12%',
+              right: '-14%',
+              width: '280px',
+              height: '340px',
+              background: 'radial-gradient(ellipse 80% 70% at 40% 50%, rgba(214,185,140,0.025) 0%, transparent 65%)',
+              filter: 'blur(40px)',
+            }}
+          />
+
+          {/* Abstract mesh hint — faint geometric contour lines (desktop only) */}
+          <svg
+            className="absolute pointer-events-none hidden lg:block"
+            style={{
+              top: '-5%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: '680px',
+              height: '480px',
+              opacity: 0.025,
+            }}
+            viewBox="0 0 680 480"
+            fill="none"
+          >
+            {/* Concentric ellipses — hint at facial contour mapping */}
+            <ellipse cx="340" cy="220" rx="200" ry="160" stroke="rgba(61,155,122,1)" strokeWidth="0.8" />
+            <ellipse cx="340" cy="220" rx="260" ry="200" stroke="rgba(61,155,122,1)" strokeWidth="0.5" />
+            <ellipse cx="340" cy="220" rx="320" ry="240" stroke="rgba(214,185,140,1)" strokeWidth="0.4" />
+            {/* Node points at cardinal positions */}
+            <circle cx="340" cy="60" r="2" fill="rgba(61,155,122,1)" />
+            <circle cx="340" cy="380" r="2" fill="rgba(61,155,122,1)" />
+            <circle cx="140" cy="220" r="1.5" fill="rgba(214,185,140,1)" />
+            <circle cx="540" cy="220" r="1.5" fill="rgba(214,185,140,1)" />
+            {/* Subtle cross-lines */}
+            <line x1="340" y1="60" x2="340" y2="380" stroke="rgba(61,155,122,1)" strokeWidth="0.3" strokeDasharray="4 8" />
+            <line x1="140" y1="220" x2="540" y2="220" stroke="rgba(214,185,140,1)" strokeWidth="0.3" strokeDasharray="4 8" />
+            {/* Diagonal geometry hints */}
+            <line x1="220" y1="100" x2="460" y2="340" stroke="rgba(61,155,122,1)" strokeWidth="0.25" strokeDasharray="3 10" />
+            <line x1="460" y1="100" x2="220" y2="340" stroke="rgba(61,155,122,1)" strokeWidth="0.25" strokeDasharray="3 10" />
+          </svg>
+
+          {/* ═══ End AI Ambiance ═══ */}
+
+          {/* Success icon — refined with layered glow */}
+          <div className="relative mb-8 sm:mb-10">
+            {/* Outer ambient glow — slightly wider for AI feel */}
+            <div
+              className="absolute rounded-full"
+              style={{
+                inset: '-28px',
+                background: 'radial-gradient(circle, rgba(61,155,122,0.10) 0%, rgba(61,155,122,0.035) 50%, transparent 75%)',
+                animation: 'subtleFloat 4s ease-in-out infinite',
+              }}
+            />
+            {/* Inner ring */}
+            <div
+              className="relative w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-full flex items-center justify-center"
+              style={{
+                background: 'rgba(61,155,122,0.06)',
+                border: '1.5px solid rgba(61,155,122,0.22)',
+                boxShadow: '0 0 40px rgba(61,155,122,0.10), 0 0 80px rgba(61,155,122,0.04), inset 0 0 20px rgba(61,155,122,0.04)',
+              }}
+            >
+              <svg className="w-7 h-7 sm:w-8 sm:h-8 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
           </div>
 
-          {/* Status label */}
-          <span className="text-label text-[rgba(214,185,140,0.55)] sm:text-[rgba(214,185,140,0.50)] mb-4 sm:mb-5">
-            {isHumanLocal ? 'AI Analiz Tamamlandı' : isCombined ? 'AI Analiz Tamamlandı' : isFallback ? 'Ön Değerlendirme (Sınırlı)' : hasAI || hasSkin ? 'AI Analiz Tamamlandı' : 'Ön Değerlendirme Tamamlandı'}
+          {/* Overline — premium label */}
+          <span
+            className="relative font-body text-[10px] sm:text-[11px] tracking-[0.22em] uppercase mb-5 sm:mb-6"
+            style={{ color: 'rgba(61,155,122,0.65)' }}
+          >
+            {isHumanLocal || isCombined || hasAI || hasSkin ? 'AI Analizi Tamamlandı' : 'Ön Değerlendirme Tamamlandı'}
           </span>
 
-          {/* Display heading — Cormorant Garamond */}
-          <h1 className="heading-display heading-display-lg text-[#F8F6F2]" style={{ maxWidth: '18ch' }}>
+          {/* Main headline — Cormorant Garamond, larger and more present */}
+          <h1
+            className="relative heading-display text-[#F8F6F2]"
+            style={{
+              fontSize: 'clamp(1.75rem, 5vw, 2.75rem)',
+              maxWidth: '20ch',
+              lineHeight: 1.1,
+              letterSpacing: '-0.02em',
+            }}
+          >
             {selectedLead.full_name.split(' ')[0]}, analiz özetiniz hazır
           </h1>
 
+          {/* Supporting description */}
+          <p
+            className="relative font-body text-[14px] sm:text-[15px] font-normal leading-[1.8] text-center max-w-sm sm:max-w-md mt-5 sm:mt-6"
+            style={{ color: 'rgba(214,185,140,0.55)' }}
+          >
+            Sonuçlar çekim kalitesi ve bölgesel görünürlüğe göre değerlendirilmiştir.
+          </p>
+
           {/* Editorial divider */}
-          <div className="flex items-center gap-4 mt-7">
-            <div className="h-px w-20" style={{ background: 'linear-gradient(90deg, transparent, rgba(214,185,140,0.30))', animation: 'lineExpand 0.8s ease-out 0.3s both', transformOrigin: 'right' }} />
-            <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(214,185,140,0.30)' }} />
-            <div className="h-px w-20" style={{ background: 'linear-gradient(90deg, rgba(214,185,140,0.30), transparent)', animation: 'lineExpand 0.8s ease-out 0.3s both', transformOrigin: 'left' }} />
+          <div className="relative flex items-center gap-4 mt-8 sm:mt-10">
+            <div className="h-px w-16 sm:w-24" style={{ background: 'linear-gradient(90deg, transparent, rgba(214,185,140,0.25))', animation: 'lineExpand 0.8s ease-out 0.3s both', transformOrigin: 'right' }} />
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(214,185,140,0.25)' }} />
+            <div className="h-px w-16 sm:w-24" style={{ background: 'linear-gradient(90deg, rgba(214,185,140,0.25), transparent)', animation: 'lineExpand 0.8s ease-out 0.3s both', transformOrigin: 'left' }} />
           </div>
 
         </div>
 
-        {/* ── Consolidated Status Banner (single warning area) ────── */}
+        {/* ── Score & Confidence Capsule ─────────────────── */}
+        {hasTrust && (
+          <div className="flex flex-col items-center gap-4" style={{ animation: 'sectionReveal 0.5s ease-out 0.15s both' }}>
+            <div
+              className="inline-flex items-center gap-4 sm:gap-5 px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl"
+              style={{
+                background: 'rgba(14,12,10,0.60)',
+                border: '1px solid rgba(214,185,140,0.10)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                boxShadow: '0 4px 24px rgba(0,0,0,0.20), inset 0 1px 0 rgba(255,255,255,0.03)',
+              }}
+            >
+              {/* Capture quality score */}
+              {qualityScore != null && (
+                <div className="flex flex-col items-center gap-1">
+                  <span className="font-body text-[9px] sm:text-[10px] tracking-[0.14em] uppercase" style={{ color: 'rgba(214,185,140,0.45)' }}>
+                    Çekim
+                  </span>
+                  <span className="font-mono text-[18px] sm:text-[20px] font-light tabular-nums text-[rgba(248,246,242,0.75)]">
+                    {qualityScore}
+                  </span>
+                </div>
+              )}
+
+              {/* Divider between scores */}
+              {qualityScore != null && (
+                <div className="w-px h-8 sm:h-9" style={{ background: 'rgba(214,185,140,0.10)' }} />
+              )}
+
+              {/* Confidence level */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="font-body text-[9px] sm:text-[10px] tracking-[0.14em] uppercase" style={{ color: 'rgba(214,185,140,0.45)' }}>
+                  Güven
+                </span>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{
+                      background: trustConfidence >= 70 ? '#3D9B7A' : trustConfidence >= 55 ? '#C4A35A' : trustConfidence >= 40 ? '#C4883A' : '#A05252',
+                      boxShadow: trustConfidence >= 70 ? '0 0 6px rgba(61,155,122,0.4)' : 'none',
+                    }}
+                  />
+                  <span className="font-body text-[13px] sm:text-[14px] font-medium tracking-[0.02em] text-[rgba(248,246,242,0.70)]">
+                    {trustConfidence >= 85 ? 'Yüksek' : trustConfidence >= 70 ? 'İyi' : trustConfidence >= 55 ? 'Orta' : trustConfidence >= 40 ? 'Düşük' : 'Sınırlı'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Young face badge */}
+              {trustPipeline.young_face_active && (
+                <>
+                  <div className="w-px h-8 sm:h-9" style={{ background: 'rgba(214,185,140,0.10)' }} />
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="font-body text-[9px] sm:text-[10px] tracking-[0.14em] uppercase" style={{ color: 'rgba(214,185,140,0.45)' }}>
+                      Profil
+                    </span>
+                    <span className="font-body text-[12px] sm:text-[13px] text-[rgba(248,246,242,0.55)]">
+                      Genç Yüz
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Explanatory text — calm, readable, secondary */}
+            <p
+              className="font-body text-[12px] sm:text-[13px] font-normal leading-[1.8] text-center max-w-sm sm:max-w-md"
+              style={{ color: 'rgba(214,185,140,0.50)' }}
+            >
+              Analiz sonuçları; kamera kalitesi, görüntü netliği ve ışık koşullarına bağlı olarak değişebilir.
+            </p>
+          </div>
+        )}
+
+        {/* ── Soft Warning Banner (if any) ────── */}
+        {/* Post-capture rule: NEVER show blocking errors. Only soft warnings. */}
         {(() => {
           const warningLines: string[] = []
+
           if (isFallback) {
-            warningLines.push('Yüz analizi tamamlanamadı — sonuçlar sınırlı ön değerlendirmeye dayanmaktadır.')
+            warningLines.push('Sonuçlar ön değerlendirme niteliğindedir.')
           }
-          if (captureConfidence && captureConfidence !== 'high') {
-            warningLines.push('Bazı alanlarda doğruluk sınırlı olabilir.')
-          }
+
           if (hasTrust && trustCaveat) {
-            // Filter out any legacy block-style messages
             const safeCaveat = trustCaveat
-              .replace(/^Analiz yapılamadı[^.]*\.\s*/i, '')
-              .replace(/^Analiz için görüntü uygun değil\.\s*/i, '')
-            if (safeCaveat.trim()) warningLines.push(safeCaveat)
+              .replace(/^Analiz yapılamadı[^.]*\.\s*/gi, '')
+              .replace(/^Yüz tam olarak görüntülenemedi[^.]*\.\s*/gi, '')
+              .replace(/^Yüz açısı çok yüksek[^.]*\.\s*/gi, '')
+              .replace(/^Analiz için görüntü uygun değil\.\s*/gi, '')
+              .trim()
+            if (safeCaveat) warningLines.push(safeCaveat)
           }
-          if (hasTrust && trustPipeline.metrics_suppressed > 3) {
+
+          if (hasTrust && trustPipeline.metrics_suppressed > 5) {
             warningLines.push(`${trustPipeline.metrics_suppressed} bölge yetersiz güven nedeniyle gösterilmemiştir.`)
           }
+
           if (warningLines.length === 0) return null
           return (
             <div className="max-w-2xl mx-auto w-full" style={{ animation: 'sectionReveal 0.6s ease-out 0.1s both' }}>
-              <div className="flex items-start gap-3 px-5 py-4 rounded-xl border border-[rgba(229,168,59,0.12)] bg-[rgba(229,168,59,0.04)]">
-                <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#E5A83B]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <div className="flex items-start gap-3 px-5 py-4 rounded-xl border border-[rgba(229,168,59,0.10)] bg-[rgba(229,168,59,0.03)]">
+                <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[rgba(229,168,59,0.70)]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
                 </svg>
                 <div className="flex flex-col gap-1">
                   {warningLines.map((line, i) => (
-                    <span key={i} className="font-body text-[13px] sm:text-[12px] text-[rgba(229,168,59,0.85)] leading-[1.7] sm:leading-[1.6]">
+                    <span key={i} className="font-body text-[13px] sm:text-[12px] text-[rgba(229,168,59,0.75)] leading-[1.7] sm:leading-[1.6]">
                       {line}
                     </span>
                   ))}
@@ -817,24 +1004,6 @@ function ResultContent() {
             </div>
           )
         })()}
-
-        {/* ── Trust Pipeline Confidence Badge ────────────────────── */}
-        {hasTrust && (
-          <div className="flex justify-center" style={{ animation: 'sectionReveal 0.5s ease-out 0.15s both' }}>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[rgba(214,185,140,0.08)] bg-[rgba(214,185,140,0.03)]">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{
-                  background: trustConfidence >= 70 ? '#3D9B7A' : trustConfidence >= 40 ? '#E5A83B' : '#A05252',
-                }}
-              />
-              <span className="font-body text-[11px] sm:text-[10px] tracking-[0.10em] sm:tracking-[0.12em] text-[rgba(248,246,242,0.45)] sm:text-[rgba(248,246,242,0.40)]">
-                Analiz Güveni: {trustConfidence >= 70 ? 'Yüksek' : trustConfidence >= 40 ? 'Orta' : 'Düşük'}
-                {trustPipeline.young_face_active && ' · Genç Yüz Profili'}
-              </span>
-            </div>
-          </div>
-        )}
 
         {/* ── Radar Analysis Section ────────────────────────────── */}
         {hasRadar && radarAnalysis && (
@@ -918,11 +1087,11 @@ function ResultContent() {
                 <div className="flex flex-col gap-5 text-center py-6">
                   <div className="w-14 h-14 rounded-full bg-[rgba(214,185,140,0.06)] border border-[rgba(214,185,140,0.12)] flex items-center justify-center mx-auto">
                     <svg className="w-6 h-6 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                     </svg>
                   </div>
                   <p className="font-body text-[14px] text-[rgba(248,246,242,0.55)] leading-relaxed">
-                    Analiz sonuçları hazırlanıyor.
+                    Analiz tamamlandı. Sonuçlar fotoğraf kalite kriterlerini karşılayan kare üzerinden oluşturuldu.
                   </p>
                   <p className="font-body text-[12px] text-[rgba(248,246,242,0.30)] leading-relaxed">
                     Sonuçlar klinik değerlendirme yerine geçmez.
@@ -931,109 +1100,11 @@ function ResultContent() {
               </GlassCard>
             )}
 
-            {/* Summary Card — refined */}
+            {/* Regional Evaluations Card — the primary value section */}
             <GlassCard elevated padding="lg" rounded="xl" className="[animation:sectionReveal_0.6s_ease-out_0.55s_both]">
               <div className="flex flex-col gap-7">
-                <div>
-                  <span className="text-label text-[rgba(248,246,242,0.45)] sm:text-[rgba(248,246,242,0.40)] mb-3 block">Ön Değerlendirme</span>
-                  <p className="font-body text-[15px] sm:text-[14px] text-[rgba(248,246,242,0.58)] sm:text-[rgba(248,246,242,0.55)] leading-[1.85] sm:leading-[1.8]">
-                    {(() => {
-                      const raw = selectedLead.patient_summary?.summary_text
-                        ?? 'Analiz tamamlandı. Sonuçlar fotoğraf kalite kriterlerini karşılayan kare üzerinden oluşturuldu.'
-                      // Strip any legacy block messages that may have leaked into stored data
-                      return raw
-                        .replace(/^Analiz yapılamadı[^.]*\.\s*/gi, '')
-                        .replace(/^Analiz için görüntü uygun değil\.\s*/gi, '')
-                        || 'Analiz tamamlandı. Sonuçlar fotoğraf kalite kriterlerini karşılayan kare üzerinden oluşturuldu.'
-                    })()}
-                  </p>
-                </div>
 
-                {/* Strong Features — system prompt section 2 */}
-                {strongFeatures.length > 0 && (
-                  <>
-                    <ThinLine />
-                    <div>
-                      <span className="text-label text-[rgba(248,246,242,0.35)] sm:text-[rgba(248,246,242,0.30)] mb-4 block">Güçlü Özellikler</span>
-                      <div className="flex flex-col gap-2.5 sm:gap-2">
-                        {strongFeatures.map((feature, i) => (
-                          <div
-                            key={i}
-                            className="flex gap-3 items-start rounded-md border border-[rgba(61,155,122,0.12)] bg-[rgba(61,155,122,0.03)] px-4 py-3.5 sm:py-3"
-                          >
-                            <svg className="w-4 h-4 sm:w-3.5 sm:h-3.5 mt-0.5 flex-shrink-0 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75" />
-                            </svg>
-                            <span className="font-body text-[13px] sm:text-[12px] text-[rgba(248,246,242,0.58)] sm:text-[rgba(248,246,242,0.55)] leading-[1.75] sm:leading-[1.7]">{feature}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <ThinLine />
-
-                {/* AI Suggestions — trust-gated when available */}
-                {hasTrust && trustFindings.length > 0 ? (
-                  <>
-                    <div>
-                      <span className="text-label text-[rgba(248,246,242,0.35)] sm:text-[rgba(248,246,242,0.30)] mb-4 block">Estetik Tespitler</span>
-                      <div className="flex flex-col gap-3 sm:gap-2.5">
-                        {trustFindings.map((finding, i) => (
-                          <div
-                            key={i}
-                            className="flex gap-3 items-start rounded-md border px-4 py-3.5 sm:py-3"
-                            style={{
-                              borderColor: finding.isSoft ? 'rgba(229,168,59,0.10)' : 'rgba(214,185,140,0.08)',
-                              background: finding.isSoft ? 'rgba(229,168,59,0.02)' : 'rgba(214,185,140,0.025)',
-                            }}
-                          >
-                            <div className="flex flex-col gap-0.5 flex-shrink-0 mt-0.5">
-                              <div
-                                className="w-2 h-2 rounded-full"
-                                style={{
-                                  background: finding.band === 'high' ? '#3D9B7A'
-                                    : finding.band === 'moderate' ? '#D6B98C'
-                                    : '#E5A83B',
-                                }}
-                              />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <span className="font-body text-[13px] sm:text-[12px] text-[rgba(248,246,242,0.58)] sm:text-[rgba(248,246,242,0.55)] leading-[1.75] sm:leading-[1.7]">{finding.text}</span>
-                              {finding.isSoft && (
-                                <span className="font-body text-[10px] sm:text-[9px] tracking-[0.1em] uppercase text-[rgba(229,168,59,0.55)] sm:text-[rgba(229,168,59,0.50)]">sınırlı güven</span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <ThinLine />
-                  </>
-                ) : hasAI && aiScores.suggestions.length > 0 ? (
-                  <>
-                    <div>
-                      <span className="text-label text-[rgba(248,246,242,0.30)] mb-4 block">Estetik Tespitler</span>
-                      <div className="flex flex-col gap-2.5">
-                        {aiScores.suggestions.map((suggestion, i) => (
-                          <div
-                            key={i}
-                            className="flex gap-3 items-start rounded-md border border-[rgba(214,185,140,0.08)] bg-[rgba(214,185,140,0.025)] px-4 py-3"
-                          >
-                            <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                            </svg>
-                            <span className="font-body text-[12px] text-[rgba(248,246,242,0.55)] leading-[1.7]">{suggestion}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <ThinLine />
-                  </>
-                ) : null}
-
-                {/* Limited Areas — system prompt section 4 */}
+                {/* Limited Areas — shown only when relevant */}
                 {limitedAreas && (
                   <>
                     <div>
@@ -1077,23 +1148,16 @@ function ResultContent() {
                   </div>
                 </div>
 
-                {/* Consultation Bridge — Module H Section 4 */}
-                <div className="rounded-xl border border-[rgba(61,155,122,0.12)] bg-[rgba(61,155,122,0.025)] px-5 py-5 sm:py-4">
-                  <span className="text-label-sm text-[rgba(61,155,122,0.55)] mb-3 block">
-                    Uzman Değerlendirmesi
-                  </span>
-                  <p className="font-body text-[14px] sm:text-[13px] font-light text-[#F8F6F2] tracking-[0.01em] leading-[1.6] mb-2">
-                    Uzman değerlendirmesinde öncelikli incelenebilecek alanlar belirlendi.
-                  </p>
-                  <p className="font-body text-[12px] sm:text-[11px] text-[rgba(248,246,242,0.45)] leading-[1.65]">
-                    Bu yüz analizi, doktor görüşmesi öncesinde görsel bir ön değerlendirme sunar. En doğru planlama için uzman değerlendirmesi önerilir.
-                  </p>
-                </div>
-
-                {/* Disclaimer */}
-                <div className="rounded-md px-5 py-4" style={{ background: 'rgba(214,185,140,0.02)', border: '1px solid rgba(214,185,140,0.06)' }}>
-                  <p className="font-body text-[12px] sm:text-[11px] text-[rgba(248,246,242,0.32)] sm:text-[rgba(248,246,242,0.28)] leading-[1.75] sm:leading-[1.7] italic">
-                    Bu sistem doktor kararını destekler, yerine geçmez. Kesin tedavi planı klinik muayene ve doktor değerlendirmesi sonrasında oluşturulur.
+                {/* Expert evaluation — single clean card */}
+                <div className="rounded-xl border border-[rgba(61,155,122,0.10)] bg-[rgba(61,155,122,0.02)] px-5 py-4">
+                  <div className="flex items-center gap-2.5 mb-2.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[rgba(61,155,122,0.50)]" />
+                    <span className="font-body text-[10px] sm:text-[11px] tracking-[0.16em] uppercase text-[rgba(61,155,122,0.55)]">
+                      Uzman Değerlendirmesi
+                    </span>
+                  </div>
+                  <p className="font-body text-[13px] sm:text-[12px] text-[rgba(248,246,242,0.50)] leading-[1.75]">
+                    Öncelikli incelenebilecek bölgeler belirlenmiştir. Bu analiz, uzman görüşmesi öncesinde görsel bir ön değerlendirme sunar.
                   </p>
                 </div>
               </div>
@@ -1124,11 +1188,10 @@ function ResultContent() {
         </div>
       </div>
 
-      {/* ── Trust Pipeline Disclaimer ──────────────────────── */}
+      {/* ── Footer note ──────────────────────── */}
       <div className="max-w-3xl mx-auto px-4 sm:px-8 pb-8">
-        <p className="font-body text-[11px] sm:text-[10px] text-[rgba(248,246,242,0.22)] sm:text-[rgba(248,246,242,0.20)] leading-[1.75] sm:leading-[1.7] text-center">
-          Bu değerlendirme AI destekli bir ön analiz olup tanı niteliği taşımamaktadır.
-          Kesin değerlendirme ve tedavi kararı yalnızca klinik muayene sonrasında uzman hekim tarafından verilir.
+        <p className="font-body text-[11px] sm:text-[10px] text-[rgba(248,246,242,0.25)] leading-[1.7] text-center">
+          Kesin değerlendirme, klinik muayene ve uzman görüşmesi ile netleşir.
         </p>
       </div>
 
