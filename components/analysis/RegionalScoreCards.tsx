@@ -388,13 +388,13 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
         animation: `cardEntrance 0.4s ease-out ${idx * 0.08}s both`,
       }}
     >
-      <div className="flex gap-3 p-4 sm:p-3.5">
+      <div className="flex gap-3 p-3.5 sm:p-4">
         <div className="flex-shrink-0">
           <ScoreArc score={card.score} color={scoreColor} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="font-body text-[12px] sm:text-[11px] font-medium text-[rgba(248,246,242,0.75)] tracking-[0.02em]">
+            <span className="font-body text-[11px] sm:text-[12px] font-medium text-[rgba(248,246,242,0.75)] tracking-[0.02em]">
               {card.title}
             </span>
             <span

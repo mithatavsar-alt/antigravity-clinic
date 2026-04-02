@@ -759,6 +759,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
       engineReadyRef.current = false
       destroyHumanEngine(); resetSmoothing(); resetStability(); resetFaceLock()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ─── MAIN LOOP: detect → evaluate → draw mesh → validate ──

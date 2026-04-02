@@ -6,6 +6,7 @@ import type { ShowcaseRegion } from './InteractiveRadarChart'
 import RegionScoreList from './RegionScoreList'
 import DynamicInsightPanel from './DynamicInsightPanel'
 import type { RegionInsight } from './DynamicInsightPanel'
+import { scoreColor } from '@/lib/ui/score-colors'
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -131,12 +132,6 @@ function mapToShowcase(scores: RadarDataPoint[]): ShowcaseRegion[] {
 
     return { id: def.id, label: def.label, score: avg, confidence: avgConf }
   })
-}
-
-function scoreColor(s: number): string {
-  if (s >= 70) return '#4AE3A7'
-  if (s >= 40) return '#D6B98C'
-  return '#C47A7A'
 }
 
 // ─── Auto-highlight interval ─────────────────────────────────

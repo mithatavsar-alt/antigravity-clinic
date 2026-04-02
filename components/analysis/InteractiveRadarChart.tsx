@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { scoreColor } from '@/lib/ui/score-colors'
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -44,12 +45,6 @@ function polar(i: number, n: number, r: number): [number, number] {
 
 function polyPts(n: number, r: number): string {
   return Array.from({ length: n }, (_, i) => polar(i, n, r).join(',')).join(' ')
-}
-
-function scoreColor(s: number): string {
-  if (s >= 70) return '#4AE3A7'
-  if (s >= 40) return '#D6B98C'
-  return '#C47A7A'
 }
 
 function vis(score: number): number {

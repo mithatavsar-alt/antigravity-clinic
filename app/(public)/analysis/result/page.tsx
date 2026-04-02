@@ -74,7 +74,7 @@ function MetricRow({ label, value }: { label: string; value: string }) {
 function PhotoLightbox({ src, onClose }: { src: string; onClose: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)] backdrop-blur-md p-4 cursor-pointer"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(0,0,0,0.75)] backdrop-blur-md p-4 cursor-pointer"
       onClick={onClose}
     >
       <div className="relative max-w-2xl w-full max-h-[85vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
