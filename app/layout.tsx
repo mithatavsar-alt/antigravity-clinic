@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Dr. Müjde Ocak Aesthetic Clinic — Advanced Aesthetics & Beauty',
-  description: 'Yapay zeka destekli medikal estetik klinik platformu. Ön değerlendirme ve kişiselleştirilmiş tedavi planlaması.',
+  title: 'Antigravity Clinic — Dr. Müjde Ocak',
+  description: 'Yapay zeka destekli medikal estetik analiz platformu. Yüz analizi, kişiselleştirilmiş tedavi önerileri ve uzman konsültasyonu.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -44,7 +44,7 @@ export function DoctorSidebar() {
 
       <div className="mt-auto pb-8 pt-4 border-t border-[var(--color-border-gold)]">
         <p className="font-mono text-[9px] text-[var(--color-text-muted)] tracking-[0.12em] uppercase">
-          v1.0 · Mock Mod
+          Antigravity Clinic
         </p>
       </div>
     </aside>

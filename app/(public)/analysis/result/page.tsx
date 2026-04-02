@@ -53,7 +53,7 @@ function RadialGauge({ score, label, color }: { score: number; label: string; co
             className="font-mono text-[24px] sm:text-[22px] font-light leading-none"
             style={{ color, animation: mounted ? 'numberBloom 0.5s ease-out both' : 'none' }}
           >{score}</span>
-          <span className="font-body text-[9px] sm:text-[8px] text-[rgba(248,246,242,0.25)] tracking-wider uppercase">/ 100</span>
+          <span className="font-body text-[9px] text-[rgba(248,246,242,0.25)] tracking-wider uppercase">/ 100</span>
         </div>
       </div>
       <span className="font-body text-[10px] sm:text-[9px] tracking-[0.16em] sm:tracking-[0.18em] uppercase text-center text-[rgba(248,246,242,0.45)] sm:text-[rgba(248,246,242,0.4)]">{label}</span>
@@ -400,7 +400,7 @@ function FocusAreasPanel({ focusAreas }: { focusAreas: NonNullable<Lead['focus_a
                 <span className="font-body text-[13px] font-medium text-[#F8F6F2] pr-3 leading-snug">{area.label}</span>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {area.doctorReviewRecommended && (
-                    <span className="font-body text-[8px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(214,185,140,0.08)] text-[#D6B98C] border border-[rgba(214,185,140,0.15)]">
+                    <span className="font-body text-[9px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(214,185,140,0.08)] text-[#D6B98C] border border-[rgba(214,185,140,0.15)]">
                       Doktor
                     </span>
                   )}
@@ -506,12 +506,12 @@ function WrinkleAnalysisPanel({ wrinkleScores }: { wrinkleScores: NonNullable<Le
                     <span className="font-body text-[13px] font-medium text-[#F8F6F2] pr-3 leading-snug">{region.label}</span>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {region.confidence < 0.5 && (
-                        <span className="font-body text-[7px] tracking-[0.1em] uppercase px-1.5 py-0.5 rounded-full bg-[rgba(200,120,60,0.08)] text-[rgba(248,200,140,0.5)] border border-[rgba(200,120,60,0.15)]">
+                        <span className="font-body text-[9px] tracking-[0.1em] uppercase px-1.5 py-0.5 rounded-full bg-[rgba(200,120,60,0.08)] text-[rgba(248,200,140,0.5)] border border-[rgba(200,120,60,0.15)]">
                           Sınırlı
                         </span>
                       )}
                       <span
-                        className="font-body text-[8px] tracking-[0.12em] uppercase px-2 py-0.5 rounded-full border"
+                        className="font-body text-[9px] tracking-[0.12em] uppercase px-2 py-0.5 rounded-full border"
                         style={{ color, backgroundColor: `${color}10`, borderColor: `${color}25` }}
                       >
                         {levelLabel[region.level] ?? region.level}
@@ -783,6 +783,9 @@ function ResultContent() {
         {/* ── Consolidated Status Banner (single warning area) ────── */}
         {(() => {
           const warningLines: string[] = []
+          if (isFallback) {
+            warningLines.push('Yüz analizi tamamlanamadı — sonuçlar sınırlı ön değerlendirmeye dayanmaktadır.')
+          }
           if (captureConfidence && captureConfidence !== 'high') {
             warningLines.push('Bazı alanlarda doğruluk sınırlı olabilir.')
           }

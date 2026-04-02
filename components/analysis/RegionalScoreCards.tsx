@@ -390,7 +390,7 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
               {card.title}
             </span>
             <span
-              className="px-2 py-0.5 rounded-full text-[8px] font-medium tracking-[0.12em] uppercase"
+              className="px-2 py-0.5 rounded-full text-[9px] font-medium tracking-[0.12em] uppercase"
               style={{ background: sev.bg, color: sev.text }}
             >
               {sev.label}
@@ -456,7 +456,7 @@ function BilateralBar({ item }: { item: BilateralComparisonData }) {
     <div className="rounded-lg border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.01)] p-3">
       <div className="flex items-center justify-between mb-2">
         <span className="font-body text-[11px] text-[rgba(248,246,242,0.6)]">{item.label}</span>
-        <span className="font-body text-[8px] tracking-[0.12em] uppercase px-2 py-0.5 rounded-full"
+        <span className="font-body text-[9px] tracking-[0.12em] uppercase px-2 py-0.5 rounded-full"
           style={{ background: `${levelColor}12`, color: levelColor }}>
           {levelLabel}
         </span>
@@ -597,7 +597,7 @@ export function RegionalScoreCards(props: RegionalScoreCardsProps) {
             Çoklu Açı Değerlendirmesi
           </span>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[rgba(61,155,122,0.06)] border border-[rgba(61,155,122,0.12)]">
-            <span className="font-body text-[8px] tracking-[0.1em] uppercase text-[rgba(61,155,122,0.5)]">Güven</span>
+            <span className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(61,155,122,0.5)]">Güven</span>
             <span className="font-mono text-[11px] text-[#3D9B7A]">{multiViewAnalysis.globalConfidence}%</span>
           </div>
         </div>

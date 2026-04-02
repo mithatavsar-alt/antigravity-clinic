@@ -92,7 +92,7 @@ export default function LoginPage() {
           </form>
 
           <p className="font-mono text-[9px] text-[rgba(26,26,46,0.3)] text-center mt-5 tracking-[0.1em]">
-            Demo: doctor@clinic.com / clinic2026
+            Doktor girişi
           </p>
         </GlassCard>
       </div>

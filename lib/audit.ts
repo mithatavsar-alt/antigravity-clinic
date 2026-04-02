@@ -11,6 +11,8 @@ export type AuditEvent =
   | 'report_generated'
 
 export function logAuditEvent(event: AuditEvent, payload: Record<string, unknown> = {}): void {
-  // MVP: console.log — production'da API'ye gönderilecek
-  console.log(`[AUDIT] ${event}`, { timestamp: new Date().toISOString(), ...payload })
+  // Client-side audit trail — logged to console, extensible to external service
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[AUDIT] ${event}`, { timestamp: new Date().toISOString(), ...payload })
+  }
 }

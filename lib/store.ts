@@ -3,7 +3,11 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Lead, LeadStatus, DoctorAnalysis, PatientSummary, ConsultationReadiness } from '@/types/lead'
-import { mockLeads } from '@/data/mock-leads'
+// Mock leads only seeded in development for doctor dashboard demo
+const initialLeads: Lead[] = process.env.NODE_ENV === 'development'
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  ? (require('@/data/mock-leads') as { mockLeads: Lead[] }).mockLeads
+  : []
 import { calculateReadiness } from '@/lib/readiness'
 
 interface LeadAnalysisUpdate {
@@ -99,7 +103,7 @@ export const useClinicStore = create<ClinicStore>()(
       formStep: 1,
       setFormStep: (step) => set({ formStep: step }),
 
-      leads: mockLeads,
+      leads: initialLeads,
       addLead: (lead) => {
         const { score, band } = calculateReadiness(lead)
         const enriched: Lead = { ...lead, readiness_score: score, readiness_band: band }
@@ -138,7 +142,7 @@ export const useClinicStore = create<ClinicStore>()(
       login: ({ email, password }) => {
         if (email === 'doctor@clinic.com' && password === 'clinic2026') {
           set({ isAuthenticated: true })
-          setAuthCookie('mock-token-2026')
+          setAuthCookie('ag-session-token')
           return true
         }
         return false
