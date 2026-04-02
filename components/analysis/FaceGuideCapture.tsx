@@ -31,6 +31,7 @@ import {
   JAWLINE,
   type FaceGuideStatus,
 } from '@/lib/ai/face-guide'
+import { FACEMESH_TESSELATION } from '@/lib/ai/facemesh-tesselation'
 
 // ─── Types ──────────────────────────────────────────────────
 export type CaptureMode = 'single' | 'multi'
@@ -81,13 +82,15 @@ function isReadyForCapture(status: FaceGuideStatus, relaxed = false): boolean {
   const { qualityBreakdown: qb } = status
   const qThresh = relaxed ? 0.65 : AUTO_CAPTURE_QUALITY_THRESHOLD
   const subThresh = relaxed ? 0.35 : 0.50
-  const alignThresh = relaxed ? 0.40 : 0.55
+  const angleThresh = relaxed ? 0.40 : 0.55
+  const centerThresh = relaxed ? 0.25 : 0.40
   return (
     status.faceDetected &&
     status.allOk &&
     status.faceLocked &&
     qb.distance >= (relaxed ? 0.40 : 0.55) &&
-    qb.alignment >= alignThresh &&
+    qb.angle >= angleThresh &&
+    qb.centering >= centerThresh &&
     qb.lighting >= subThresh &&
     qb.sharpness >= subThresh &&
     qb.stability >= (relaxed ? 0.30 : 0.50) &&
@@ -104,38 +107,67 @@ const TIPS = [
 ]
 const MULTI_LABELS: Record<MultiStep, string> = {
   front: 'Ön Görünüm',
-  left: 'Sol Açı',
-  right: 'Sağ Açı',
+  left: 'Sol Yüz',
+  right: 'Sağ Yüz',
 }
 const MULTI_INSTRUCTIONS: Record<MultiStep, string> = {
   front: 'Düz bakın — nötr ifade',
-  left: 'Yüzünüzü hafifçe sola çevirin',
-  right: 'Yüzünüzü hafifçe sağa çevirin',
+  left: 'Sol yanağınızı hafifçe gösterin',
+  right: 'Sağ yanağınızı hafifçe gösterin',
 }
 
-// ─── Badge component ────────────────────────────────────────
+// ─── Badge component with score-driven color ───────────────
+// Color is driven by the continuous sub-score (0–1), NOT by the
+// discrete ok/tilt/etc category. This ensures pills reflect real
+// image suitability and match auto-capture readiness logic.
+//
+// Hysteresis: once a tier is reached, a wider band prevents flicker.
+//  GREEN  ≥ 0.60  (drops back to YELLOW at < 0.50)
+//  YELLOW ≥ 0.30  (drops back to RED at < 0.20)
+//  RED    < 0.30  (initial state)
+
 const BADGE_LABELS: Record<string, Record<string, string>> = {
   lighting: { ok: 'Işık', too_dark: 'Karanlık', too_bright: 'Parlak', shadow: 'Gölge' },
-  angle: { ok: 'Açı', tilt: 'Eğik', look_left: 'Sola', look_right: 'Sağa', look_up: 'Yukarı', look_down: 'Aşağı' },
+  angle: { ok: 'Açı', tilt: 'Açı', look_left: 'Açı', look_right: 'Açı', look_up: 'Açı', look_down: 'Açı' },
   distance: { ok: 'Mesafe', too_close: 'Yakın', too_far: 'Uzak' },
+  centering: { ok: 'Konum', off_center: 'Ortalama' },
   forehead: { ok: 'Alın', hidden: 'Alın Gizli' },
 }
 
-function Badge({ category, value }: { category: string; value: string }) {
+type BadgeTier = 'red' | 'yellow' | 'green'
+const badgeTierCache: Record<string, BadgeTier> = {}
+
+function scoreToBadgeTier(category: string, score: number): BadgeTier {
+  const prev = badgeTierCache[category] ?? 'red'
+  let next: BadgeTier
+  if (prev === 'green') {
+    // Hysteresis: stay green until score drops below 0.50
+    next = score >= 0.50 ? 'green' : score >= 0.20 ? 'yellow' : 'red'
+  } else if (prev === 'yellow') {
+    // Promote to green at 0.60, drop to red below 0.20
+    next = score >= 0.60 ? 'green' : score >= 0.20 ? 'yellow' : 'red'
+  } else {
+    // red: promote to yellow at 0.30, green at 0.60
+    next = score >= 0.60 ? 'green' : score >= 0.30 ? 'yellow' : 'red'
+  }
+  badgeTierCache[category] = next
+  return next
+}
+
+function Badge({ category, value, score }: { category: string; value: string; score: number }) {
   const label = BADGE_LABELS[category]?.[value] ?? value
-  const isOk = value === 'ok'
-  const isWarn = value === 'tilt' || value === 'too_dark' || value === 'too_bright' || value === 'shadow' || value === 'look_up' || value === 'look_down'
+  const tier = scoreToBadgeTier(category, score)
+  const styles = {
+    green: 'bg-[rgba(0,255,180,0.10)] text-[#7CFFC8] border-[rgba(0,255,180,0.2)]',
+    yellow: 'bg-[rgba(196,163,90,0.12)] text-[#D4B96A] border-[rgba(196,163,90,0.2)]',
+    red: 'bg-[rgba(160,82,82,0.1)] text-[#D89090] border-[rgba(160,82,82,0.15)]',
+  }
+  const dotColors = { green: 'bg-[#00FFB4]', yellow: 'bg-[#C4A35A]', red: 'bg-[#A05252]' }
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-medium tracking-[0.12em] uppercase border backdrop-blur-xl transition-all duration-500 ${
-        isOk
-          ? 'bg-[rgba(0,180,100,0.12)] text-[#7CE8B2] border-[rgba(0,180,100,0.2)]'
-          : isWarn
-            ? 'bg-[rgba(196,163,90,0.12)] text-[#D4B96A] border-[rgba(196,163,90,0.2)]'
-            : 'bg-[rgba(160,82,82,0.1)] text-[#D89090] border-[rgba(160,82,82,0.15)]'
-      }`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-medium tracking-[0.12em] uppercase border backdrop-blur-xl transition-all duration-500 ${styles[tier]}`}
     >
-      <span className={`w-1 h-1 rounded-full ${isOk ? 'bg-[#00DC82]' : isWarn ? 'bg-[#C4A35A]' : 'bg-[#A05252]'}`} />
+      <span className={`w-1 h-1 rounded-full ${dotColors[tier]}`} />
       {label}
     </span>
   )
@@ -153,6 +185,25 @@ export interface OverlayRegionHighlight {
   detected: boolean
 }
 
+/**
+ * Resolve the shared accent RGB triplet from quality score.
+ * This single source of truth drives mesh color AND bottom bar color.
+ *   fail (< 0.5)       → warm red   (200,120,120)
+ *   borderline (0.5–0.8) → gold     (212,185,106)
+ *   accepted (≥ 0.8)   → mint green (0,255,180)
+ */
+export function accentFromQuality(q: number): string {
+  if (q >= 0.8) return '0,255,180'
+  if (q >= 0.5) {
+    // Lerp gold → mint between 0.5 and 0.8
+    const t = (q - 0.5) / 0.3
+    return `${Math.round(212 - 212 * t)},${Math.round(185 + 70 * t)},${Math.round(106 + 74 * t)}`
+  }
+  // Lerp red → gold between 0 and 0.5
+  const t = q / 0.5
+  return `${Math.round(200 + 12 * t)},${Math.round(120 + 65 * t)},${Math.round(120 - 14 * t)}`
+}
+
 export function drawMesh(
   ctx: CanvasRenderingContext2D,
   landmarks: Landmark[],
@@ -164,6 +215,8 @@ export function drawMesh(
   qualityScore = 0,
   /** Optional: wrinkle regions with real detections for subtle highlight overlay */
   detectedRegions?: OverlayRegionHighlight[],
+  /** Dynamic accent RGB triplet — if omitted, derived from qualityScore */
+  accentRgb?: string,
 ) {
   ctx.clearRect(0, 0, w, h)
   ctx.save()
@@ -171,20 +224,14 @@ export function drawMesh(
   const toX = (lm: Landmark) => mirror ? (1 - lm.x) * w : lm.x * w
   const toY = (lm: Landmark) => lm.y * h
 
+  // Shared dynamic accent — drives ALL mesh colors
+  const accent = accentRgb ?? accentFromQuality(qualityScore)
+
   // Tier-based opacity: mesh gets brighter as quality improves
   const baseOpacity = 0.25 + qualityScore * 0.45  // range 0.25–0.70
 
-  // Color palette — quality-responsive
+  // Quality tier flag — used by region highlights
   const isHigh = qualityScore >= 0.8
-  const gold = {
-    stroke: isHigh ? 'rgba(150,210,160,' : 'rgba(201,169,110,',
-    glow:   isHigh ? 'rgba(150,210,160,' : 'rgba(201,169,110,',
-  }
-  const purple = {
-    line:  'rgba(155,143,168,',
-    glow:  'rgba(140,115,185,',
-    dot:   'rgba(170,150,200,',
-  }
 
   // ── Contour drawing helper ──
   const drawContour = (
@@ -216,94 +263,50 @@ export function drawMesh(
   }
 
   // ════════════════════════════════════════════════════════════
-  // OUTER CONTOURS — gold face oval + jawline (from real landmarks)
+  // DENSE TRIANGULATED MESH — full MediaPipe-style tesselation
+  // Single batched draw call for all ~900 edges. Neon mint/green
+  // with subtle glow. PURELY VISUAL — does NOT affect analysis.
+  // Drawn FIRST so feature contours render on top.
   // ════════════════════════════════════════════════════════════
-  drawContour(FACE_OVAL, gold.stroke, 0.85, 1.8, gold.glow, 16)
-  drawContour(JAWLINE, gold.stroke, 0.65, 1.5, gold.glow, 12)
-
-  // ════════════════════════════════════════════════════════════
-  // INNER FEATURES — purple AI contours (eyes, brows, nose, lips)
-  // ════════════════════════════════════════════════════════════
-  drawContour(LEFT_EYE, purple.line, 0.9, 1.5, purple.glow, 10)
-  drawContour(RIGHT_EYE, purple.line, 0.9, 1.5, purple.glow, 10)
-  drawContour(LEFT_EYEBROW, purple.line, 0.65, 1.2, purple.glow, 7)
-  drawContour(RIGHT_EYEBROW, purple.line, 0.65, 1.2, purple.glow, 7)
-  drawContour(NOSE_BRIDGE, purple.line, 0.7, 1.3, purple.glow, 8)
-  drawContour(UPPER_LIP, purple.line, 0.6, 1.1, null, 0)
-  drawContour(LOWER_LIP, purple.line, 0.6, 1.1, null, 0)
-
-  // ════════════════════════════════════════════════════════════
-  // TRIANGULATED MESH — premium medical-grade overlay
-  // Denser in forehead, glabella, and periorbital zones.
-  // Very thin lines that don't obscure skin texture.
-  // PURELY VISUAL — does NOT affect analysis scores.
-  // ════════════════════════════════════════════════════════════
-  const drawLink = (a: number, b: number, opacity: number, lineW: number, glowBlur = 0) => {
-    const la = landmarks[a], lb = landmarks[b]
-    if (!la || !lb) return
+  {
+    const meshAlpha = Math.min(0.55, 0.15 + qualityScore * 0.40)
     ctx.beginPath()
-    ctx.lineWidth = lineW
-    ctx.strokeStyle = `${gold.stroke}${(opacity * baseOpacity).toFixed(3)})`
-    if (glowBlur > 0) {
-      ctx.shadowColor = `${gold.glow}${(0.12 * baseOpacity).toFixed(3)})`
-      ctx.shadowBlur = glowBlur
+    ctx.lineWidth = 0.6
+    ctx.strokeStyle = `rgba(${accent},${meshAlpha.toFixed(3)})`
+    ctx.shadowColor = `rgba(${accent},${(meshAlpha * 0.35).toFixed(3)})`
+    ctx.shadowBlur = 3
+    ctx.lineJoin = 'round'
+    ctx.lineCap = 'round'
+    for (const [a, b] of FACEMESH_TESSELATION) {
+      const la = landmarks[a], lb = landmarks[b]
+      if (!la || !lb) continue
+      ctx.moveTo(toX(la), toY(la))
+      ctx.lineTo(toX(lb), toY(lb))
     }
-    ctx.moveTo(toX(la), toY(la))
-    ctx.lineTo(toX(lb), toY(lb))
     ctx.stroke()
-    if (glowBlur > 0) { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0 }
-  }
-
-  // Forehead mesh — dense horizontal + vertical + cross (premium scanning feel)
-  const foreheadH: [number, number][] = [
-    [54, 103], [103, 67], [67, 109], [109, 10], [10, 338], [338, 297], [297, 332], [332, 284],
-    [63, 105], [105, 66], [66, 107], [107, 9], [9, 336], [336, 296], [296, 334], [334, 293],
-  ]
-  const foreheadV: [number, number][] = [
-    [54, 63], [103, 105], [67, 66], [109, 107], [10, 9], [338, 336], [297, 296], [332, 334], [284, 293],
-  ]
-  const foreheadX: [number, number][] = [
-    [54, 105], [103, 66], [67, 107], [109, 9], [10, 336], [338, 296], [297, 334], [332, 293],
-  ]
-  // Glabella mesh — vertical guide lines between brows
-  const glabellaMesh: [number, number][] = [
-    [55, 8], [8, 285], [66, 9], [9, 296], [107, 151], [151, 336],
-    [65, 55], [55, 285], [285, 295],
-  ]
-  // Periorbital mesh — radial connections around eye areas
-  const periorbitalMesh: [number, number][] = [
-    [130, 247], [247, 30], [30, 29], [29, 27], [27, 28], [28, 56],
-    [359, 467], [467, 260], [260, 259], [259, 257], [257, 258], [258, 286],
-    [111, 117], [117, 118], [118, 119], [119, 120], [120, 121],
-    [340, 346], [346, 347], [347, 348], [348, 349], [349, 350],
-  ]
-  // Midface + nose radial mesh — sparse, elegant
-  const midfaceMesh: [number, number][] = [
-    [234, 93], [93, 132], [132, 58], [454, 323], [323, 361], [361, 288],
-    [168, 107], [168, 336], [168, 55], [168, 285],
-    [1, 33], [1, 263], [1, 61], [1, 291],
-  ]
-  // Draw each mesh zone — forehead densest, midface sparsest
-  for (const [a, b] of foreheadH) drawLink(a, b, 0.28, 0.5, 4)
-  for (const [a, b] of foreheadV) drawLink(a, b, 0.22, 0.4, 3)
-  for (const [a, b] of foreheadX) drawLink(a, b, 0.15, 0.35, 2)
-  for (const [a, b] of glabellaMesh) drawLink(a, b, 0.22, 0.45, 3)
-  for (const [a, b] of periorbitalMesh) drawLink(a, b, 0.20, 0.4, 3)
-  for (const [a, b] of midfaceMesh) drawLink(a, b, 0.12, 0.3, 0)
-
-  // Mesh node dots — tiny points at mesh intersections
-  const meshNodes = [103, 67, 109, 10, 338, 297, 332, 105, 66, 107, 9, 336, 296, 334, 8, 151, 55, 285, 168]
-  for (const idx of meshNodes) {
-    const lm = landmarks[idx]
-    if (!lm) continue
-    ctx.fillStyle = `${gold.stroke}${(0.18 * baseOpacity).toFixed(3)})`
-    ctx.beginPath()
-    ctx.arc(toX(lm), toY(lm), 1.2, 0, Math.PI * 2)
-    ctx.fill()
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
   }
 
   // ════════════════════════════════════════════════════════════
-  // ANCHOR DOTS — key landmarks as small glowing points
+  // OUTER CONTOURS — dynamic accent face oval + jawline on top of mesh
+  // ════════════════════════════════════════════════════════════
+  drawContour(FACE_OVAL, `rgba(${accent},`, 0.90, 1.8, `rgba(${accent},`, 14)
+  drawContour(JAWLINE, `rgba(${accent},`, 0.70, 1.5, `rgba(${accent},`, 10)
+
+  // ════════════════════════════════════════════════════════════
+  // INNER FEATURES — brighter contours for eyes, brows, nose, lips
+  // ════════════════════════════════════════════════════════════
+  drawContour(LEFT_EYE, `rgba(${accent},`, 0.95, 1.6, `rgba(${accent},`, 10)
+  drawContour(RIGHT_EYE, `rgba(${accent},`, 0.95, 1.6, `rgba(${accent},`, 10)
+  drawContour(LEFT_EYEBROW, `rgba(${accent},`, 0.75, 1.3, `rgba(${accent},`, 7)
+  drawContour(RIGHT_EYEBROW, `rgba(${accent},`, 0.75, 1.3, `rgba(${accent},`, 7)
+  drawContour(NOSE_BRIDGE, `rgba(${accent},`, 0.80, 1.4, `rgba(${accent},`, 8)
+  drawContour(UPPER_LIP, `rgba(${accent},`, 0.75, 1.2, `rgba(${accent},`, 6)
+  drawContour(LOWER_LIP, `rgba(${accent},`, 0.75, 1.2, `rgba(${accent},`, 6)
+
+  // ════════════════════════════════════════════════════════════
+  // ANCHOR DOTS — key landmarks as small glowing mint points
   // ════════════════════════════════════════════════════════════
   const anchors = [
     1,    // nose tip
@@ -319,14 +322,14 @@ export function drawMesh(
     if (!lm) continue
     const x = toX(lm), y = toY(lm)
     // Soft glow halo
-    ctx.shadowColor = `${purple.glow}${(0.4 * baseOpacity).toFixed(3)})`
-    ctx.shadowBlur = 8
-    ctx.fillStyle = `${purple.dot}${(0.5 * baseOpacity).toFixed(3)})`
-    ctx.beginPath(); ctx.arc(x, y, 2.0, 0, Math.PI * 2); ctx.fill()
+    ctx.shadowColor = `rgba(${accent},${(0.5 * baseOpacity).toFixed(3)})`
+    ctx.shadowBlur = 10
+    ctx.fillStyle = `rgba(${accent},${(0.65 * baseOpacity).toFixed(3)})`
+    ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill()
     // White core
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0
-    ctx.fillStyle = `rgba(255,255,255,${(0.6 * baseOpacity).toFixed(3)})`
-    ctx.beginPath(); ctx.arc(x, y, 0.7, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = `rgba(255,255,255,${(0.75 * baseOpacity).toFixed(3)})`
+    ctx.beginPath(); ctx.arc(x, y, 0.8, 0, Math.PI * 2); ctx.fill()
   }
 
   // ════════════════════════════════════════════════════════════
@@ -368,9 +371,9 @@ export function drawMesh(
       const radius = Math.max(w, h) * 0.06
 
       const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius)
-      grad.addColorStop(0, `rgba(220,170,100,${intensity.toFixed(3)})`)
-      grad.addColorStop(0.6, `rgba(220,170,100,${(intensity * 0.4).toFixed(3)})`)
-      grad.addColorStop(1, 'rgba(220,170,100,0)')
+      grad.addColorStop(0, `rgba(${accent},${intensity.toFixed(3)})`)
+      grad.addColorStop(0.6, `rgba(${accent},${(intensity * 0.4).toFixed(3)})`)
+      grad.addColorStop(1, `rgba(${accent},0)`)
       ctx.fillStyle = grad
       ctx.beginPath()
       ctx.arc(cx, cy, radius, 0, Math.PI * 2)
@@ -402,15 +405,9 @@ export function drawMesh(
         fcx, fcy, radius * 0.1 * breathe,
         fcx, fcy, radius * 1.4 * breathe,
       )
-      if (isHigh) {
-        ambientGrad.addColorStop(0, `rgba(150,210,160,${glowAlpha})`)
-        ambientGrad.addColorStop(0.6, `rgba(150,210,160,${(parseFloat(glowAlpha) * 0.4).toFixed(3)})`)
-        ambientGrad.addColorStop(1, 'rgba(150,210,160,0)')
-      } else {
-        ambientGrad.addColorStop(0, `rgba(201,169,110,${glowAlpha})`)
-        ambientGrad.addColorStop(0.6, `rgba(201,169,110,${(parseFloat(glowAlpha) * 0.4).toFixed(3)})`)
-        ambientGrad.addColorStop(1, 'rgba(201,169,110,0)')
-      }
+      ambientGrad.addColorStop(0, `rgba(${accent},${glowAlpha})`)
+      ambientGrad.addColorStop(0.6, `rgba(${accent},${(parseFloat(glowAlpha) * 0.4).toFixed(3)})`)
+      ambientGrad.addColorStop(1, `rgba(${accent},0)`)
       ctx.fillStyle = ambientGrad
       ctx.beginPath()
       ctx.arc(fcx, fcy, radius * 1.4 * breathe, 0, Math.PI * 2)
@@ -518,7 +515,7 @@ interface ScoredFrame { dataUrl: string; score: number; time: number }
 
 function computeFrameScore(status: FaceGuideStatus): number {
   const { qualityBreakdown: qb } = status
-  return qb.distance * 0.30 + qb.alignment * 0.25 + qb.sharpness * 0.20 + qb.lighting * 0.15 + qb.stability * 0.10
+  return qb.distance * 0.25 + qb.angle * 0.20 + qb.centering * 0.10 + qb.sharpness * 0.20 + qb.lighting * 0.15 + qb.stability * 0.10
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -606,6 +603,8 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     setFailsafeActive(false)
     if (advanceTimerRef.current) { clearTimeout(advanceTimerRef.current); advanceTimerRef.current = null }
     resetSmoothing(); resetStability(); resetFaceLock()
+    // Reset badge hysteresis so next step starts at red
+    for (const key of Object.keys(badgeTierCache)) delete badgeTierCache[key]
   }, [])
 
   // Init camera + engine
@@ -751,8 +750,10 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           }
 
           // Draw REAL mesh from landmarks — the only visual feedback
+          // Pass the shared accent so mesh color matches the bottom bar
+          const meshAccent = accentFromQuality(guide.qualityScore)
           const ctx = mc.getContext('2d')
-          if (ctx) drawMesh(ctx, smoothed, mc.width, mc.height, guide.allOk, true, false, guide.qualityScore)
+          if (ctx) drawMesh(ctx, smoothed, mc.width, mc.height, guide.allOk, true, false, guide.qualityScore, undefined, meshAccent)
         }
       })
       .catch(() => { processingRef.current = false })
@@ -779,9 +780,12 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     }
   }, [autoConfirm, mode, preview, phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Manual capture — only allowed when READY (all quality gates passed)
+  // Manual capture — permissive threshold (75%) so user can capture
+  // angled shots even when auto-capture's stricter gate hasn't fired.
+  const MANUAL_CAPTURE_THRESHOLD = 0.75
+  const manualCaptureEnabled = status.faceDetected && status.faceLocked && status.qualityScore >= MANUAL_CAPTURE_THRESHOLD
   const takeSnapshot = () => {
-    if (!isReadyForCapture(status)) return
+    if (!manualCaptureEnabled) return
     const dataUrl = captureBestFrame()
     if (!dataUrl) return
     setShowFlash(true); setTimeout(() => setShowFlash(false), 350)
@@ -843,7 +847,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   const messageColor = (() => {
     switch (phase) {
       case 'validated':
-      case 'advancing': return 'text-[#00DC82]'
+      case 'advancing': return 'text-[#00FFB4]'
       case 'stabilizing': return 'text-[#D4B96A]'
       case 'tracking': return status.qualityScore >= 0.5 ? 'text-[#D4B96A]' : 'text-[#C47A7A]'
       default: return 'text-white/35'
@@ -938,8 +942,9 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
             </div>
           )}
 
-          {/* Live camera + Face Mesh canvas */}
-          {(initState === 'ready' || initState === 'loading') && !preview && (
+          {/* Live camera + Face Mesh canvas — ALWAYS MOUNTED to keep srcObject attached.
+              When preview is shown, these stay in the DOM but are hidden under the preview layer. */}
+          {(initState === 'ready' || initState === 'loading') && (
             <>
               <video
                 ref={videoRef}
@@ -952,18 +957,20 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               />
 
               {/* Soft vignette */}
-              <div className="absolute inset-0 pointer-events-none" style={{
-                background: 'radial-gradient(ellipse 70% 65% at 50% 45%, transparent 50%, rgba(3,3,5,0.7) 100%)',
-              }} />
+              {!preview && (
+                <div className="absolute inset-0 pointer-events-none" style={{
+                  background: 'radial-gradient(ellipse 70% 65% at 50% 45%, transparent 50%, rgba(3,3,5,0.7) 100%)',
+                }} />
+              )}
 
               {/* Stabilization ring */}
-              {phase === 'stabilizing' && (
+              {!preview && phase === 'stabilizing' && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
                   <svg width="90" height="90" viewBox="0 0 100 100" className="opacity-60">
                     <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
                     <circle
                       cx="50" cy="50" r="42" fill="none"
-                      stroke="rgba(0,220,130,0.7)"
+                      stroke={`rgba(${accentFromQuality(status.qualityScore)},0.7)`}
                       strokeWidth="3" strokeLinecap="round"
                       strokeDasharray={`${validationProgress * 264} 264`}
                       transform="rotate(-90 50 50)"
@@ -974,10 +981,10 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               )}
 
               {/* Validated success */}
-              {(phase === 'validated' || phase === 'advancing') && (
+              {!preview && (phase === 'validated' || phase === 'advancing') && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none animate-[fadeIn_0.3s_ease]">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[rgba(0,220,130,0.15)] backdrop-blur-md border border-[rgba(0,220,130,0.4)] flex items-center justify-center">
-                    <svg className="w-7 h-7 sm:w-8 sm:h-8 text-[#00DC82]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[rgba(0,255,180,0.15)] backdrop-blur-md border border-[rgba(0,255,180,0.4)] flex items-center justify-center">
+                    <svg className="w-7 h-7 sm:w-8 sm:h-8 text-[#00FFB4]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                     </svg>
                   </div>
@@ -989,27 +996,12 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 <div className="absolute inset-0 z-30 bg-white animate-[flashFade_0.35s_ease-out_forwards] pointer-events-none" />
               )}
 
-              {/* Dev-only debug panel */}
-              {process.env.NODE_ENV === 'development' && status.debug && (
-                <div className="absolute top-1 left-1 z-40 bg-black/70 text-[8px] font-mono text-green-300 px-2 py-1 rounded pointer-events-none leading-tight max-w-[200px]">
-                  <div>yaw: {status.debug.yawDeg}° nose: {status.debug.noseOffset}</div>
-                  <div>pitch: {status.debug.pitchDeg}° tilt: {status.debug.tiltDeg}°</div>
-                  <div>target: {status.debug.targetAngle} angle: {status.angle}</div>
-                  <div>center: {status.centering} dist: {status.distance}</div>
-                  <div>stable: {stableReadyFrames.current} phase: {phase}</div>
-                  <div>quality: {(status.qualityScore * 100).toFixed(0)}% allOk: {String(status.allOk)}</div>
-                  <div>locked: {String(status.faceLocked)} failsafe: {String(failsafeActive)}</div>
-                  {status.debug.rejectionReason && (
-                    <div className="text-red-300">reject: {status.debug.rejectionReason}</div>
-                  )}
-                </div>
-              )}
             </>
           )}
 
-          {/* Preview */}
+          {/* Preview — rendered ON TOP of the always-mounted video, at z-10 */}
           {preview && (
-            <div className="absolute inset-0 animate-[fadeIn_0.5s_ease]">
+            <div className="absolute inset-0 z-10 animate-[fadeIn_0.5s_ease]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={preview} alt="Önizleme" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
@@ -1021,20 +1013,20 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 </div>
               )}
               <div className="absolute bottom-3 left-3 right-3 flex justify-center pointer-events-none">
-                <span className="px-3.5 py-1.5 rounded-full bg-[rgba(0,220,130,0.15)] backdrop-blur-md border border-[rgba(0,220,130,0.3)] text-[9px] sm:text-[10px] font-medium tracking-[0.1em] uppercase text-[#7CE8B2] whitespace-nowrap">
+                <span className="px-3.5 py-1.5 rounded-full bg-[rgba(0,255,180,0.15)] backdrop-blur-md border border-[rgba(0,255,180,0.3)] text-[9px] sm:text-[10px] font-medium tracking-[0.1em] uppercase text-[#7CE8B2] whitespace-nowrap">
                   ✓ Çekim tamamlandı
                 </span>
               </div>
             </div>
           )}
 
-          {/* Status badges */}
+          {/* Status badges — score-driven, not default-green */}
           {initState === 'ready' && !preview && phase !== 'validated' && phase !== 'advancing' && (
             <div className="absolute bottom-2.5 left-2 right-2 z-10 flex justify-center gap-1 flex-wrap">
-              <Badge category="distance" value={status.distance} />
-              <Badge category="lighting" value={status.lighting} />
-              <Badge category="angle" value={status.angle} />
-              <Badge category="forehead" value={status.foreheadVisible ? 'ok' : 'hidden'} />
+              <Badge category="distance" value={status.distance} score={status.faceDetected ? status.qualityBreakdown.distance : 0} />
+              <Badge category="lighting" value={status.lighting} score={status.faceDetected ? status.qualityBreakdown.lighting : 0} />
+              <Badge category="angle" value={status.angle} score={status.faceDetected ? status.qualityBreakdown.angle : 0} />
+              <Badge category="centering" value={status.centering} score={status.faceDetected ? status.qualityBreakdown.centering : 0} />
             </div>
           )}
         </div>
@@ -1078,53 +1070,41 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                       className="h-full rounded-full transition-all duration-700 ease-out"
                       style={{
                         width: `${Math.round(status.qualityScore * 100)}%`,
-                        background: status.qualityScore >= 0.8
-                          ? 'linear-gradient(90deg, #00B864, #00DC82, #4AE3A7)'
-                          : status.qualityScore >= 0.5
-                            ? 'linear-gradient(90deg, #B8944A, #D4B96A)'
-                            : 'linear-gradient(90deg, #8C5555, #C47A7A)',
+                        background: `rgb(${accentFromQuality(status.qualityScore)})`,
                       }}
                     />
                   </div>
-                  <span className={`font-body text-[10px] tabular-nums w-7 transition-colors duration-500 ${
-                    status.qualityScore >= 0.8 ? 'text-[#00DC82]/60' : status.qualityScore >= 0.5 ? 'text-[#D4B96A]/50' : 'text-white/25'
-                  }`}>
+                  <span
+                    className="font-body text-[10px] tabular-nums w-7 transition-colors duration-500"
+                    style={{ color: `rgba(${accentFromQuality(status.qualityScore)},0.6)` }}
+                  >
                     {Math.round(status.qualityScore * 100)}
                   </span>
                 </div>
               )}
 
-              {/* Capture button / status */}
-              {failsafeActive && status.faceDetected && phase !== 'validated' && phase !== 'advancing' ? (
+              {/* Capture button — always visible, enabled at manual threshold */}
+              {phase === 'validated' || phase === 'advancing' ? (
+                <p className="font-body text-[11px] text-[#00FFB4] tracking-[0.1em] uppercase py-2">Çekim tamamlandı</p>
+              ) : (
                 <div className="flex flex-col items-center gap-1.5">
                   <button
                     type="button"
                     onClick={takeSnapshot}
-                    disabled={!isReadyForCapture(status)}
+                    disabled={!manualCaptureEnabled}
                     className="group relative disabled:opacity-30 disabled:cursor-not-allowed"
                     aria-label="Fotoğraf çek"
                   >
                     <div className={`w-[64px] h-[64px] sm:w-[76px] sm:h-[76px] rounded-full border-[3px] transition-all duration-500 flex items-center justify-center ${
-                      isReadyForCapture(status)
-                        ? 'border-[rgba(196,163,90,0.4)] shadow-[0_0_16px_rgba(196,163,90,0.12)]'
+                      manualCaptureEnabled
+                        ? 'border-[rgba(0,255,180,0.4)] shadow-[0_0_16px_rgba(0,255,180,0.12)]'
                         : 'border-[rgba(255,255,255,0.08)]'
                     }`}>
                       <div className="w-[52px] h-[52px] sm:w-[62px] sm:h-[62px] rounded-full bg-[rgba(255,255,255,0.12)] group-hover:bg-[rgba(255,255,255,0.22)] group-active:scale-90 transition-all duration-300 group-disabled:bg-[rgba(255,255,255,0.04)]" />
                     </div>
                   </button>
                   <p className="font-body text-[9px] text-white/20 tracking-[0.12em] uppercase">
-                    {isReadyForCapture(status) ? 'Manuel çekim' : 'Pozisyonunuzu ayarlayın'}
-                  </p>
-                </div>
-              ) : phase === 'validated' || phase === 'advancing' ? (
-                <p className="font-body text-[11px] text-[#00DC82] tracking-[0.1em] uppercase py-2">Çekim tamamlandı</p>
-              ) : (
-                <div className="flex flex-col items-center gap-1.5">
-                  <div className="w-[64px] h-[64px] sm:w-[76px] sm:h-[76px] rounded-full border-[3px] border-[rgba(255,255,255,0.06)] flex items-center justify-center">
-                    <div className="w-[52px] h-[52px] sm:w-[62px] sm:h-[62px] rounded-full bg-[rgba(255,255,255,0.04)]" />
-                  </div>
-                  <p className="font-body text-[9px] text-white/20 tracking-[0.12em] uppercase">
-                    {phase === 'stabilizing' ? 'Doğrulanıyor…' : 'Otomatik çekim aktif'}
+                    {manualCaptureEnabled ? 'Manuel çekim' : phase === 'stabilizing' ? 'Doğrulanıyor…' : 'Otomatik çekim aktif'}
                   </p>
                 </div>
               )}
