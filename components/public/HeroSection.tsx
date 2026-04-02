@@ -31,6 +31,18 @@ export function HeroSection() {
         style={{ background: 'radial-gradient(circle, var(--color-gold-glow) 0%, transparent 70%)' }}
       />
 
+      {/* Film grain texture overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.018]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+          backgroundSize: '180px 180px',
+        }}
+      />
+
+      {/* Decorative vertical gold accent — desktop only */}
+      <div className="hidden lg:block absolute top-[15%] left-[48px] w-px h-[70%] pointer-events-none" style={{ background: 'linear-gradient(180deg, transparent, rgba(196,163,90,0.12) 30%, rgba(196,163,90,0.12) 70%, transparent)' }} />
+
       <div className="relative z-10 container-main grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center py-28 sm:py-32 lg:py-16">
         {/* Mobile hero portrait — visible only below lg */}
         <motion.div
@@ -163,6 +175,12 @@ export function HeroSection() {
             />
           </div>
         </motion.div>
+      </div>
+      {/* Bottom decorative divider */}
+      <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
+        <div className="container-main relative">
+          <div className="h-px w-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(196,163,90,0.18) 20%, rgba(196,163,90,0.18) 80%, transparent)' }} />
+        </div>
       </div>
     </section>
   )

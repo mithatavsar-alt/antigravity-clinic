@@ -35,7 +35,13 @@ const treatments = [
 
 export function TreatmentsSection() {
   return (
-    <section id="treatments" className="py-20 sm:py-28 px-6 sm:px-10 bg-[var(--color-bg-secondary)]">
+    <section id="treatments" className="relative py-20 sm:py-28 px-6 sm:px-10 bg-[var(--color-bg-secondary)]">
+      {/* Top decorative divider */}
+      <div className="absolute top-0 left-0 right-0 pointer-events-none">
+        <div className="container-main">
+          <div className="h-px w-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(196,163,90,0.12) 20%, rgba(196,163,90,0.12) 80%, transparent)' }} />
+        </div>
+      </div>
       <div className="container-main">
         {/* Section header */}
         <div className="text-center mb-12">

@@ -12,18 +12,43 @@ const ease = tokens.motion.easing
 
 export function CTASection() {
   return (
-    <section className="py-20 sm:py-28 px-6 sm:px-10 bg-[var(--color-bg-secondary)]">
+    <section className="relative py-20 sm:py-28 px-6 sm:px-10 bg-[var(--color-bg-secondary)]">
+      {/* Top decorative divider */}
+      <div className="absolute top-0 left-0 right-0 pointer-events-none">
+        <div className="container-main">
+          <div className="h-px w-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(196,163,90,0.15) 20%, rgba(196,163,90,0.15) 80%, transparent)' }} />
+        </div>
+      </div>
+
       <div className="container-main">
         <motion.div
           whileInView={{ opacity: 1, y: 0 }}
           initial={{ opacity: 0, y: 24 }}
           transition={{ duration: 0.8, ease }}
-          viewport={{ once: true }}
-          className="relative overflow-hidden rounded-3xl bg-gradient-cta"
+          viewport={{ once: true, amount: 0.15 }}
+          className="relative overflow-hidden rounded-3xl"
+          style={{
+            background: 'linear-gradient(135deg, #1A1A2E 0%, #22223A 40%, #1A1A2E 100%)',
+          }}
         >
+          {/* Ambient grain */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-[0.04]"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+              backgroundSize: '180px 180px',
+            }}
+          />
+
+          {/* Ambient gold glow */}
+          <div
+            className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full pointer-events-none"
+            style={{ background: 'radial-gradient(circle, rgba(196,163,90,0.06) 0%, transparent 65%)' }}
+          />
+
           <div className="grid grid-cols-1 lg:grid-cols-2 items-center">
             {/* Left — Image */}
-            <div className="relative h-[320px] sm:h-[380px] lg:h-full lg:min-h-[460px] overflow-hidden bg-accent">
+            <div className="relative h-[280px] sm:h-[340px] lg:h-full lg:min-h-[460px] overflow-hidden">
               <ImageWithFallback
                 src="/images/AIAnaliz/AIAnaliz2.jpg"
                 alt="AI yüz analizi — yüz haritası"
@@ -31,43 +56,39 @@ export function CTASection() {
                 sizes="(max-width: 1024px) 100vw, 50vw"
                 fallbackIcon="face"
               />
-              {/* Dark tint to match card tone — lighter on mobile */}
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background: 'rgba(26,26,46,0.20)',
-                  mixBlendMode: 'multiply',
-                }}
-              />
-              {/* Gradient blend into dark side — desktop only */}
+              {/* Gradient blend into dark side — desktop */}
               <div
                 className="absolute inset-0 pointer-events-none hidden lg:block"
                 style={{
-                  background: 'linear-gradient(90deg, transparent 25%, rgba(26,26,46,0.95) 100%)',
+                  background: 'linear-gradient(90deg, transparent 20%, rgba(26,26,46,0.85) 95%)',
                 }}
               />
-              {/* Bottom fade for mobile — gentler so image stays visible */}
+              {/* Bottom fade — mobile */}
               <div
                 className="absolute inset-0 pointer-events-none lg:hidden"
                 style={{
-                  background: 'linear-gradient(180deg, transparent 40%, rgba(26,26,46,0.75) 100%)',
+                  background: 'linear-gradient(180deg, transparent 35%, rgba(26,26,46,0.85) 100%)',
                 }}
               />
             </div>
 
             {/* Right — Text content */}
-            <div className="relative z-10 px-10 sm:px-16 py-14 sm:py-20 flex flex-col items-start gap-7 lg:-ml-16">
-              {/* Ambient orb */}
-              <div className="absolute top-1/2 right-0 -translate-y-1/2 w-[300px] h-[300px] rounded-full bg-[rgba(214,185,140,0.05)] blur-3xl pointer-events-none" />
+            <div className="relative z-10 px-8 sm:px-12 lg:px-14 py-10 sm:py-14 lg:py-20 flex flex-col items-start gap-6 lg:-ml-12">
+              <p className="font-body text-[10px] font-medium tracking-[0.22em] uppercase text-[rgba(214,185,140,0.55)]">
+                Randevu
+              </p>
 
               <EditorialHeading as="h2" light className="relative">
                 Dönüşümünüze{' '}
                 <GoldItalic>Bugün</GoldItalic> Başlayın
               </EditorialHeading>
 
-              <p className="relative font-body text-[15px] text-[rgba(248,246,242,0.45)] max-w-sm leading-[1.75]">
+              <p className="relative font-body text-[15px] text-[rgba(248,246,242,0.40)] max-w-sm leading-[1.75]">
                 Ücretsiz AI ön değerlendirmenizi yapın. 3 dakikada kişiselleştirilmiş odak alanlarınızı keşfedin.
               </p>
+
+              {/* Decorative rule */}
+              <div className="w-12 h-px bg-[rgba(214,185,140,0.15)]" />
 
               <div className="relative flex flex-wrap gap-4">
                 <Link href="/analysis">
@@ -85,6 +106,12 @@ export function CTASection() {
               </div>
             </div>
           </div>
+
+          {/* Bottom gold accent line */}
+          <div
+            className="absolute bottom-0 left-[10%] right-[10%] h-px pointer-events-none"
+            style={{ background: 'linear-gradient(90deg, transparent, rgba(214,185,140,0.12), transparent)' }}
+          />
         </motion.div>
       </div>
     </section>
