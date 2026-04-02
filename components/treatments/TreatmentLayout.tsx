@@ -11,9 +11,9 @@ interface TreatmentLayoutProps {
 export function TreatmentLayout({ children, relatedLinks }: TreatmentLayoutProps) {
   return (
     <div
-      className="theme-dark min-h-screen"
+      className="min-h-screen"
       style={{
-        background: 'linear-gradient(160deg, #0A0908 0%, #111010 20%, #0E1113 50%, #0A0B0D 100%)',
+        background: 'linear-gradient(160deg, var(--color-bg) 0%, #F5EDE2 35%, #F0E6DA 60%, var(--color-bg-secondary) 100%)',
       }}
     >
       <article className="max-w-[720px] mx-auto px-6 sm:px-8">
@@ -23,13 +23,16 @@ export function TreatmentLayout({ children, relatedLinks }: TreatmentLayoutProps
 
         {/* ── Thin separator ── */}
         <div className="my-12 sm:my-16 flex justify-center">
-          <div className="h-px w-32" style={{ background: 'linear-gradient(90deg, transparent, rgba(214,185,140,0.15), transparent)' }} />
+          <div className="h-px w-32" style={{ background: 'linear-gradient(90deg, transparent, rgba(196,163,90,0.20), transparent)' }} />
         </div>
 
         {/* ── Related treatments ── */}
         {relatedLinks && relatedLinks.length > 0 && (
           <div className="flex flex-col items-center gap-6 mb-10">
-            <span className="text-label text-[rgba(214,185,140,0.35)]">
+            <span
+              className="font-body text-[11px] font-medium tracking-[0.20em] uppercase"
+              style={{ color: 'var(--color-gold)' }}
+            >
               Diğer Uygulamalar
             </span>
             <div className="flex flex-wrap justify-center gap-3">
@@ -39,17 +42,17 @@ export function TreatmentLayout({ children, relatedLinks }: TreatmentLayoutProps
                   href={link.href}
                   className="font-body text-[12px] px-5 py-2.5 rounded-full border transition-all duration-300"
                   style={{
-                    color: 'rgba(214,185,140,0.55)',
-                    background: 'rgba(214,185,140,0.03)',
-                    borderColor: 'rgba(214,185,140,0.08)',
+                    color: 'var(--color-text-secondary)',
+                    background: 'rgba(196,163,90,0.03)',
+                    borderColor: 'rgba(26,26,46,0.08)',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(214,185,140,0.20)'
-                    e.currentTarget.style.color = 'rgba(214,185,140,0.80)'
+                    e.currentTarget.style.borderColor = 'rgba(196,163,90,0.25)'
+                    e.currentTarget.style.color = 'var(--color-text)'
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(214,185,140,0.08)'
-                    e.currentTarget.style.color = 'rgba(214,185,140,0.55)'
+                    e.currentTarget.style.borderColor = 'rgba(26,26,46,0.08)'
+                    e.currentTarget.style.color = 'var(--color-text-secondary)'
                   }}
                 >
                   {link.label}
@@ -70,9 +73,9 @@ export function TreatmentLayout({ children, relatedLinks }: TreatmentLayoutProps
             href="/analysis"
             className="inline-flex items-center gap-2.5 font-body text-[13px] font-medium tracking-[0.04em] px-7 py-3.5 rounded-full transition-all duration-300"
             style={{
-              background: 'linear-gradient(135deg, #C4A35A 0%, #D6B98C 100%)',
-              color: '#0E0B09',
-              boxShadow: '0 4px 20px rgba(196,163,90,0.15)',
+              background: 'linear-gradient(135deg, #2D5F5D 0%, #3A7F6A 100%)',
+              color: '#FFFEF9',
+              boxShadow: '0 4px 16px rgba(45,95,93,0.20)',
             }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

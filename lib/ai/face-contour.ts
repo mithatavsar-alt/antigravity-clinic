@@ -175,42 +175,18 @@ export function drawFaceContour(
   // Breathing animation — subtle scale pulse
   const breathe = 1 + Math.sin(Date.now() / 2500) * 0.008
 
-  // ── Layer 1: Outer glow (wide, diffuse) ──
+  // ── Single clean contour line — refined wireframe boundary ──
   ctx.save()
-  ctx.shadowColor = `rgba(${accentRgb},${(baseAlpha * 0.25).toFixed(3)})`
-  ctx.shadowBlur = 28
-  ctx.lineWidth = 4
-  ctx.strokeStyle = `rgba(${accentRgb},${(baseAlpha * 0.12).toFixed(3)})`
+  ctx.shadowColor = `rgba(${accentRgb},${(baseAlpha * 0.15).toFixed(3)})`
+  ctx.shadowBlur = 6
+  ctx.lineWidth = 1.2
+  ctx.strokeStyle = `rgba(${accentRgb},${(baseAlpha * 0.45).toFixed(3)})`
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
   drawSmoothCurve(ctx, points, contour.center, breathe)
   ctx.stroke()
   ctx.shadowColor = 'transparent'
   ctx.shadowBlur = 0
-  ctx.restore()
-
-  // ── Layer 2: Main contour line ──
-  ctx.save()
-  ctx.shadowColor = `rgba(${accentRgb},${(baseAlpha * 0.35).toFixed(3)})`
-  ctx.shadowBlur = 14
-  ctx.lineWidth = 2.0
-  ctx.strokeStyle = `rgba(${accentRgb},${(baseAlpha * 0.55).toFixed(3)})`
-  ctx.lineJoin = 'round'
-  ctx.lineCap = 'round'
-  drawSmoothCurve(ctx, points, contour.center, breathe)
-  ctx.stroke()
-  ctx.shadowColor = 'transparent'
-  ctx.shadowBlur = 0
-  ctx.restore()
-
-  // ── Layer 3: Inner highlight (thin, bright) ──
-  ctx.save()
-  ctx.lineWidth = 0.8
-  ctx.strokeStyle = `rgba(255,255,255,${(baseAlpha * 0.15).toFixed(3)})`
-  ctx.lineJoin = 'round'
-  ctx.lineCap = 'round'
-  drawSmoothCurve(ctx, points, contour.center, breathe * 0.997)
-  ctx.stroke()
   ctx.restore()
 }
 
@@ -237,10 +213,10 @@ export function drawDynamicVignette(
 
   const grad = ctx.createRadialGradient(cx, cy, clearRadius, cx, cy, outerRadius)
   grad.addColorStop(0, 'rgba(3,3,5,0)')
-  grad.addColorStop(0.35, 'rgba(3,3,5,0)')
-  grad.addColorStop(0.55, `rgba(3,3,5,${(0.20 * intensity).toFixed(3)})`)
-  grad.addColorStop(0.75, `rgba(3,3,5,${(0.55 * intensity).toFixed(3)})`)
-  grad.addColorStop(1.0, `rgba(3,3,5,${(0.85 * intensity).toFixed(3)})`)
+  grad.addColorStop(0.40, 'rgba(3,3,5,0)')
+  grad.addColorStop(0.60, `rgba(3,3,5,${(0.12 * intensity).toFixed(3)})`)
+  grad.addColorStop(0.80, `rgba(3,3,5,${(0.35 * intensity).toFixed(3)})`)
+  grad.addColorStop(1.0, `rgba(3,3,5,${(0.60 * intensity).toFixed(3)})`)
 
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, canvasW, canvasH)
@@ -307,17 +283,17 @@ export function drawContourAccents(
 ): void {
   if (!contour.valid) return
 
-  const alpha = (0.20 + qualityScore * 0.25).toFixed(3)
+  const alpha = (0.15 + qualityScore * 0.20).toFixed(3)
   const b = contour.bounds
   const cx = contour.center.x
   const cy = contour.center.y
-  const halfW = b.w * 0.60  // slightly outside face bounds
+  const halfW = b.w * 0.60
   const halfH = b.h * 0.60
-  const len = Math.min(b.w, b.h) * 0.08  // crosshair arm length
+  const len = Math.min(b.w, b.h) * 0.06  // slightly shorter crosshairs
 
   ctx.save()
   ctx.strokeStyle = `rgba(${accentRgb},${alpha})`
-  ctx.lineWidth = 1.5
+  ctx.lineWidth = 1.0
   ctx.lineCap = 'round'
 
   // Top

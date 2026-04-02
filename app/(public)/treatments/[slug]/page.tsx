@@ -28,9 +28,9 @@ export async function generateMetadata(
 // ─── Item dot color ─────────────────────────────────────────
 
 const DOT_COLORS: Record<string, string> = {
-  gold: 'rgba(214,185,140,0.35)',
-  green: 'rgba(74,227,167,0.40)',
-  red: 'rgba(196,122,122,0.40)',
+  gold: 'rgba(196,163,90,0.40)',
+  green: 'rgba(45,95,93,0.45)',
+  red: 'rgba(160,82,82,0.45)',
 }
 
 // ─── Page ───────────────────────────────────────────────────
@@ -69,7 +69,7 @@ export default async function TreatmentPage(
                   <span>
                     {item.desc ? (
                       <>
-                        <strong className="text-[rgba(248,246,242,0.65)] font-medium">{item.title}</strong>
+                        <strong className="text-[var(--color-text)] font-medium">{item.title}</strong>
                         {' — '}{item.desc}
                       </>
                     ) : (

@@ -108,27 +108,12 @@ const config: Config = {
         'shimmer': 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%)',
       },
       keyframes: {
-        markerPulse: {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(196,163,90,0.3)' },
-          '50%': { boxShadow: '0 0 30px rgba(196,163,90,0.6)' },
-        },
-        shimmer: {
-          '0%': { backgroundPosition: '-200% center' },
-          '100%': { backgroundPosition: '200% center' },
-        },
-        skeletonPulse: {
-          '0%, 100%': { opacity: '0.6' },
-          '50%': { opacity: '1' },
-        },
         fadeInUp: {
           '0%': { opacity: '0', transform: 'translateY(30px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
       },
       animation: {
-        markerPulse: 'markerPulse 2.5s ease-in-out infinite',
-        shimmer: 'shimmer 2s linear infinite',
-        skeletonPulse: 'skeletonPulse 1.5s ease-in-out infinite',
         fadeInUp: 'fadeInUp 0.8s cubic-bezier(0.16,1,0.3,1) forwards',
       },
       spacing: {

@@ -34,8 +34,9 @@ export function TreatmentSection({ heading, children, index = 0 }: TreatmentSect
       }}
     >
       <h2
-        className="font-display font-light text-[#F8F6F2]"
+        className="font-display font-light"
         style={{
+          color: 'var(--color-text)',
           fontSize: 'clamp(22px, 4vw, 30px)',
           letterSpacing: '-0.015em',
           lineHeight: 1.2,
@@ -44,7 +45,10 @@ export function TreatmentSection({ heading, children, index = 0 }: TreatmentSect
         {heading}
       </h2>
 
-      <div className="flex flex-col gap-4 font-body text-[rgba(248,246,242,0.50)] leading-[1.85]" style={{ fontSize: 'clamp(14px, 1.8vw, 15px)' }}>
+      <div
+        className="flex flex-col gap-4 font-body leading-[1.85]"
+        style={{ fontSize: 'clamp(14px, 1.8vw, 15px)', color: 'var(--color-text-secondary)' }}
+      >
         {children}
       </div>
     </section>

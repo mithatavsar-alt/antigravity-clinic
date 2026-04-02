@@ -18,15 +18,16 @@ export function TreatmentHero({ label, title, subtitle }: TreatmentHeroProps) {
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'radial-gradient(ellipse 50% 40% at 50% 20%, rgba(214,185,140,0.04) 0%, transparent 60%)',
+          background: 'radial-gradient(ellipse 50% 40% at 50% 20%, rgba(196,163,90,0.06) 0%, transparent 60%)',
         }}
       />
 
       <div className="relative max-w-[720px] mx-auto px-6 sm:px-8 flex flex-col items-center text-center gap-6">
         {/* Label */}
         <span
-          className="text-label text-[rgba(214,185,140,0.50)]"
+          className="font-body text-[11px] font-medium tracking-[0.20em] uppercase"
           style={{
+            color: 'var(--color-gold)',
             opacity: mounted ? 1 : 0,
             transform: mounted ? 'translateY(0)' : 'translateY(8px)',
             transition: 'opacity 0.6s ease, transform 0.6s ease',
@@ -37,8 +38,9 @@ export function TreatmentHero({ label, title, subtitle }: TreatmentHeroProps) {
 
         {/* Title */}
         <h1
-          className="font-display font-light text-[#F8F6F2]"
+          className="font-display font-light"
           style={{
+            color: 'var(--color-text)',
             fontSize: 'clamp(36px, 7vw, 64px)',
             letterSpacing: '-0.03em',
             lineHeight: 1.05,
@@ -58,15 +60,16 @@ export function TreatmentHero({ label, title, subtitle }: TreatmentHeroProps) {
             transition: 'opacity 0.6s ease 0.25s',
           }}
         >
-          <div className="h-px w-14" style={{ background: 'linear-gradient(90deg, transparent, rgba(214,185,140,0.25))' }} />
-          <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(214,185,140,0.30)' }} />
-          <div className="h-px w-14" style={{ background: 'linear-gradient(90deg, rgba(214,185,140,0.25), transparent)' }} />
+          <div className="h-px w-14" style={{ background: 'linear-gradient(90deg, transparent, rgba(196,163,90,0.25))' }} />
+          <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(196,163,90,0.30)' }} />
+          <div className="h-px w-14" style={{ background: 'linear-gradient(90deg, rgba(196,163,90,0.25), transparent)' }} />
         </div>
 
         {/* Subtitle */}
         <p
-          className="font-body text-[rgba(248,246,242,0.45)] leading-[1.8] max-w-[540px]"
+          className="font-body leading-[1.8] max-w-[540px]"
           style={{
+            color: 'var(--color-text-secondary)',
             fontSize: 'clamp(14px, 2vw, 16px)',
             opacity: mounted ? 1 : 0,
             transform: mounted ? 'translateY(0)' : 'translateY(8px)',

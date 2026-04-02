@@ -100,59 +100,123 @@ interface AutoFitState {
 const COUNTDOWN_SECONDS = 3
 const COUNTDOWN_MS = COUNTDOWN_SECONDS * 1000
 
-// ─── FRONT readiness: STRICT ──────────────────────────────
-// Front is the primary reference — requires tight alignment on all axes.
-// These thresholds are the CAPTURE GATE: if a frame passes these, it's
-// guaranteed to produce a clean result page with no blocking errors.
-const FRONT_STABILITY_FRAMES = 10
+// ─── ANGLE-SPECIFIC READINESS ──────────────────────────────
+// 6 checks aligned with the visible quality pills:
+//   1. Distance  (Mesafe)  — face size / proximity
+//   2. Lighting  (Işık)    — brightness & shadow
+//   3. Angle     (Açı)     — head pose for current step
+//   4. Centering (Konum)   — face position in frame
+//   5. Sharpness (Netlik)  — image clarity
+//   6. Stability (İfade)   — landmark consistency / expression
+//
+// Hard blockers reject immediately (no face, too far, outside frame,
+// unreadable blur, completely wrong pose for the current step).
+//
+// FRONT VIEW:  strict — all 6/6 soft checks must pass.
+// LEFT/RIGHT:  tolerant — 5/6 soft checks, so one marginal metric
+//              (e.g. stability after head turn) doesn't stall capture.
+//              Wrong pose direction is still a hard blocker.
 
-function isFrontReady(status: FaceGuideStatus, relaxed = false): boolean {
-  const { qualityBreakdown: qb } = status
-  return (
-    status.faceDetected &&
-    status.allOk &&
-    status.faceLocked &&
-    // Single face: faceDetected is true (multi-face blocked at detection level)
-    // Face in frame and large enough
-    qb.distance >= (relaxed ? 0.55 : 0.60) &&
-    // Head angle acceptable
-    qb.angle >= (relaxed ? 0.55 : 0.60) &&
-    // Face centered in frame
-    qb.centering >= (relaxed ? 0.45 : 0.50) &&
-    // Adequate lighting
-    qb.lighting >= (relaxed ? 0.50 : 0.55) &&
-    // Sharp enough (no heavy blur)
-    qb.sharpness >= (relaxed ? 0.50 : 0.55) &&
-    // Stable across frames (eyes open, landmarks consistent)
-    qb.stability >= (relaxed ? 0.50 : 0.55) &&
-    // Overall composite quality
-    status.qualityScore >= (relaxed ? 0.75 : 0.85)
-  )
+/** Hard-blocker floors — below these, capture is unsafe */
+const HARD_MIN_DISTANCE   = 0.25
+const HARD_MIN_CENTERING  = 0.15
+const HARD_MIN_SHARPNESS  = 0.15
+
+/** Minimum ready frames before countdown starts (prevents single-frame triggers) */
+const STABILITY_FRAMES_REQUIRED = 4
+
+/** Soft checks required: front must pass all 6, sides need 5 of 6 */
+const MIN_PASSING_FRONT = 6
+const MIN_PASSING_SIDE  = 5
+
+/** Crow's feet visibility threshold for side captures */
+const SIDE_CROW_FEET_THRESHOLD = 0.35
+
+function isReadyForCapture(
+  status: FaceGuideStatus,
+  isSide: boolean,
+  relaxed = false,
+): boolean {
+  // ── Hard blockers — always reject (all steps) ──
+  if (!status.faceDetected) return false
+  if (!status.faceLocked) return false
+
+  const qb = status.qualityBreakdown
+
+  // Face too small / too far
+  if (qb.distance < HARD_MIN_DISTANCE) return false
+  // Face completely outside frame
+  if (qb.centering < HARD_MIN_CENTERING) return false
+  // Image unreadable
+  if (qb.sharpness < HARD_MIN_SHARPNESS) return false
+  // Wrong pose direction: side requires 'ok' (correct yaw for left/right);
+  // front rejects hard turns (angle score near zero).
+  // This is a hard blocker — wrong-angle capture is never allowed.
+  if (isSide && status.angle !== 'ok') return false
+  if (!isSide && qb.angle < 0.25) return false
+
+  // ── 6 soft checks — counted individually ──
+  // 1. Distance   2. Lighting   3. Angle
+  // 4. Centering  5. Sharpness  6. Stability
+  const t = relaxed
+    ? (isSide ? 0.28 : 0.38)
+    : (isSide ? 0.38 : 0.48)
+
+  let passing = 0
+  if (qb.distance  >= t) passing++                         // 1. Distance
+  if (qb.lighting  >= t) passing++                         // 2. Lighting
+  if (qb.angle     >= t) passing++                         // 3. Angle
+  // Side poses naturally de-center — use a relaxed centering threshold
+  if (qb.centering >= (isSide ? t * 0.6 : t)) passing++   // 4. Centering
+  if (qb.sharpness >= t) passing++                         // 5. Sharpness
+  // Side poses have volatile stability after head turn — relax
+  if (qb.stability >= (isSide ? t * 0.5 : t)) passing++   // 6. Stability
+
+  // Front: strict 6/6 — all checks must pass
+  // Left/Right: tolerant 5/6 — one marginal check won't stall capture
+  const required = isSide ? MIN_PASSING_SIDE : MIN_PASSING_FRONT
+  return passing >= required
 }
 
-// ─── SIDE readiness: MODERATE ─────────────────────────────
-// Side captures allow some centering flexibility but still require
-// face visible, correct side angle, acceptable light + sharpness.
+// ─── MANUAL CAPTURE ELIGIBILITY (separate from auto) ───────
+// More lenient than auto-capture — acts as a reliable fallback.
 //
-// IMPORTANT: Does NOT use composite qualityScore because it includes
-// centering penalty, which naturally drops when the face is angled.
-// Instead, checks only the sub-scores that matter for side views.
-const SIDE_CROW_FEET_THRESHOLD = 0.35    // relaxed from 0.45
+// FRONT:  score >= 75 + hard blockers only (no 6/6 soft-check gate)
+// SIDE:   score >= 65 + hard blockers only (no strict angle match)
+//
+// Hard blockers for manual: no face, face too small, face outside
+// frame, image unreadable (blur). Extreme wrong-angle for front only.
 
-function isSideReady(status: FaceGuideStatus, relaxed = false): boolean {
-  const { qualityBreakdown: qb } = status
-  return (
-    status.faceDetected &&
-    status.faceLocked &&
-    // Angle is the key gate — must be 'ok' (within the angled window)
-    (status.angle === 'ok') &&
-    // Individual sub-scores — stricter to ensure clean results
-    qb.distance >= (relaxed ? 0.30 : 0.40) &&
-    qb.angle >= (relaxed ? 0.30 : 0.40) &&
-    qb.lighting >= (relaxed ? 0.30 : 0.40) &&
-    qb.sharpness >= (relaxed ? 0.25 : 0.35) &&
-    qb.stability >= (relaxed ? 0.15 : 0.25)
-  )
+const MANUAL_THRESHOLD_FRONT = 0.75
+const MANUAL_THRESHOLD_SIDE  = 0.65
+
+function isManualCaptureEligible(
+  status: FaceGuideStatus,
+  isSide: boolean,
+): boolean {
+  // ── Hard blockers — always reject ──
+  if (!status.faceDetected) return false
+  if (!status.faceLocked) return false
+
+  const qb = status.qualityBreakdown
+
+  // Face too small / too far
+  if (qb.distance < HARD_MIN_DISTANCE) return false
+  // Face completely outside frame
+  if (qb.centering < HARD_MIN_CENTERING) return false
+  // Image unreadable
+  if (qb.sharpness < HARD_MIN_SHARPNESS) return false
+
+  // Front only: reject extreme wrong angles (looking sideways)
+  // but NOT as strict as auto-capture's qb.angle < 0.25
+  if (!isSide && qb.angle < 0.15) return false
+
+  // Side views: NO strict angle match required for manual.
+  // The user is responsible for framing; we only block unusable frames.
+
+  // Score threshold — the live qualityScore is the gate
+  const threshold = isSide ? MANUAL_THRESHOLD_SIDE : MANUAL_THRESHOLD_FRONT
+  return status.qualityScore >= threshold
 }
 
 const TIPS = [
@@ -258,20 +322,20 @@ export interface OverlayRegionHighlight {
 /**
  * Resolve the shared accent RGB triplet from quality score.
  * This single source of truth drives mesh color AND bottom bar color.
- *   fail (< 0.5)       → warm red   (200,120,120)
- *   borderline (0.5–0.8) → gold     (212,185,106)
- *   accepted (≥ 0.8)   → mint green (0,255,180)
+ *
+ * Premium med-tech violet palette:
+ *   fail (< 0.5)       → muted warm purple (160,105,185)
+ *   borderline (0.5–0.8) → refined violet  (145,115,215)
+ *   accepted (≥ 0.8)   → electric violet   (135,130,240)
  */
 export function accentFromQuality(q: number): string {
-  if (q >= 0.8) return '0,255,180'
+  if (q >= 0.8) return '135,130,240'
   if (q >= 0.5) {
-    // Lerp gold → mint between 0.5 and 0.8
     const t = (q - 0.5) / 0.3
-    return `${Math.round(212 - 212 * t)},${Math.round(185 + 70 * t)},${Math.round(106 + 74 * t)}`
+    return `${Math.round(145 - 10 * t)},${Math.round(115 + 15 * t)},${Math.round(215 + 25 * t)}`
   }
-  // Lerp red → gold between 0 and 0.5
   const t = q / 0.5
-  return `${Math.round(200 + 12 * t)},${Math.round(120 + 65 * t)},${Math.round(120 - 14 * t)}`
+  return `${Math.round(160 - 15 * t)},${Math.round(105 + 10 * t)},${Math.round(185 + 30 * t)}`
 }
 
 export function drawMesh(
@@ -300,29 +364,20 @@ export function drawMesh(
   const accent = accentRgb ?? accentFromQuality(qualityScore)
 
   // Tier-based opacity: mesh gets brighter as quality improves
-  const baseOpacity = 0.25 + qualityScore * 0.45  // range 0.25–0.70
+  const baseOpacity = 0.30 + qualityScore * 0.40  // range 0.30–0.70
 
-  // Quality tier flag — used by region highlights
-  const isHigh = qualityScore >= 0.8
-
-  // ── Contour drawing helper ──
+  // ── Wireframe contour drawing helper (clean, no glow) ──
   const drawContour = (
     indices: number[],
     color: string,
     opacity: number,
     lineW: number,
-    glowColor: string | null = null,
-    glowBlur = 0,
   ) => {
     ctx.beginPath()
     ctx.lineJoin = 'round'
     ctx.lineCap = 'round'
     ctx.lineWidth = lineW
     ctx.strokeStyle = `${color}${Math.min(1, opacity * baseOpacity).toFixed(3)})`
-    if (glowColor && glowBlur > 0) {
-      ctx.shadowColor = `${glowColor}${(0.25 * baseOpacity).toFixed(3)})`
-      ctx.shadowBlur = glowBlur
-    }
     let started = false
     for (const idx of indices) {
       const lm = landmarks[idx]
@@ -331,23 +386,20 @@ export function drawMesh(
       else ctx.lineTo(toX(lm), toY(lm))
     }
     ctx.stroke()
-    if (glowColor) { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0 }
   }
 
   // ════════════════════════════════════════════════════════════
-  // DENSE TRIANGULATED MESH — full MediaPipe-style tesselation
-  // Single batched draw call for all ~900 edges. Neon mint/green
-  // with subtle glow. PURELY VISUAL — does NOT affect analysis.
-  // Drawn FIRST so feature contours render on top.
-  // Can be toggled off while keeping outer contour + features visible.
+  // FULL TRIANGULATED WIREFRAME MESH — 1348 edges, 880 triangles,
+  // all 468 vertices. Dense geometric facial mapping overlay.
+  // Clean anti-aliased lines, no glow, premium med-tech look.
+  // Naturally denser around eyes/nose/mouth (more triangles there).
+  // PURELY VISUAL — does NOT affect analysis.
   // ════════════════════════════════════════════════════════════
   if (showTesselation) {
-    const meshAlpha = Math.min(0.55, 0.15 + qualityScore * 0.40)
+    const meshAlpha = Math.min(0.35, 0.10 + qualityScore * 0.25)
     ctx.beginPath()
-    ctx.lineWidth = 0.6
+    ctx.lineWidth = 0.35
     ctx.strokeStyle = `rgba(${accent},${meshAlpha.toFixed(3)})`
-    ctx.shadowColor = `rgba(${accent},${(meshAlpha * 0.35).toFixed(3)})`
-    ctx.shadowBlur = 3
     ctx.lineJoin = 'round'
     ctx.lineCap = 'round'
     for (const [a, b] of FACEMESH_TESSELATION) {
@@ -357,29 +409,25 @@ export function drawMesh(
       ctx.lineTo(toX(lb), toY(lb))
     }
     ctx.stroke()
-    ctx.shadowColor = 'transparent'
-    ctx.shadowBlur = 0
   }
 
   // ════════════════════════════════════════════════════════════
-  // JAWLINE contour — subtle accent on the lower face boundary
-  // (Outer face boundary is now drawn by the dynamic face contour system)
+  // FEATURE CONTOURS — slightly brighter wireframe for key regions.
+  // The full mesh already provides dense detail in these areas;
+  // these contours reinforce boundaries at slightly higher opacity.
   // ════════════════════════════════════════════════════════════
-  drawContour(JAWLINE, `rgba(${accent},`, 0.70, 1.5, `rgba(${accent},`, 10)
+  drawContour(JAWLINE, `rgba(${accent},`, 0.55, 0.7)
+  drawContour(LEFT_EYE, `rgba(${accent},`, 0.70, 0.8)
+  drawContour(RIGHT_EYE, `rgba(${accent},`, 0.70, 0.8)
+  drawContour(LEFT_EYEBROW, `rgba(${accent},`, 0.55, 0.6)
+  drawContour(RIGHT_EYEBROW, `rgba(${accent},`, 0.55, 0.6)
+  drawContour(NOSE_BRIDGE, `rgba(${accent},`, 0.60, 0.7)
+  drawContour(UPPER_LIP, `rgba(${accent},`, 0.55, 0.6)
+  drawContour(LOWER_LIP, `rgba(${accent},`, 0.55, 0.6)
 
   // ════════════════════════════════════════════════════════════
-  // INNER FEATURES — brighter contours for eyes, brows, nose, lips
-  // ════════════════════════════════════════════════════════════
-  drawContour(LEFT_EYE, `rgba(${accent},`, 0.95, 1.6, `rgba(${accent},`, 10)
-  drawContour(RIGHT_EYE, `rgba(${accent},`, 0.95, 1.6, `rgba(${accent},`, 10)
-  drawContour(LEFT_EYEBROW, `rgba(${accent},`, 0.75, 1.3, `rgba(${accent},`, 7)
-  drawContour(RIGHT_EYEBROW, `rgba(${accent},`, 0.75, 1.3, `rgba(${accent},`, 7)
-  drawContour(NOSE_BRIDGE, `rgba(${accent},`, 0.80, 1.4, `rgba(${accent},`, 8)
-  drawContour(UPPER_LIP, `rgba(${accent},`, 0.75, 1.2, `rgba(${accent},`, 6)
-  drawContour(LOWER_LIP, `rgba(${accent},`, 0.75, 1.2, `rgba(${accent},`, 6)
-
-  // ════════════════════════════════════════════════════════════
-  // ANCHOR DOTS — key landmarks as small glowing mint points
+  // ANCHOR DOTS — key landmarks as small geometric vertex points
+  // Minimal, refined — just enough to mark structural nodes.
   // ════════════════════════════════════════════════════════════
   const anchors = [
     1,    // nose tip
@@ -394,23 +442,19 @@ export function drawMesh(
     const lm = landmarks[idx]
     if (!lm) continue
     const x = toX(lm), y = toY(lm)
-    // Soft glow halo
-    ctx.shadowColor = `rgba(${accent},${(0.5 * baseOpacity).toFixed(3)})`
-    ctx.shadowBlur = 10
-    ctx.fillStyle = `rgba(${accent},${(0.65 * baseOpacity).toFixed(3)})`
-    ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill()
-    // White core
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0
-    ctx.fillStyle = `rgba(255,255,255,${(0.75 * baseOpacity).toFixed(3)})`
-    ctx.beginPath(); ctx.arc(x, y, 0.8, 0, Math.PI * 2); ctx.fill()
+    // Accent dot — small, clean
+    ctx.fillStyle = `rgba(${accent},${(0.55 * baseOpacity).toFixed(3)})`
+    ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill()
+    // Bright core
+    ctx.fillStyle = `rgba(255,255,255,${(0.50 * baseOpacity).toFixed(3)})`
+    ctx.beginPath(); ctx.arc(x, y, 0.6, 0, Math.PI * 2); ctx.fill()
   }
 
   // ════════════════════════════════════════════════════════════
-  // DETECTED REGION HIGHLIGHTS — subtle glow ONLY on real detections
+  // DETECTED REGION HIGHLIGHTS — very subtle, wireframe-compatible
   // No highlight = no detection. Never creates false heatmaps.
   // ════════════════════════════════════════════════════════════
   if (detectedRegions && detectedRegions.length > 0) {
-    /** Map region keys to landmark-based center points */
     const regionCenters: Record<string, number[]> = {
       forehead: [10, 151, 9, 8],
       glabella: [9, 107, 336],
@@ -429,7 +473,6 @@ export function drawMesh(
       const centerLandmarks = regionCenters[region.region]
       if (!centerLandmarks) continue
 
-      // Compute region center from landmarks
       let cx = 0, cy = 0, count = 0
       for (const idx of centerLandmarks) {
         const lm = landmarks[idx]
@@ -439,51 +482,16 @@ export function drawMesh(
       if (count === 0) continue
       cx /= count; cy /= count
 
-      // Very subtle warm glow — intensity scales with score, max 0.08 alpha
-      const intensity = Math.min(0.08, (region.score / 100) * 0.10)
-      const radius = Math.max(w, h) * 0.06
+      // Extremely subtle — just enough to hint at detection
+      const intensity = Math.min(0.04, (region.score / 100) * 0.05)
+      const radius = Math.max(w, h) * 0.05
 
       const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius)
       grad.addColorStop(0, `rgba(${accent},${intensity.toFixed(3)})`)
-      grad.addColorStop(0.6, `rgba(${accent},${(intensity * 0.4).toFixed(3)})`)
       grad.addColorStop(1, `rgba(${accent},0)`)
       ctx.fillStyle = grad
       ctx.beginPath()
       ctx.arc(cx, cy, radius, 0, Math.PI * 2)
-      ctx.fill()
-    }
-  }
-
-  // ════════════════════════════════════════════════════════════
-  // FACE-DERIVED BOUNDING SOFT GLOW — replaces static oval glow
-  // Uses actual face center from landmarks, not a template.
-  // ════════════════════════════════════════════════════════════
-  if (qualityScore > 0.3) {
-    const forehead = landmarks[10]
-    const chin = landmarks[152]
-    const leftCheek = landmarks[234]
-    const rightCheek = landmarks[454]
-    if (forehead && chin && leftCheek && rightCheek) {
-      const fcx = toX({ x: (leftCheek.x + rightCheek.x) / 2, y: 0, z: 0 })
-      const fcy = toY({ x: 0, y: (forehead.y + chin.y) / 2, z: 0 })
-      const faceW = Math.abs(toX(rightCheek) - toX(leftCheek))
-      const faceH = Math.abs(toY(chin) - toY(forehead))
-      const radius = Math.max(faceW, faceH) * 0.8
-
-      const intensity = Math.min(1, (qualityScore - 0.3) / 0.7)
-      const breathe = Math.sin(Date.now() / 2000) * 0.02 + 1
-      const glowAlpha = (intensity * (isHigh ? 0.10 : 0.06)).toFixed(3)
-
-      const ambientGrad = ctx.createRadialGradient(
-        fcx, fcy, radius * 0.1 * breathe,
-        fcx, fcy, radius * 1.4 * breathe,
-      )
-      ambientGrad.addColorStop(0, `rgba(${accent},${glowAlpha})`)
-      ambientGrad.addColorStop(0.6, `rgba(${accent},${(parseFloat(glowAlpha) * 0.4).toFixed(3)})`)
-      ambientGrad.addColorStop(1, `rgba(${accent},0)`)
-      ctx.fillStyle = ambientGrad
-      ctx.beginPath()
-      ctx.arc(fcx, fcy, radius * 1.4 * breathe, 0, Math.PI * 2)
       ctx.fill()
     }
   }
@@ -633,19 +641,11 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   const countdownStartRef = useRef<number | null>(null)
   const [countdown, setCountdown] = useState<number | null>(null)
 
-  // ── Side capture: grace frames to tolerate brief dips ──
-  // Allows up to 2 consecutive frames below threshold before resetting.
-  // This prevents micro-tremor dips from killing a valid countdown.
-  const sideDipFramesRef = useRef(0)
-  const SIDE_MAX_DIP_FRAMES = 2
-
-  // ── Side capture debug state (dev-only) ──
-  const [sideDebug, setSideDebug] = useState<{
-    score: number; threshold: number; above: boolean
-    countdownRunning: boolean; remainingMs: number
-    dipFrames: number; captured: boolean
-  } | null>(null)
-  const SIDE_DEBUG = process.env.NODE_ENV === 'development'
+  // ── Grace frames: tolerate brief dips during countdown ──
+  // Allows up to 3 consecutive non-ready frames before resetting.
+  // Prevents micro-tremor dips from killing a valid countdown.
+  const dipFramesRef = useRef(0)
+  const MAX_DIP_FRAMES = 3
 
   // ── Refs that mirror state for use inside processFrame ──
   // processFrame runs in a rAF loop. If it depends on React state (phase,
@@ -716,7 +716,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     frameBufferRef.current = []
     stableReadyFrames.current = 0
     countdownStartRef.current = null
-    sideDipFramesRef.current = 0
+    dipFramesRef.current = 0
     setCountdown(null)
     updatePhase('idle')
     setValidationProgress(0)
@@ -893,139 +893,65 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           // Phase transitions
           if (phaseRef.current === 'detecting' || phaseRef.current === 'idle') updatePhase('tracking')
 
-          // ── READINESS + COUNTDOWN ────────────────────────────
-          // Uses phaseRef/previewRef (not state) to avoid stale closures.
-          //
-          // ═══ SIDE RULE (RIGHT / LEFT) ═══
-          // Single source of truth: a numeric "side score" (0–100).
-          //   score > 60 → start 3-second countdown
-          //   score stays > 60 for 3 full seconds → auto-capture
-          //   score drops to ≤ 60 → cancel countdown immediately
-          //   No isSideReady(), no green-state matching, no stability frames.
-          //
-          // The side score is computed from the sub-scores that matter for
-          // side views, EXCLUDING centering (which drops when face is angled).
-          // Gate: face must be detected, locked, and at the correct angle.
-          //
-          // ═══ FRONT RULE ═══
-          // Unchanged — uses isFrontReady() + stability frames.
-          //
+          // ── READINESS + COUNTDOWN (angle-specific rule) ──────
+          // Front: hard blockers + 6/6 soft checks (strict)
+          // Left/Right: hard blockers + 5/6 soft checks (tolerant)
+          //   1. isReadyForCapture() checks hard blockers + step-aware soft gate
+          //   2. Accumulate STABILITY_FRAMES_REQUIRED consecutive ready frames
+          //   3. Start 3-second countdown
+          //   4. Grace: up to 3 dip frames tolerated during countdown
+          //   5. Auto-capture when countdown completes
           const isSideStep = mode === 'multi' && multiStep !== 'front'
           const curPhase = phaseRef.current
           const canAct = !previewRef.current && curPhase !== 'validated' && curPhase !== 'advancing'
 
-          if (isSideStep) {
-            // ═══════════════════════════════════════════════════════
-            // SIDE CAPTURE (RIGHT / LEFT) — DETERMINISTIC RULE
-            // ═══════════════════════════════════════════════════════
-            // Single numeric score > 60 for 3 continuous seconds.
-            // Score excludes stability (volatile after head turn)
-            // and centering (drops naturally on angled poses).
-            // Grace: 2 brief dip-frames tolerated before reset.
-            // ═══════════════════════════════════════════════════════
-            const qb = guide.qualityBreakdown
-            const SIDE_THRESHOLD = 60
+          const readyNow = isReadyForCapture(guide, isSideStep, failsafeActive)
 
-            // Gate: face must be detected, locked, and at correct angle.
-            // Score uses only sub-scores stable during side pose.
-            const sideGateOk = guide.faceDetected && guide.faceLocked && guide.angle === 'ok'
-            const sideScore = sideGateOk
-              ? Math.round(
-                  (qb.distance * 0.35 +
-                   qb.angle * 0.35 +
-                   qb.lighting * 0.20 +
-                   qb.sharpness * 0.10) * 100
-                )
-              : 0
-
-            const aboveThreshold = sideScore > SIDE_THRESHOLD
-
-            if (aboveThreshold && canAct) {
-              // ABOVE 60 — start or continue countdown, reset dip counter
-              sideDipFramesRef.current = 0
-              if (!countdownStartRef.current) {
-                countdownStartRef.current = now
-                updatePhase('stabilizing')
-              }
-              const elapsed = now - countdownStartRef.current
-              const remaining = Math.ceil((COUNTDOWN_MS - elapsed) / 1000)
-              setCountdown(Math.max(0, remaining))
-              setValidationProgress(Math.min(1, elapsed / COUNTDOWN_MS))
-
-              if (elapsed >= COUNTDOWN_MS) {
-                setCountdown(null)
-                triggerAutoAdvance()
-              }
-            } else if (!aboveThreshold && canAct) {
-              // AT OR BELOW 60 — grace: tolerate brief dips
-              if (countdownStartRef.current) {
-                sideDipFramesRef.current++
-                if (sideDipFramesRef.current > SIDE_MAX_DIP_FRAMES) {
-                  // Too many dip frames — hard reset countdown
-                  countdownStartRef.current = null
-                  sideDipFramesRef.current = 0
-                  setCountdown(null)
-                  setValidationProgress(0)
-                  if (curPhase === 'stabilizing') updatePhase('tracking')
-                }
-                // else: within grace window, keep countdown running
-              } else if (curPhase === 'stabilizing') {
-                // No active countdown but phase stuck — clean up
-                updatePhase('tracking')
-              }
-            }
-
-            // ── Debug telemetry (dev only) ──
-            if (SIDE_DEBUG) {
-              setSideDebug({
-                score: sideScore,
-                threshold: SIDE_THRESHOLD,
-                above: aboveThreshold,
-                countdownRunning: !!countdownStartRef.current,
-                remainingMs: countdownStartRef.current ? Math.max(0, COUNTDOWN_MS - (now - countdownStartRef.current)) : 0,
-                dipFrames: sideDipFramesRef.current,
-                captured: curPhase === 'validated' || curPhase === 'advancing',
-              })
-            }
+          if (readyNow) {
+            stableReadyFrames.current++
           } else {
-            // ═══ FRONT CAPTURE: unchanged — isFrontReady + stability frames ═══
-            const readyNow = isFrontReady(guide, failsafeActive)
+            stableReadyFrames.current = Math.max(0, stableReadyFrames.current - 2)
+          }
 
-            if (readyNow) {
-              stableReadyFrames.current++
-            } else {
-              stableReadyFrames.current = Math.floor(stableReadyFrames.current * 0.5)
+          const requiredStable = failsafeActive ? 2 : STABILITY_FRAMES_REQUIRED
+
+          if (readyNow && stableReadyFrames.current >= requiredStable && canAct) {
+            // Ready — start or continue countdown, reset dip counter
+            dipFramesRef.current = 0
+            if (!countdownStartRef.current) {
+              countdownStartRef.current = now
+              updatePhase('stabilizing')
             }
+            const elapsed = now - countdownStartRef.current
+            const remaining = Math.ceil((COUNTDOWN_MS - elapsed) / 1000)
+            setCountdown(Math.max(0, remaining))
+            setValidationProgress(Math.min(1, elapsed / COUNTDOWN_MS))
 
-            const requiredStable = failsafeActive ? 4 : FRONT_STABILITY_FRAMES
-
-            if (readyNow && stableReadyFrames.current >= requiredStable && canAct) {
-              if (!countdownStartRef.current) {
-                countdownStartRef.current = now
-                updatePhase('stabilizing')
-              }
-              const elapsed = now - countdownStartRef.current
-              const remaining = Math.ceil((COUNTDOWN_MS - elapsed) / 1000)
-              setCountdown(Math.max(0, remaining))
-              setValidationProgress(Math.min(1, elapsed / COUNTDOWN_MS))
-
-              if (elapsed >= COUNTDOWN_MS) {
-                setCountdown(null)
-                triggerAutoAdvance()
-              }
-            } else if (!readyNow) {
-              if (countdownStartRef.current || curPhase === 'stabilizing') {
+            if (elapsed >= COUNTDOWN_MS) {
+              setCountdown(null)
+              triggerAutoAdvance()
+            }
+          } else if (!readyNow && canAct) {
+            // Not ready — grace window during active countdown
+            if (countdownStartRef.current) {
+              dipFramesRef.current++
+              if (dipFramesRef.current > MAX_DIP_FRAMES) {
+                // Too many dip frames — hard reset
                 countdownStartRef.current = null
+                dipFramesRef.current = 0
                 setCountdown(null)
                 setValidationProgress(0)
                 if (curPhase === 'stabilizing') updatePhase('tracking')
               }
+              // else: within grace window, keep countdown running
+            } else if (curPhase === 'stabilizing') {
+              updatePhase('tracking')
             }
           }
 
           // Buffer best frames — uses aligned 3:4 capture to match UI
           // Only buffer frames that meet minimum quality for clean results
-          const bufferThreshold = isSideStep ? 0.40 : 0.65
+          const bufferThreshold = isSideStep ? 0.30 : 0.50
           if (guide.qualityScore >= bufferThreshold && !previewRef.current && curPhase !== 'validated' && curPhase !== 'advancing') {
             const cc = captureCanvasRef.current
             if (cc && video.videoWidth > 0) {
@@ -1078,13 +1004,11 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     }
   }, [autoConfirm, mode, preview, phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Manual capture — requires READY state (same gate as auto-capture).
-  // This ensures every captured frame produces a clean result page.
-  // The button is disabled until the quality gate criteria are met.
+  // Manual capture — separate, more lenient eligibility (score-based fallback).
+  // Auto-capture uses isReadyForCapture() with strict 6/6 / 5/6 soft-check gates.
+  // Manual uses isManualCaptureEligible() with score thresholds (75 front, 65 side).
   const isSideStep = mode === 'multi' && multiStep !== 'front'
-  const manualCaptureEnabled = isSideStep
-    ? isSideReady(status, failsafeActive)
-    : isFrontReady(status, failsafeActive)
+  const manualCaptureEnabled = isManualCaptureEligible(status, isSideStep)
   const takeSnapshot = () => {
     if (!manualCaptureEnabled) return
     const dataUrl = captureBestFrame()
@@ -1130,10 +1054,9 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col select-none"
+      className="fixed inset-0 z-50 flex flex-col select-none overflow-hidden"
       style={{
         background: 'radial-gradient(ellipse at 50% 40%, #0E0B09 0%, #060609 60%, #030305 100%)',
-        height: '100dvh',
         paddingTop: 'env(safe-area-inset-top, 0px)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
@@ -1142,7 +1065,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
       <canvas ref={brightnessCanvasRef} className="hidden" />
 
       {/* ═══ SECTION 1: Header ═══════════════════════════════ */}
-      <div className="flex-none px-4 pt-3 pb-1 sm:pt-4 sm:pb-2">
+      <div className="flex-none px-4 pt-3 pb-2 sm:pt-4 sm:pb-2">
         <div className="flex items-center justify-between">
           <button
             onClick={onClose}
@@ -1182,10 +1105,10 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
       </div>
 
       {/* ═══ SECTION 2: Camera preview (flex-1, fills available space) ═══ */}
-      <div className="flex-1 min-h-0 flex items-center justify-center px-3 sm:px-4 pt-2 pb-0.5 sm:pt-4 sm:pb-1">
+      <div className="flex-1 min-h-0 flex items-center justify-center px-3 sm:px-4 pt-2 pb-2 sm:pt-4 sm:pb-2">
         <div
           className="relative w-full rounded-[20px] sm:rounded-[28px] overflow-hidden border border-[rgba(214,185,140,0.12)] shadow-[0_0_60px_rgba(0,0,0,0.5),0_0_0_1px_rgba(214,185,140,0.05)]"
-          style={{ aspectRatio: '3/4', maxWidth: 'min(92vw, 420px)', maxHeight: '100%' }}
+          style={{ aspectRatio: '3/4', maxWidth: 'min(92vw, 420px)', maxHeight: 'min(100%, 62dvh)' }}
         >
           {/* Loading */}
           {initState === 'loading' && (
@@ -1312,17 +1235,6 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 <div className="absolute inset-0 z-30 bg-white animate-[flashFade_0.35s_ease-out_forwards] pointer-events-none" />
               )}
 
-              {/* ── Side capture debug overlay (dev only) ── */}
-              {SIDE_DEBUG && sideDebug && isMulti && multiStep !== 'front' && !preview && (
-                <div className="absolute bottom-2 left-2 z-40 pointer-events-none">
-                  <div className="bg-black/80 rounded px-2 py-1 text-[9px] font-mono leading-[1.6] text-white/70 space-y-0">
-                    <div>score: <span className={sideDebug.above ? 'text-green-400' : 'text-red-400'}>{sideDebug.score}</span> / {sideDebug.threshold}</div>
-                    <div>above: {sideDebug.above ? '✓' : '✗'} | dips: {sideDebug.dipFrames}</div>
-                    <div>countdown: {sideDebug.countdownRunning ? `${(sideDebug.remainingMs / 1000).toFixed(1)}s` : 'off'}</div>
-                    <div>captured: {sideDebug.captured ? '✓' : '—'}</div>
-                  </div>
-                </div>
-              )}
 
             </>
           )}
@@ -1388,11 +1300,11 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
         </div>
       </div>
 
-      {/* ── Guidance card — directly below camera preview, tight spacing ── */}
+      {/* ── Guidance card — below camera preview ── */}
       {initState === 'ready' && !preview && phase !== 'validated' && phase !== 'advancing' && (
-        <div className="flex-none flex justify-center px-4 mt-0.5 sm:mt-1">
+        <div className="flex-none flex justify-center px-4 mt-2 sm:mt-2.5">
           <div
-            className="flex flex-col items-center gap-1 px-5 sm:px-7 py-2 sm:py-2.5 rounded-[14px] sm:rounded-[16px] max-w-[92%]"
+            className="flex flex-col items-center gap-1 px-5 sm:px-7 py-2.5 sm:py-3 rounded-[14px] sm:rounded-[16px] max-w-[92%]"
             style={{
               background: 'rgba(10,8,6,0.85)',
               border: '1px solid rgba(214,185,140,0.06)',
@@ -1447,8 +1359,8 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
         </div>
       )}
 
-      {/* ═══ SECTION 3: Controls (flex-none, compact) ═══ */}
-      <div className="flex-none px-5 pb-3 sm:pb-5 pt-1.5">
+      {/* ═══ SECTION 3: Controls (flex-none) ═══ */}
+      <div className="flex-none px-5 pb-5 sm:pb-6 pt-2 sm:pt-3">
         <div className="flex flex-col items-center gap-2">
           {!preview ? (
             <>
@@ -1478,28 +1390,43 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                     </div>
                   )}
 
-                  {/* Shutter button */}
+                  {/* Shutter button — enabled at score threshold (75 front / 65 side) */}
                   <button
                     type="button"
                     onClick={takeSnapshot}
                     disabled={!manualCaptureEnabled}
-                    className="group relative disabled:opacity-25 disabled:cursor-not-allowed flex-shrink-0"
+                    className="group relative flex-shrink-0 transition-opacity duration-300"
+                    style={{ opacity: manualCaptureEnabled ? 1 : 0.25 }}
                     aria-label="Fotoğraf çek"
                   >
                     <div className={`w-[62px] h-[62px] sm:w-[72px] sm:h-[72px] rounded-full border-[2.5px] transition-all duration-500 flex items-center justify-center ${
                       manualCaptureEnabled
-                        ? 'border-[rgba(0,255,180,0.4)] shadow-[0_0_16px_rgba(0,255,180,0.12)]'
+                        ? 'border-[rgba(0,255,180,0.45)] shadow-[0_0_20px_rgba(0,255,180,0.15)]'
                         : 'border-[rgba(255,255,255,0.08)]'
                     }`}>
-                      <div className="w-[50px] h-[50px] sm:w-[58px] sm:h-[58px] rounded-full bg-[rgba(255,255,255,0.12)] group-hover:bg-[rgba(255,255,255,0.22)] group-active:scale-90 transition-all duration-300 group-disabled:bg-[rgba(255,255,255,0.04)]" />
+                      <div className={`w-[50px] h-[50px] sm:w-[58px] sm:h-[58px] rounded-full transition-all duration-300 ${
+                        manualCaptureEnabled
+                          ? 'bg-[rgba(0,255,180,0.12)] group-hover:bg-[rgba(0,255,180,0.22)] group-active:scale-90'
+                          : 'bg-[rgba(255,255,255,0.04)]'
+                      }`} />
                     </div>
                   </button>
 
                   {/* Status hint — right of shutter */}
                   <div className="w-[76px] sm:w-[86px]">
-                    <p className="font-body text-[9px] text-white/20 tracking-[0.08em] uppercase leading-tight text-center">
-                      {manualCaptureEnabled ? 'Manuel çekim' : phase === 'stabilizing' ? 'Doğrulanıyor…' : 'Otomatik çekim'}
-                    </p>
+                    {manualCaptureEnabled ? (
+                      <p className="font-body text-[9px] text-[rgba(0,255,180,0.5)] tracking-[0.08em] uppercase leading-tight text-center">
+                        Manuel çekim
+                      </p>
+                    ) : status.faceDetected ? (
+                      <p className="font-body text-[9px] text-white/20 tracking-[0.08em] uppercase leading-tight text-center">
+                        {phase === 'stabilizing' ? 'Doğrulanıyor…' : `Skor ${isSideStep ? '65' : '75'}+`}
+                      </p>
+                    ) : (
+                      <p className="font-body text-[9px] text-white/15 tracking-[0.08em] uppercase leading-tight text-center">
+                        Otomatik çekim
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

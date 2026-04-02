@@ -11,7 +11,7 @@ import {
   detectFaceMultiFrame,
   destroy as destroyHumanEngine,
 } from '@/lib/ai/human-engine'
-import { savePhoto } from '@/lib/photo-bridge'
+import { savePhoto, saveViewPhotos } from '@/lib/photo-bridge'
 import { run as runGeometryAnalysis } from '@/lib/ai/analysis'
 import { computeFocusAreas, computeQualityScore, getSuggestedZones, computeLipAnalysis } from '@/lib/ai/aesthetic-scoring'
 import { generateSuggestions, generateFocusAreaLabels, mapFocusAreasToRegionScores } from '@/lib/ai/result-generator'
@@ -809,6 +809,12 @@ function ProcessingContent() {
         if (photo) {
           savePhoto(leadId, photo)
           setPhotoUrl(photo)
+        }
+
+        // Save all 3 view photos to session bridge (survives localStorage quota stripping)
+        const viewPhotos = lead.doctor_frontal_photos ?? []
+        if (viewPhotos.length >= 3) {
+          saveViewPhotos(leadId, viewPhotos)
         }
 
         if (!photo) {

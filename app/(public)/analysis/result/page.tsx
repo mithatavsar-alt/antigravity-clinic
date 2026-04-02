@@ -9,7 +9,7 @@ import { PremiumButton } from '@/components/design-system/PremiumButton'
 import { ThinLine } from '@/components/design-system/ThinLine'
 import { photoQualityLabels } from '@/types/lead'
 import type { Lead } from '@/types/lead'
-import { getPhoto } from '@/lib/photo-bridge'
+import { getPhoto, getViewPhotos } from '@/lib/photo-bridge'
 import { LandmarkOverlay, type OverlayState } from '@/components/analysis/LandmarkOverlay'
 import { contact } from '@/lib/contact'
 import RadarChartSection from '@/components/analysis/RadarChart'
@@ -242,6 +242,287 @@ function PhotoPlaceholder() {
         </svg>
       </div>
       <p className="font-body text-[11px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.25)]">Fotoğraf yüklenmedi</p>
+    </div>
+  )
+}
+
+/* ── 3-View Photo Gallery ─────────────────────────────────── */
+const VIEW_LABELS: Record<string, string> = { front: 'Ön Görünüm', left: 'Sol Profil', right: 'Sağ Profil' }
+const VIEW_ICONS: Record<string, string> = { front: '◎', left: '◧', right: '◨' }
+
+function ViewQualityBadge({ quality }: { quality: { view: string; score: number; usable: boolean; poseCorrect: boolean } }) {
+  const color = quality.usable
+    ? quality.score >= 70 ? '#3D9B7A' : '#D6B98C'
+    : '#C8785A'
+  const label = quality.usable
+    ? quality.score >= 70 ? 'İyi' : 'Yeterli'
+    : 'Yetersiz'
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="w-1.5 h-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 4px ${color}50` }} />
+      <span className="font-body text-[9px] tracking-[0.1em] uppercase" style={{ color: `${color}CC` }}>
+        {label} {quality.usable && <span className="font-mono text-[9px]">%{quality.score}</span>}
+      </span>
+    </div>
+  )
+}
+
+function ThreeViewGallery({ photos, viewQualities, onPhotoClick }: {
+  photos: [string | null, string | null, string | null]
+  viewQualities?: Array<{ view: string; score: number; usable: boolean; poseCorrect: boolean }>
+  onPhotoClick: (src: string) => void
+}) {
+  const views = ['front', 'left', 'right'] as const
+  const hasAnyPhoto = photos.some(p => !!p)
+  if (!hasAnyPhoto) return null
+
+  return (
+    <div className="flex flex-col gap-4" style={{ animation: 'sectionReveal 0.6s ease-out 0.1s both' }}>
+      <div className="flex items-center gap-2">
+        <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+        </svg>
+        <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Çoklu Açı Çekimleri</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+        {views.map((view, i) => {
+          const src = photos[i]
+          const vq = viewQualities?.find(q => q.view === view)
+
+          return (
+            <div key={view} className="flex flex-col gap-2">
+              {src ? (
+                <button
+                  type="button"
+                  onClick={() => onPhotoClick(src)}
+                  className="group relative rounded-xl overflow-hidden border border-[rgba(214,185,140,0.08)] hover:border-[rgba(214,185,140,0.20)] transition-colors"
+                  style={{ animation: `cardEntrance 0.4s ease-out ${i * 80}ms both` }}
+                >
+                  <div className="aspect-[3/4] w-full">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={VIEW_LABELS[view]} className="w-full h-full object-cover" />
+                  </div>
+                  {/* Bottom gradient */}
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[rgba(10,10,15,0.75)] to-transparent pt-8 pb-2.5 px-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-body text-[9px] text-[rgba(248,246,242,0.35)]">{VIEW_ICONS[view]}</span>
+                      <span className="font-body text-[9px] tracking-[0.14em] uppercase text-[rgba(248,246,242,0.65)]">
+                        {VIEW_LABELS[view]}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Hover zoom hint */}
+                  <div className="absolute inset-0 bg-[rgba(0,0,0,0)] group-hover:bg-[rgba(0,0,0,0.15)] transition-colors flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-white/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <svg className="w-3.5 h-3.5 text-[#1A1A2E]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+                      </svg>
+                    </div>
+                  </div>
+                </button>
+              ) : (
+                <div className="aspect-[3/4] w-full rounded-xl bg-[rgba(20,18,15,0.4)] border border-[rgba(248,246,242,0.04)] flex flex-col items-center justify-center gap-1.5">
+                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.15)]">{VIEW_ICONS[view]}</span>
+                  <span className="font-body text-[8px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.15)]">
+                    Çekilmedi
+                  </span>
+                </div>
+              )}
+              {/* Quality badge */}
+              {vq && (
+                <div className="flex justify-center">
+                  <ViewQualityBadge quality={vq} />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/* ── Multi-View Synthesis Summary ─────────────────────────── */
+function MultiViewSynthesisSummary({ multiView }: { multiView: NonNullable<Lead['multi_view_analysis']> }) {
+  const synthesis = multiView.synthesis
+  if (!synthesis) return null
+
+  const confColor = multiView.globalConfidence >= 70 ? '#3D9B7A'
+    : multiView.globalConfidence >= 50 ? '#D6B98C' : '#C8785A'
+
+  return (
+    <div className="flex flex-col gap-5" style={{ animation: 'sectionReveal 0.6s ease-out 0.2s both' }}>
+      {/* Header with global confidence */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75H6A2.25 2.25 0 003.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0120.25 6v1.5m0 9V18A2.25 2.25 0 0118 20.25h-1.5m-9 0H6A2.25 2.25 0 013.75 18v-1.5M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">
+            Çoklu Açı Sentezi
+          </p>
+        </div>
+        <div
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
+          style={{ background: `${confColor}08`, borderColor: `${confColor}20` }}
+        >
+          <div className="w-1.5 h-1.5 rounded-full" style={{ background: confColor }} />
+          <span className="font-mono text-[11px]" style={{ color: confColor }}>
+            %{multiView.globalConfidence}
+          </span>
+          <span className="font-body text-[9px] tracking-[0.08em] uppercase text-[rgba(248,246,242,0.35)]">
+            güven
+          </span>
+        </div>
+      </div>
+
+      {/* Overall narrative */}
+      {synthesis.overallNarrative && (
+        <div className="rounded-xl border border-[rgba(214,185,140,0.10)] bg-[rgba(214,185,140,0.025)] px-5 py-4">
+          <p className="font-body text-[13px] sm:text-[12px] text-[rgba(248,246,242,0.55)] leading-[1.8]">
+            {synthesis.overallNarrative}
+          </p>
+        </div>
+      )}
+
+      {/* Strongest + Improvement areas side by side */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {synthesis.strongestAreas.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="font-body text-[9px] tracking-[0.18em] uppercase text-[rgba(61,155,122,0.55)] flex items-center gap-1.5">
+              <span className="text-[10px]">✦</span> Güçlü Alanlar
+            </span>
+            {synthesis.strongestAreas.map(area => (
+              <div key={area.region} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-[rgba(61,155,122,0.03)] border border-[rgba(61,155,122,0.08)]">
+                <span className="text-[9px] mt-0.5 text-[#3D9B7A]">●</span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.6)]">{area.label}</span>
+                  <p className="font-body text-[10px] text-[rgba(248,246,242,0.32)] leading-[1.5] mt-0.5">{area.note}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {synthesis.improvementAreas.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="font-body text-[9px] tracking-[0.18em] uppercase text-[rgba(214,185,140,0.55)] flex items-center gap-1.5">
+              <span className="text-[10px]">◇</span> Değerlendirme Önerilen
+            </span>
+            {synthesis.improvementAreas.map(area => (
+              <div key={area.region} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-[rgba(214,185,140,0.02)] border border-[rgba(214,185,140,0.06)]">
+                <span className="text-[9px] mt-0.5 text-[#D6B98C]">◇</span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.6)]">{area.label}</span>
+                  <p className="font-body text-[10px] text-[rgba(248,246,242,0.32)] leading-[1.5] mt-0.5">{area.note}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Bilateral comparisons */}
+      {synthesis.bilateralComparisons.length > 0 && (
+        <div className="flex flex-col gap-2.5">
+          <span className="font-body text-[9px] tracking-[0.18em] uppercase text-[rgba(248,246,242,0.35)] flex items-center gap-1.5">
+            <span className="text-[10px]">⇌</span> Sol–Sağ Karşılaştırma
+          </span>
+          {synthesis.bilateralComparisons.map(bc => {
+            const lvlColor = bc.asymmetryLevel === 'symmetrical' ? '#3D9B7A'
+              : bc.asymmetryLevel === 'mild_asymmetry' ? '#D6B98C' : '#C8785A'
+            const lvlLabel = bc.asymmetryLevel === 'symmetrical' ? 'Simetrik'
+              : bc.asymmetryLevel === 'mild_asymmetry' ? 'Hafif Fark' : 'Belirgin Fark'
+
+            return (
+              <div key={bc.regionBase} className="rounded-lg border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.01)] px-3.5 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.6)]">{bc.label}</span>
+                  <span className="font-body text-[9px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full"
+                    style={{ background: `${lvlColor}12`, color: lvlColor }}>
+                    {lvlLabel}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 mb-1.5">
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <span className="font-mono text-[9px] text-[rgba(248,246,242,0.4)] w-5">Sol</span>
+                    <div className="flex-1 h-[3px] rounded-full bg-white/[0.04] overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${bc.leftScore}%`, background: lvlColor }} />
+                    </div>
+                    <span className="font-mono text-[10px] text-[rgba(248,246,242,0.5)] w-5">{bc.leftScore}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <span className="font-mono text-[9px] text-[rgba(248,246,242,0.4)] w-5">Sağ</span>
+                    <div className="flex-1 h-[3px] rounded-full bg-white/[0.04] overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${bc.rightScore}%`, background: lvlColor }} />
+                    </div>
+                    <span className="font-mono text-[10px] text-[rgba(248,246,242,0.5)] w-5">{bc.rightScore}</span>
+                  </div>
+                </div>
+                <p className="font-body text-[10px] text-[rgba(248,246,242,0.30)] leading-[1.6] italic">{bc.note}</p>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Confidence notes */}
+      {synthesis.confidenceNotes.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <span className="font-body text-[9px] tracking-[0.18em] uppercase text-[rgba(248,246,242,0.25)] flex items-center gap-1.5">
+            <span className="text-[10px]">◈</span> Güven Notları
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {synthesis.confidenceNotes.map(cn => {
+              const cnColor = cn.level === 'high' ? '#3D9B7A' : cn.level === 'medium' ? '#D6B98C' : '#C8785A'
+              return (
+                <div key={cn.region} className="flex items-start gap-1.5 px-2.5 py-1.5 rounded-md bg-[rgba(248,246,242,0.015)] border border-[rgba(248,246,242,0.04)]">
+                  <div className="w-1.5 h-1.5 mt-1 rounded-full flex-shrink-0" style={{ background: cnColor }} />
+                  <div>
+                    <span className="font-body text-[10px] text-[rgba(248,246,242,0.5)]">{cn.label}</span>
+                    <p className="font-body text-[9px] text-[rgba(248,246,242,0.28)] leading-[1.5]">{cn.explanation}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* View summaries */}
+      {multiView.viewSummaries && multiView.viewSummaries.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="font-body text-[9px] tracking-[0.18em] uppercase text-[rgba(248,246,242,0.25)] flex items-center gap-1.5">
+            <span className="text-[10px]">⊞</span> Görünüm Özetleri
+          </span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {multiView.viewSummaries.map(vs => (
+              <div key={vs.view} className="rounded-lg border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.01)] p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-body text-[10px] text-[rgba(248,246,242,0.55)]">{vs.label}</span>
+                  {vs.usable ? (
+                    <span className="font-mono text-[10px] text-[#3D9B7A]">%{vs.qualityScore}</span>
+                  ) : (
+                    <span className="font-mono text-[10px] text-[#C8785A]">Yetersiz</span>
+                  )}
+                </div>
+                <p className="font-body text-[9px] text-[rgba(248,246,242,0.35)] leading-[1.6]">{vs.narrative}</p>
+                {vs.limitations.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {vs.limitations.map((lim, i) => (
+                      <span key={i} className="font-body text-[8px] text-[rgba(200,120,90,0.5)] bg-[rgba(200,120,90,0.05)] px-1.5 py-0.5 rounded">
+                        {lim}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -664,6 +945,7 @@ function ResultContent() {
   const id = searchParams.get('id')
   const selectedLead = id ? leads.find((lead) => lead.id === id) : undefined
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [hydrated, setHydrated] = useState(false)
 
   // Wait for Zustand store to hydrate from localStorage before rendering
@@ -741,6 +1023,18 @@ function ResultContent() {
   // Photo may have been stripped from localStorage (quota protection).
   // Recover from sessionStorage bridge if needed.
   const photoUrl = selectedLead.patient_photo_url || (id ? getPhoto(id) : null)
+
+  // Multi-view photos: [front, left, right]
+  const multiViewAnalysis = selectedLead.multi_view_analysis
+  const hasMultiView = !!multiViewAnalysis && (multiViewAnalysis.centralRegions.length > 0 || multiViewAnalysis.leftRegions.length > 0)
+  const storedPhotos = selectedLead.doctor_frontal_photos ?? []
+  const bridgePhotos = id ? getViewPhotos(id) : [null, null, null] as [string | null, string | null, string | null]
+  const viewPhotos: [string | null, string | null, string | null] = [
+    storedPhotos[0] || bridgePhotos[0] || photoUrl,
+    storedPhotos[1] || bridgePhotos[1],
+    storedPhotos[2] || bridgePhotos[2],
+  ]
+  const hasViewPhotos = viewPhotos[1] != null || viewPhotos[2] != null
 
   return (
     <div className="theme-dark min-h-screen relative" style={{ background: 'linear-gradient(160deg, #0A0908 0%, #141110 20%, #0F1214 50%, #0A0B0D 100%)' }}>
@@ -855,7 +1149,7 @@ function ResultContent() {
             className="relative font-body text-[10px] sm:text-[11px] tracking-[0.22em] uppercase mb-5 sm:mb-6"
             style={{ color: 'rgba(61,155,122,0.65)' }}
           >
-            {isHumanLocal || isCombined || hasAI || hasSkin ? 'AI Analizi Tamamlandı' : 'Ön Değerlendirme Tamamlandı'}
+            {hasMultiView ? 'Çoklu Açı AI Analizi Tamamlandı' : isHumanLocal || isCombined || hasAI || hasSkin ? 'AI Analizi Tamamlandı' : 'Ön Değerlendirme Tamamlandı'}
           </span>
 
           {/* Main headline — Cormorant Garamond, larger and more present */}
@@ -876,7 +1170,9 @@ function ResultContent() {
             className="relative font-body text-[14px] sm:text-[15px] font-normal leading-[1.8] text-center max-w-sm sm:max-w-md mt-5 sm:mt-6"
             style={{ color: 'rgba(214,185,140,0.55)' }}
           >
-            Sonuçlar çekim kalitesi ve bölgesel görünürlüğe göre değerlendirilmiştir.
+            {hasMultiView
+              ? 'Ön, sol ve sağ açılardan çekilen görüntüler birleştirilerek bölgesel değerlendirme yapılmıştır.'
+              : 'Sonuçlar çekim kalitesi ve bölgesel görünürlüğe göre değerlendirilmiştir.'}
           </p>
 
           {/* Editorial divider */}
@@ -1014,6 +1310,22 @@ function ResultContent() {
           />
         )}
 
+        {/* ── Multi-View Gallery + Synthesis (when 3-view data available) ── */}
+        {hasMultiView && hasViewPhotos && (
+          <div className="max-w-3xl mx-auto w-full flex flex-col" style={{ gap: 'clamp(1.5rem, 3vw, 2.5rem)' }}>
+            <GlassCard elevated padding="lg" rounded="xl">
+              <ThreeViewGallery
+                photos={viewPhotos}
+                viewQualities={multiViewAnalysis.viewQualities}
+                onPhotoClick={(src) => { setLightboxOpen(true); setLightboxSrc(src) }}
+              />
+            </GlassCard>
+            <GlassCard elevated padding="lg" rounded="xl">
+              <MultiViewSynthesisSummary multiView={multiViewAnalysis} />
+            </GlassCard>
+          </div>
+        )}
+
         {/* ── Detail Section: Photo + Detailed Analysis ─────── */}
         <div
           className="grid grid-cols-1 lg:grid-cols-[minmax(280px,2fr)_3fr] items-start"
@@ -1022,7 +1334,7 @@ function ResultContent() {
           {/* Left: Photo — cinematic frame */}
           <div className="flex flex-col gap-5 lg:sticky lg:top-24">
             {photoUrl ? (
-              <AnalysisPhoto src={photoUrl} onClick={() => setLightboxOpen(true)} hasAI={hasAI} wrinkleRegions={wrinkleScores?.regions} />
+              <AnalysisPhoto src={photoUrl} onClick={() => { setLightboxOpen(true); setLightboxSrc(photoUrl) }} hasAI={hasAI} wrinkleRegions={wrinkleScores?.regions} />
             ) : (
               <PhotoPlaceholder />
             )}
@@ -1196,8 +1508,8 @@ function ResultContent() {
       </div>
 
       {/* Lightbox */}
-      {lightboxOpen && photoUrl && (
-        <PhotoLightbox src={photoUrl} onClose={() => setLightboxOpen(false)} />
+      {lightboxOpen && (lightboxSrc || photoUrl) && (
+        <PhotoLightbox src={lightboxSrc || photoUrl!} onClose={() => { setLightboxOpen(false); setLightboxSrc(null) }} />
       )}
     </div>
   )
