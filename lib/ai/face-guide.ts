@@ -14,10 +14,11 @@ export interface FaceGuideStatus {
   validCount: number
   /** Continuous frame quality score 0–1 for auto-capture */
   qualityScore: number
-  /** Sub-scores breakdown */
+  /** Sub-scores breakdown — each dimension is independent */
   qualityBreakdown: {
     distance: number
-    alignment: number
+    angle: number
+    centering: number
     lighting: number
     sharpness: number
     stability: number
@@ -160,7 +161,7 @@ export const NO_FACE_STATUS: FaceGuideStatus = {
   mainMessage: 'Yüzünüzü çerçevenin içine yerleştirin',
   validCount: 0,
   qualityScore: 0,
-  qualityBreakdown: { distance: 0, alignment: 0, lighting: 0, sharpness: 0, stability: 0 },
+  qualityBreakdown: { distance: 0, angle: 0, centering: 0, lighting: 0, sharpness: 0, stability: 0 },
   faceHeightRatio: 0,
   faceLocked: false,
   debug: {
@@ -479,24 +480,38 @@ export function evaluateFaceGuide(
   const ANGLED_MAX = 0.45   // maximum turn allowed
   const ANGLED_IDEAL = 0.28 // ideal angle (~20°)
 
+  // Angle evaluation — target-aware for multi-angle capture.
+  //
+  // Coordinate convention:
+  //   noseOffset > 0 → nose right-of-bridge in raw image → user turned head LEFT (IRL)
+  //   noseOffset < 0 → nose left-of-bridge in raw image  → user turned head RIGHT (IRL)
+  //
+  // "Left face view" (targetAngle 'left') = show LEFT cheek = turn head RIGHT = noseOffset NEGATIVE
+  // "Right face view" (targetAngle 'right') = show RIGHT cheek = turn head LEFT = noseOffset POSITIVE
+  //
+  // In the mirrored selfie preview the user sees the movement flipped, so the
+  // on-screen instruction says "turn screen-left" for left-face-view — the CSS
+  // mirror makes this feel natural. The validator uses raw-image coordinates.
+  const absNoseOffset = Math.abs(noseOffset)
+
   let angle: FaceGuideStatus['angle'] = 'ok'
   if (tiltRatio > ROLL_THRESHOLD) angle = 'tilt'
   else if (targetAngle === 'front') {
-    // Standard frontal: must look straight
+    // Frontal: must look straight
     if (noseOffset > YAW_THRESHOLD) angle = 'look_left'
     else if (noseOffset < -YAW_THRESHOLD) angle = 'look_right'
     else if (pitchOffset < -PITCH_THRESHOLD) angle = 'look_up'
     else if (pitchOffset > PITCH_THRESHOLD) angle = 'look_down'
   } else if (targetAngle === 'left') {
-    // Left profile: nose should point left (positive noseOffset)
-    if (noseOffset < ANGLED_MIN) angle = 'look_right'    // not turned enough
-    else if (noseOffset > ANGLED_MAX) angle = 'look_left' // turned too far
+    // Left face view: expect negative noseOffset (head turned right IRL)
+    if (noseOffset > -ANGLED_MIN) angle = 'look_right'     // not turned enough
+    else if (noseOffset < -ANGLED_MAX) angle = 'look_left'  // turned too far
     else if (pitchOffset < -PITCH_THRESHOLD) angle = 'look_up'
     else if (pitchOffset > PITCH_THRESHOLD) angle = 'look_down'
   } else if (targetAngle === 'right') {
-    // Right profile: nose should point right (negative noseOffset)
-    if (noseOffset > -ANGLED_MIN) angle = 'look_left'      // not turned enough
-    else if (noseOffset < -ANGLED_MAX) angle = 'look_right' // turned too far
+    // Right face view: expect positive noseOffset (head turned left IRL)
+    if (noseOffset < ANGLED_MIN) angle = 'look_left'       // not turned enough
+    else if (noseOffset > ANGLED_MAX) angle = 'look_right'  // turned too far
     else if (pitchOffset < -PITCH_THRESHOLD) angle = 'look_up'
     else if (pitchOffset > PITCH_THRESHOLD) angle = 'look_down'
   }
@@ -549,10 +564,13 @@ export function evaluateFaceGuide(
   else if (distance === 'too_close') mainMessage = 'Biraz geri çekilin'
   else if (centering === 'off_center') mainMessage = 'Yüzünüzü çerçevenin ortasına getirin'
   else if (angle === 'tilt') mainMessage = 'Başınızı hafifçe düzeltin'
-  else if (targetAngle === 'left' && angle === 'look_right') mainMessage = 'Yüzünüzü biraz daha sola çevirin'
+  // Angled guidance: "look_right"/"look_left" here refer to the needed physical
+  // head movement, but the user sees a mirrored selfie — so screen directions
+  // are flipped.  We phrase instructions in terms of showing the cheek.
+  else if (targetAngle === 'left' && angle === 'look_right') mainMessage = 'Sol yanağınızı biraz daha gösterin'
   else if (targetAngle === 'left' && angle === 'look_left') mainMessage = 'Çok fazla döndünüz, biraz geri gelin'
-  else if (targetAngle === 'right' && angle === 'look_left') mainMessage = 'Yüzünüzü biraz daha sağa çevirin'
-  else if (targetAngle === 'right' && angle === 'look_right') mainMessage = 'Çok fazla döndünüz, biraz geri gelin'
+  else if (targetAngle === 'right' && angle === 'look_right') mainMessage = 'Sağ yanağınızı biraz daha gösterin'
+  else if (targetAngle === 'right' && angle === 'look_left') mainMessage = 'Çok fazla döndünüz, biraz geri gelin'
   else if (angle === 'look_left' || angle === 'look_right') mainMessage = 'Doğrudan kameraya bakın'
   else if (angle === 'look_up') mainMessage = 'Başınızı hafifçe indirin'
   else if (angle === 'look_down') mainMessage = 'Başınızı hafifçe kaldırın'
@@ -572,37 +590,32 @@ export function evaluateFaceGuide(
     distanceScore = Math.max(0, 1 - deviation * 1.5)
   }
 
-  // Alignment score: roll, yaw, pitch, centering, eyes, forehead
+  // ── Angle score (pose only: tilt, yaw, pitch) — NO centering ──
   const tiltScore = Math.max(0, 1 - tiltRatio / ROLL_THRESHOLD)
   // Yaw score — target-aware: frontal rewards center, angled rewards target range
+  // Uses absNoseOffset for angled captures since the sign check is done above.
   let yawScore: number
   if (targetAngle === 'front') {
     yawScore = Math.max(0, 1 - Math.abs(noseOffset) / YAW_THRESHOLD)
   } else {
-    const targetSign = targetAngle === 'left' ? 1 : -1
-    const signedOffset = noseOffset * targetSign // positive when facing correct direction
-    if (signedOffset >= ANGLED_MIN && signedOffset <= ANGLED_MAX) {
-      // In range: score by proximity to ideal
-      yawScore = Math.max(0.5, 1 - Math.abs(signedOffset - ANGLED_IDEAL) / ANGLED_IDEAL)
+    // Both left and right targets use magnitude — direction already validated above
+    if (absNoseOffset >= ANGLED_MIN && absNoseOffset <= ANGLED_MAX) {
+      yawScore = Math.max(0.5, 1 - Math.abs(absNoseOffset - ANGLED_IDEAL) / ANGLED_IDEAL)
     } else {
-      // Out of range: penalize
-      yawScore = Math.max(0, 0.3 - Math.abs(signedOffset - ANGLED_IDEAL) * 0.5)
+      yawScore = Math.max(0, 0.3 - Math.abs(absNoseOffset - ANGLED_IDEAL) * 0.5)
     }
   }
   const pitchScore = Math.max(0, 1 - Math.abs(pitchOffset) / PITCH_THRESHOLD)
-  const centerScore = Math.max(0, 1 - (offsetX + offsetY) / 0.16)
   const eyeScore = eyesVisible ? 1 : 0
   const fhScore = foreheadVisible ? 1 : 0
-  // Reduce forehead weight for angled captures, redistribute to yaw
-  const fhWeight = foreheadRequired ? 0.15 : 0.05
-  const yawWeight = foreheadRequired ? 0.20 : 0.30
-  const alignmentScore =
-    tiltScore * 0.20 +
-    yawScore * yawWeight +
-    pitchScore * 0.15 +
-    centerScore * 0.20 +
-    eyeScore * 0.10 +
-    fhScore * fhWeight
+  // Angle score: yaw dominant, tilt+pitch secondary, eyes+forehead minor
+  // Weights sum to 1.0 for both frontal and angled
+  const angleScore = foreheadRequired
+    ? tiltScore * 0.15 + yawScore * 0.35 + pitchScore * 0.20 + eyeScore * 0.15 + fhScore * 0.15
+    : tiltScore * 0.15 + yawScore * 0.45 + pitchScore * 0.20 + eyeScore * 0.15 + fhScore * 0.05
+
+  // ── Centering score (position only) — independent from angle ──
+  const centerScore = Math.max(0, 1 - (offsetX + offsetY) / 0.16)
 
   // Lighting score: ideal brightness 90–180 + shadow uniformity
   let lightingScore = 0
@@ -626,17 +639,19 @@ export function evaluateFaceGuide(
   // Sharpness is computed externally and passed via lastSharpness
   const sharpnessScore = lastSharpness
 
-  // Weighted composite quality score
+  // Weighted composite quality score — angle + centering replace old alignment
   const qualityScore =
-    distanceScore * 0.30 +
-    alignmentScore * 0.25 +
+    distanceScore * 0.25 +
+    angleScore * 0.20 +
+    centerScore * 0.10 +
     lightingScore * 0.15 +
     sharpnessScore * 0.15 +
     stabilityScore * 0.15
 
   const qualityBreakdown = {
     distance: distanceScore,
-    alignment: alignmentScore,
+    angle: angleScore,
+    centering: centerScore,
     lighting: lightingScore,
     sharpness: sharpnessScore,
     stability: stabilityScore,

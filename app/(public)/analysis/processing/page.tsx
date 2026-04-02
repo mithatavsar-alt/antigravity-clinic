@@ -1112,18 +1112,21 @@ function ProcessingContent() {
               score: r.score, confidence: r.confidence, severity: r.severity,
               observation: r.observation, isPositive: r.isPositive,
               consultationNote: r.consultationNote,
+              subScores: r.subScores,
             })),
             leftRegions: multiViewResult.leftRegions.map(r => ({
               key: r.key, label: r.label, icon: r.icon, sourceView: r.sourceView,
               score: r.score, confidence: r.confidence, severity: r.severity,
               observation: r.observation, isPositive: r.isPositive,
               consultationNote: r.consultationNote,
+              subScores: r.subScores,
             })),
             rightRegions: multiViewResult.rightRegions.map(r => ({
               key: r.key, label: r.label, icon: r.icon, sourceView: r.sourceView,
               score: r.score, confidence: r.confidence, severity: r.severity,
               observation: r.observation, isPositive: r.isPositive,
               consultationNote: r.consultationNote,
+              subScores: r.subScores,
             })),
             priorityRegions: multiViewResult.priorityRegions,
             viewQualities: multiViewResult.views.map(v => ({
@@ -1131,6 +1134,13 @@ function ProcessingContent() {
               usable: v.quality.usable, issue: v.quality.issue,
               poseCorrect: v.poseValidation.poseCorrect,
             })),
+            viewSummaries: multiViewResult.viewSummaries.map(vs => ({
+              view: vs.view, label: vs.label, qualityScore: vs.qualityScore,
+              usable: vs.usable, issue: vs.issue, poseCorrect: vs.poseCorrect,
+              visibleRegionCount: vs.visibleRegionCount, limitations: vs.limitations,
+              narrative: vs.narrative,
+            })),
+            synthesis: multiViewResult.synthesis,
             analyzedAt: multiViewResult.analyzedAt,
           } : undefined,
         })

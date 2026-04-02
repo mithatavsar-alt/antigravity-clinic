@@ -89,9 +89,59 @@ export interface MultiViewRegion {
   subScores: SubScore[]
 }
 
+/** Per-view structured summary for display */
+export interface ViewSummary {
+  view: ViewKey
+  label: string
+  qualityScore: number
+  usable: boolean
+  issue?: string
+  poseCorrect: boolean
+  visibleRegionCount: number
+  limitations: string[]
+  narrative: string
+}
+
+/** Bilateral comparison of matched left/right regions */
+export interface BilateralComparison {
+  regionBase: string        // e.g. "crow_feet", "under_eye"
+  label: string
+  leftScore: number
+  rightScore: number
+  leftConfidence: number
+  rightConfidence: number
+  asymmetryDelta: number    // abs(left - right)
+  asymmetryLevel: 'symmetrical' | 'mild_asymmetry' | 'notable_asymmetry'
+  note: string
+}
+
+/** Confidence note explaining a finding's evidence basis */
+export interface ConfidenceNote {
+  region: string
+  label: string
+  level: 'high' | 'medium' | 'low'
+  explanation: string
+}
+
+/** Synthesis section for the final report */
+export interface MultiViewSynthesis {
+  /** Top positive findings */
+  strongestAreas: { region: string; label: string; score: number; note: string }[]
+  /** Top improvement potentials */
+  improvementAreas: { region: string; label: string; score: number; note: string }[]
+  /** Bilateral asymmetry comparisons */
+  bilateralComparisons: BilateralComparison[]
+  /** Per-region confidence notes */
+  confidenceNotes: ConfidenceNote[]
+  /** Overall narrative for the combined analysis */
+  overallNarrative: string
+}
+
 export interface MultiViewResult {
   /** Per-view quality and validation */
   views: ViewAnalysis[]
+  /** Per-view structured summaries for display */
+  viewSummaries: ViewSummary[]
   /** Views that need recapture */
   recaptureNeeded: ViewKey[]
   /** Global fused score 0-100 */
@@ -108,6 +158,8 @@ export interface MultiViewResult {
   allRegions: MultiViewRegion[]
   /** Priority regions needing attention */
   priorityRegions: string[]
+  /** Multi-view synthesis with cross-view analysis */
+  synthesis: MultiViewSynthesis
   /** Timestamp */
   analyzedAt: number
 }
@@ -185,13 +237,18 @@ function validatePose(landmarks: Landmark[], expectedView: ViewKey): PoseValidat
   const tiltDeg = Math.round(Math.atan(tiltRatio) * (180 / Math.PI) * 10) / 10
 
   // Pose correctness check
+  // Convention (raw non-mirrored image coordinates):
+  //   noseOffset > 0 → nose right of bridge → user turned head LEFT → shows RIGHT cheek
+  //   noseOffset < 0 → nose left of bridge  → user turned head RIGHT → shows LEFT cheek
+  // "left" view = show left cheek = noseOffset NEGATIVE
+  // "right" view = show right cheek = noseOffset POSITIVE
   let poseCorrect = false
   if (expectedView === 'front') {
     poseCorrect = Math.abs(noseOffset) < 0.12 && Math.abs(pitchOffset) < 0.15 && tiltRatio < 0.087
   } else if (expectedView === 'left') {
-    poseCorrect = noseOffset > 0.10 && noseOffset < 0.50
-  } else if (expectedView === 'right') {
     poseCorrect = noseOffset < -0.10 && noseOffset > -0.50
+  } else if (expectedView === 'right') {
+    poseCorrect = noseOffset > 0.10 && noseOffset < 0.50
   }
 
   return { poseCorrect, yawDeg, pitchDeg, tiltDeg, noseOffset }
@@ -883,6 +940,212 @@ function analyzeForehead(
   }
 }
 
+// ─── Synthesis Helpers ──────────────────────────────────────
+
+const VIEW_LABELS: Record<ViewKey, string> = { front: 'Ön Görünüm', left: 'Sol Yüz', right: 'Sağ Yüz' }
+
+function buildViewSummaries(views: ViewAnalysis[], regionsByView: Record<ViewKey, MultiViewRegion[]>): ViewSummary[] {
+  return views.map(v => {
+    const regions = regionsByView[v.view] ?? []
+    const limitations: string[] = []
+    if (!v.quality.usable) limitations.push('Görüntü kalitesi yetersiz — bu açı analizi sınırlıdır')
+    else {
+      if (v.quality.brightness < 70) limitations.push('Düşük aydınlatma analiz hassasiyetini azaltmış olabilir')
+      if (v.quality.brightness > 200) limitations.push('Yüksek parlaklık detay kaybına yol açmış olabilir')
+      if (!v.poseValidation.poseCorrect) limitations.push('Poz hedeflenen açıyla tam örtüşmemiştir')
+    }
+
+    const qualityScore = Math.round(v.quality.score * 100)
+    const qLabel = qualityScore >= 70 ? 'iyi' : qualityScore >= 40 ? 'kabul edilebilir' : 'sınırlı'
+    const regionCount = regions.filter(r => r.confidence >= 30).length
+
+    let narrative: string
+    if (!v.quality.usable) {
+      narrative = `${VIEW_LABELS[v.view]} görüntüsü analiz için yeterli kaliteye sahip değildir.`
+    } else if (regionCount === 0) {
+      narrative = `${VIEW_LABELS[v.view]} görüntüsünden değerlendirilebilir bölge tespit edilememiştir.`
+    } else {
+      narrative = `${VIEW_LABELS[v.view]} görüntüsü ${qLabel} kalitede — ${regionCount} bölge değerlendirilmiştir.`
+    }
+
+    return {
+      view: v.view,
+      label: VIEW_LABELS[v.view],
+      qualityScore,
+      usable: v.quality.usable,
+      issue: v.quality.issue,
+      poseCorrect: v.poseValidation.poseCorrect,
+      visibleRegionCount: regionCount,
+      limitations,
+      narrative,
+    }
+  })
+}
+
+/** Match left/right region pairs and compute asymmetry */
+function buildBilateralComparisons(
+  leftRegions: MultiViewRegion[],
+  rightRegions: MultiViewRegion[],
+): BilateralComparison[] {
+  const PAIRS: { base: string; label: string }[] = [
+    { base: 'crow_feet', label: 'Göz Çevresi' },
+    { base: 'under_eye', label: 'Göz Altı' },
+    { base: 'nasolabial', label: 'Nazolabial' },
+    { base: 'cheek', label: 'Yanak' },
+    { base: 'jawline', label: 'Çene Hattı' },
+  ]
+
+  const results: BilateralComparison[] = []
+  for (const { base, label } of PAIRS) {
+    const left = leftRegions.find(r => r.key === `${base}_left`)
+    const right = rightRegions.find(r => r.key === `${base}_right`)
+    if (!left || !right) continue
+    // Only compare if both have meaningful confidence
+    if (left.confidence < 25 || right.confidence < 25) continue
+
+    const delta = Math.abs(left.score - right.score)
+    const asymmetryLevel: BilateralComparison['asymmetryLevel'] =
+      delta >= 20 ? 'notable_asymmetry' : delta >= 10 ? 'mild_asymmetry' : 'symmetrical'
+
+    let note: string
+    if (asymmetryLevel === 'symmetrical') {
+      note = `${label} bölgesinde sol-sağ dengesi korunmuş görünmektedir.`
+    } else if (asymmetryLevel === 'mild_asymmetry') {
+      const higher = left.score > right.score ? 'sol' : 'sağ'
+      note = `${label} bölgesinde ${higher} tarafta hafif farklılık gözlemlenmiştir.`
+    } else {
+      const higher = left.score > right.score ? 'sol' : 'sağ'
+      note = `${label} bölgesinde ${higher} tarafta belirgin farklılık tespit edilmiştir — klinik değerlendirme önerilir.`
+    }
+
+    results.push({
+      regionBase: base,
+      label,
+      leftScore: left.score,
+      rightScore: right.score,
+      leftConfidence: left.confidence,
+      rightConfidence: right.confidence,
+      asymmetryDelta: delta,
+      asymmetryLevel,
+      note,
+    })
+  }
+  return results
+}
+
+/** Build confidence notes explaining each region's evidence basis */
+function buildConfidenceNotes(allRegions: MultiViewRegion[], views: ViewAnalysis[]): ConfidenceNote[] {
+  return allRegions.map(r => {
+    const sourceView = views.find(v => v.view === r.sourceView)
+    const viewLabel = VIEW_LABELS[r.sourceView]
+
+    let level: ConfidenceNote['level']
+    let explanation: string
+
+    if (r.confidence >= 60 && sourceView?.poseValidation.poseCorrect) {
+      level = 'high'
+      explanation = `${r.label} — ${viewLabel} üzerinden yüksek güvenilirlikle değerlendirilmiştir.`
+    } else if (r.confidence >= 35) {
+      level = 'medium'
+      const reasons: string[] = []
+      if (!sourceView?.poseValidation.poseCorrect) reasons.push('poz hedeften hafif sapma')
+      if (sourceView && sourceView.quality.score < 0.6) reasons.push('görüntü kalitesi orta düzeyde')
+      explanation = `${r.label} — ${viewLabel} üzerinden değerlendirilmiştir${reasons.length > 0 ? ` (${reasons.join(', ')})` : ''}.`
+    } else {
+      level = 'low'
+      explanation = `${r.label} — sınırlı görünürlük nedeniyle düşük güvenilirlikle değerlendirilmiştir.`
+    }
+
+    return { region: r.key, label: r.label, level, explanation }
+  })
+}
+
+/** Generate the overall premium narrative */
+function buildOverallNarrative(
+  allRegions: MultiViewRegion[],
+  viewSummaries: ViewSummary[],
+  bilaterals: BilateralComparison[],
+  globalScore: number,
+  globalConfidence: number,
+): string {
+  const usableCount = viewSummaries.filter(v => v.usable).length
+  const regionCount = allRegions.length
+  const notableAsymmetries = bilaterals.filter(b => b.asymmetryLevel === 'notable_asymmetry')
+
+  const parts: string[] = []
+
+  // Opening
+  if (usableCount === 3) {
+    parts.push('Üç açıdan (ön, sol, sağ) elde edilen görüntüler analiz edilmiştir.')
+  } else if (usableCount === 2) {
+    parts.push(`İki açıdan elde edilen görüntüler analiz edilmiştir — bir görünüm sınırlı kalitededir.`)
+  } else {
+    parts.push('Analiz sınırlı sayıda kullanılabilir görüntüyle gerçekleştirilmiştir.')
+  }
+
+  // Region count
+  parts.push(`Toplamda ${regionCount} bölge değerlendirilmiştir.`)
+
+  // Bilateral
+  if (notableAsymmetries.length > 0) {
+    const labels = notableAsymmetries.map(a => a.label.toLowerCase()).join(', ')
+    parts.push(`Sol-sağ karşılaştırmada ${labels} bölge${notableAsymmetries.length > 1 ? 'lerinde' : 'sinde'} belirgin farklılık gözlemlenmiştir.`)
+  } else if (bilaterals.length > 0) {
+    parts.push('Sol-sağ karşılaştırmada genel denge korunmuş görünmektedir.')
+  }
+
+  // Confidence
+  if (globalConfidence >= 65) {
+    parts.push('Genel analiz güvenilirliği yüksektir.')
+  } else if (globalConfidence >= 40) {
+    parts.push('Genel analiz güvenilirliği orta düzeydedir — bazı bulgular görüntü kalitesinden etkilenmiş olabilir.')
+  } else {
+    parts.push('Görüntü kalitesi nedeniyle bazı bulgular sınırlı güvenilirlikle sunulmaktadır.')
+  }
+
+  return parts.join(' ')
+}
+
+function buildSynthesis(
+  allRegions: MultiViewRegion[],
+  leftRegions: MultiViewRegion[],
+  rightRegions: MultiViewRegion[],
+  views: ViewAnalysis[],
+  viewSummaries: ViewSummary[],
+  globalScore: number,
+  globalConfidence: number,
+): MultiViewSynthesis {
+  // Strongest areas: lowest scores = best condition (score < 20 and confidence decent)
+  const strongestAreas = allRegions
+    .filter(r => r.isPositive && r.confidence >= 30)
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 4)
+    .map(r => ({
+      region: r.key,
+      label: r.label,
+      score: r.score,
+      note: r.observation,
+    }))
+
+  // Improvement potential: highest scores = most concern (score >= 25 and confidence decent)
+  const improvementAreas = allRegions
+    .filter(r => !r.isPositive && r.score >= 25 && r.confidence >= 30)
+    .sort((a, b) => (b.score * b.confidence) - (a.score * a.confidence))
+    .slice(0, 5)
+    .map(r => ({
+      region: r.key,
+      label: r.label,
+      score: r.score,
+      note: r.consultationNote || r.observation,
+    }))
+
+  const bilateralComparisons = buildBilateralComparisons(leftRegions, rightRegions)
+  const confidenceNotes = buildConfidenceNotes(allRegions, views)
+  const overallNarrative = buildOverallNarrative(allRegions, viewSummaries, bilateralComparisons, globalScore, globalConfidence)
+
+  return { strongestAreas, improvementAreas, bilateralComparisons, confidenceNotes, overallNarrative }
+}
+
 // ─── Main Pipeline ──────────────────────────────────────────
 
 export interface MultiViewInput {
@@ -1001,8 +1264,19 @@ export function runMultiViewPipeline(
     .sort((a, b) => (b.score * b.confidence) - (a.score * a.confidence))
     .map(r => r.key)
 
+  // ── Step 6: Build per-view summaries ──
+  const regionsByView: Record<ViewKey, MultiViewRegion[]> = { front: [], left: [], right: [] }
+  for (const r of allRegions) {
+    regionsByView[r.sourceView].push(r)
+  }
+  const viewSummaries = buildViewSummaries(views, regionsByView)
+
+  // ── Step 7: Build cross-view synthesis ──
+  const synthesis = buildSynthesis(allRegions, leftRegions, rightRegions, views, viewSummaries, globalScore, globalConfidence)
+
   return {
     views,
+    viewSummaries,
     recaptureNeeded,
     globalScore,
     globalConfidence,
@@ -1011,6 +1285,7 @@ export function runMultiViewPipeline(
     centralRegions,
     allRegions,
     priorityRegions,
+    synthesis,
     analyzedAt: Date.now(),
   }
 }

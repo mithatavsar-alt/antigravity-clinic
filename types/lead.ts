@@ -367,6 +367,7 @@ export interface Lead {
       observation: string
       isPositive: boolean
       consultationNote?: string
+      subScores?: Array<{ key: string; label: string; score: number; weight: number; confidence: number }>
     }>
     leftRegions: Array<{
       key: string
@@ -379,6 +380,7 @@ export interface Lead {
       observation: string
       isPositive: boolean
       consultationNote?: string
+      subScores?: Array<{ key: string; label: string; score: number; weight: number; confidence: number }>
     }>
     rightRegions: Array<{
       key: string
@@ -391,6 +393,7 @@ export interface Lead {
       observation: string
       isPositive: boolean
       consultationNote?: string
+      subScores?: Array<{ key: string; label: string; score: number; weight: number; confidence: number }>
     }>
     priorityRegions: string[]
     viewQualities: Array<{
@@ -400,6 +403,39 @@ export interface Lead {
       issue?: string
       poseCorrect: boolean
     }>
+    viewSummaries?: Array<{
+      view: string
+      label: string
+      qualityScore: number
+      usable: boolean
+      issue?: string
+      poseCorrect: boolean
+      visibleRegionCount: number
+      limitations: string[]
+      narrative: string
+    }>
+    synthesis?: {
+      strongestAreas: Array<{ region: string; label: string; score: number; note: string }>
+      improvementAreas: Array<{ region: string; label: string; score: number; note: string }>
+      bilateralComparisons: Array<{
+        regionBase: string
+        label: string
+        leftScore: number
+        rightScore: number
+        leftConfidence: number
+        rightConfidence: number
+        asymmetryDelta: number
+        asymmetryLevel: 'symmetrical' | 'mild_asymmetry' | 'notable_asymmetry'
+        note: string
+      }>
+      confidenceNotes: Array<{
+        region: string
+        label: string
+        level: 'high' | 'medium' | 'low'
+        explanation: string
+      }>
+      overallNarrative: string
+    }
     analyzedAt: number
   }
 

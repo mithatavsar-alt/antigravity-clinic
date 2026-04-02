@@ -47,6 +47,39 @@ interface MultiViewRegionData {
   observation: string
   isPositive: boolean
   consultationNote?: string
+  subScores?: Array<{ key: string; label: string; score: number; weight: number; confidence: number }>
+}
+
+interface ViewSummaryData {
+  view: string
+  label: string
+  qualityScore: number
+  usable: boolean
+  issue?: string
+  poseCorrect: boolean
+  visibleRegionCount: number
+  limitations: string[]
+  narrative: string
+}
+
+interface BilateralComparisonData {
+  regionBase: string
+  label: string
+  leftScore: number
+  rightScore: number
+  leftConfidence: number
+  rightConfidence: number
+  asymmetryDelta: number
+  asymmetryLevel: 'symmetrical' | 'mild_asymmetry' | 'notable_asymmetry'
+  note: string
+}
+
+interface SynthesisData {
+  strongestAreas: Array<{ region: string; label: string; score: number; note: string }>
+  improvementAreas: Array<{ region: string; label: string; score: number; note: string }>
+  bilateralComparisons: BilateralComparisonData[]
+  confidenceNotes: Array<{ region: string; label: string; level: 'high' | 'medium' | 'low'; explanation: string }>
+  overallNarrative: string
 }
 
 interface RegionalScoreCardsProps {
@@ -100,6 +133,8 @@ interface RegionalScoreCardsProps {
     centralRegions: MultiViewRegionData[]
     leftRegions: MultiViewRegionData[]
     rightRegions: MultiViewRegionData[]
+    viewSummaries?: ViewSummaryData[]
+    synthesis?: SynthesisData
   }
 }
 
@@ -406,6 +441,143 @@ function multiViewToCards(regions: MultiViewRegionData[]): RegionCardData[] {
   }))
 }
 
+// ─── Bilateral comparison bar ───────────────────────────────
+
+function BilateralBar({ item }: { item: BilateralComparisonData }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { const t = setTimeout(() => setMounted(true), 400); return () => clearTimeout(t) }, [])
+
+  const levelColor = item.asymmetryLevel === 'symmetrical' ? '#3D9B7A'
+    : item.asymmetryLevel === 'mild_asymmetry' ? '#D6B98C' : '#C8785A'
+  const levelLabel = item.asymmetryLevel === 'symmetrical' ? 'Simetrik'
+    : item.asymmetryLevel === 'mild_asymmetry' ? 'Hafif Fark' : 'Belirgin Fark'
+
+  return (
+    <div className="rounded-lg border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.01)] p-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="font-body text-[11px] text-[rgba(248,246,242,0.6)]">{item.label}</span>
+        <span className="font-body text-[8px] tracking-[0.12em] uppercase px-2 py-0.5 rounded-full"
+          style={{ background: `${levelColor}12`, color: levelColor }}>
+          {levelLabel}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="font-mono text-[10px] text-[rgba(248,246,242,0.4)] w-6 text-right">Sol</span>
+        <div className="flex-1 h-[3px] rounded-full bg-white/[0.04] overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-700 ease-out"
+            style={{ width: mounted ? `${item.leftScore}%` : '0%', background: levelColor }} />
+        </div>
+        <span className="font-mono text-[10px] text-[rgba(248,246,242,0.5)] w-5">{item.leftScore}</span>
+      </div>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="font-mono text-[10px] text-[rgba(248,246,242,0.4)] w-6 text-right">Sağ</span>
+        <div className="flex-1 h-[3px] rounded-full bg-white/[0.04] overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-700 ease-out"
+            style={{ width: mounted ? `${item.rightScore}%` : '0%', background: levelColor }} />
+        </div>
+        <span className="font-mono text-[10px] text-[rgba(248,246,242,0.5)] w-5">{item.rightScore}</span>
+      </div>
+      <p className="font-body text-[10px] text-[rgba(248,246,242,0.35)] leading-[1.6] italic">{item.note}</p>
+    </div>
+  )
+}
+
+// ─── Synthesis sections ─────────────────────────────────────
+
+function SynthesisSection({ synthesis, viewSummaries }: { synthesis: SynthesisData; viewSummaries?: ViewSummaryData[] }) {
+  return (
+    <div className="flex flex-col gap-3 mt-2">
+      {/* Overall narrative */}
+      <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(214,185,140,0.02)] p-4">
+        <p className="font-body text-[12px] text-[rgba(248,246,242,0.55)] leading-[1.75]">
+          {synthesis.overallNarrative}
+        </p>
+      </div>
+
+      {/* Per-view summaries */}
+      {viewSummaries && viewSummaries.length > 0 && (
+        <>
+          <SectionHeader label="Görünüm Özetleri" icon="⊞" />
+          <div className="grid gap-2">
+            {viewSummaries.map(vs => (
+              <div key={vs.view} className="rounded-lg border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.01)] p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.6)]">{vs.label}</span>
+                  <div className="flex items-center gap-1.5">
+                    {vs.usable ? (
+                      <span className="font-mono text-[10px] text-[#3D9B7A]">%{vs.qualityScore}</span>
+                    ) : (
+                      <span className="font-mono text-[10px] text-[#C8785A]">Yetersiz</span>
+                    )}
+                  </div>
+                </div>
+                <p className="font-body text-[10px] text-[rgba(248,246,242,0.4)] leading-[1.6]">{vs.narrative}</p>
+                {vs.limitations.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {vs.limitations.map((lim, i) => (
+                      <span key={i} className="font-body text-[9px] text-[rgba(200,120,90,0.5)] bg-[rgba(200,120,90,0.05)] px-1.5 py-0.5 rounded">
+                        {lim}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Strongest areas */}
+      {synthesis.strongestAreas.length > 0 && (
+        <>
+          <SectionHeader label="Güçlü Alanlar" icon="✦" />
+          <div className="grid gap-1.5">
+            {synthesis.strongestAreas.map(area => (
+              <div key={area.region} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-[rgba(61,155,122,0.03)] border border-[rgba(61,155,122,0.08)]">
+                <span className="text-[10px] mt-0.5 text-[#3D9B7A]">●</span>
+                <div className="flex-1">
+                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.6)]">{area.label}</span>
+                  <p className="font-body text-[10px] text-[rgba(248,246,242,0.35)] leading-[1.5] mt-0.5">{area.note}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Improvement areas */}
+      {synthesis.improvementAreas.length > 0 && (
+        <>
+          <SectionHeader label="Değerlendirme Önerilen Alanlar" icon="◇" />
+          <div className="grid gap-1.5">
+            {synthesis.improvementAreas.map(area => (
+              <div key={area.region} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-[rgba(214,185,140,0.02)] border border-[rgba(214,185,140,0.06)]">
+                <span className="text-[10px] mt-0.5 text-[#D6B98C]">◇</span>
+                <div className="flex-1">
+                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.6)]">{area.label}</span>
+                  <p className="font-body text-[10px] text-[rgba(248,246,242,0.35)] leading-[1.5] mt-0.5">{area.note}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Bilateral comparisons */}
+      {synthesis.bilateralComparisons.length > 0 && (
+        <>
+          <SectionHeader label="Sol–Sağ Karşılaştırma" icon="⇌" />
+          <div className="grid gap-2">
+            {synthesis.bilateralComparisons.map(bc => (
+              <BilateralBar key={bc.regionBase} item={bc} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Main component ─────────────────────────────────────────
 
 export function RegionalScoreCards(props: RegionalScoreCardsProps) {
@@ -457,13 +629,21 @@ export function RegionalScoreCards(props: RegionalScoreCardsProps) {
         {/* Right-side regions (from right view) */}
         {rightCards.length > 0 && (
           <>
-            <SectionHeader label="Sag Taraf" icon="◨" />
+            <SectionHeader label="Sağ Taraf" icon="◨" />
             <div className="flex flex-col gap-2">
               {rightCards.map((card) => (
                 <RegionCard key={card.key} card={card} idx={globalIdx++} />
               ))}
             </div>
           </>
+        )}
+
+        {/* Synthesis section */}
+        {multiViewAnalysis.synthesis && (
+          <SynthesisSection
+            synthesis={multiViewAnalysis.synthesis}
+            viewSummaries={multiViewAnalysis.viewSummaries}
+          />
         )}
       </div>
     )
