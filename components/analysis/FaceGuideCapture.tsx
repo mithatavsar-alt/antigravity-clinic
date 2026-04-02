@@ -20,7 +20,6 @@ import {
   pushMiss,
   resetFaceLock,
   NO_FACE_STATUS,
-  FACE_OVAL,
   LEFT_EYE,
   RIGHT_EYE,
   LEFT_EYEBROW,
@@ -32,6 +31,13 @@ import {
   type FaceGuideStatus,
 } from '@/lib/ai/face-guide'
 import { FACEMESH_TESSELATION } from '@/lib/ai/facemesh-tesselation'
+import {
+  computeFaceContour,
+  drawFaceContour,
+  drawDynamicVignette,
+  drawContourAccents,
+  resetContourSmoothing,
+} from '@/lib/ai/face-contour'
 
 // ─── Types ──────────────────────────────────────────────────
 export type CaptureMode = 'single' | 'multi'
@@ -281,6 +287,8 @@ export function drawMesh(
   detectedRegions?: OverlayRegionHighlight[],
   /** Dynamic accent RGB triplet — if omitted, derived from qualityScore */
   accentRgb?: string,
+  /** When false, skip inner tesselation mesh (contour + features still draw) */
+  showTesselation = true,
 ) {
   ctx.clearRect(0, 0, w, h)
   ctx.save()
@@ -331,8 +339,9 @@ export function drawMesh(
   // Single batched draw call for all ~900 edges. Neon mint/green
   // with subtle glow. PURELY VISUAL — does NOT affect analysis.
   // Drawn FIRST so feature contours render on top.
+  // Can be toggled off while keeping outer contour + features visible.
   // ════════════════════════════════════════════════════════════
-  {
+  if (showTesselation) {
     const meshAlpha = Math.min(0.55, 0.15 + qualityScore * 0.40)
     ctx.beginPath()
     ctx.lineWidth = 0.6
@@ -353,9 +362,9 @@ export function drawMesh(
   }
 
   // ════════════════════════════════════════════════════════════
-  // OUTER CONTOURS — dynamic accent face oval + jawline on top of mesh
+  // JAWLINE contour — subtle accent on the lower face boundary
+  // (Outer face boundary is now drawn by the dynamic face contour system)
   // ════════════════════════════════════════════════════════════
-  drawContour(FACE_OVAL, `rgba(${accent},`, 0.90, 1.8, `rgba(${accent},`, 14)
   drawContour(JAWLINE, `rgba(${accent},`, 0.70, 1.5, `rgba(${accent},`, 10)
 
   // ════════════════════════════════════════════════════════════
@@ -624,6 +633,20 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   const countdownStartRef = useRef<number | null>(null)
   const [countdown, setCountdown] = useState<number | null>(null)
 
+  // ── Side capture: grace frames to tolerate brief dips ──
+  // Allows up to 2 consecutive frames below threshold before resetting.
+  // This prevents micro-tremor dips from killing a valid countdown.
+  const sideDipFramesRef = useRef(0)
+  const SIDE_MAX_DIP_FRAMES = 2
+
+  // ── Side capture debug state (dev-only) ──
+  const [sideDebug, setSideDebug] = useState<{
+    score: number; threshold: number; above: boolean
+    countdownRunning: boolean; remainingMs: number
+    dipFrames: number; captured: boolean
+  } | null>(null)
+  const SIDE_DEBUG = process.env.NODE_ENV === 'development'
+
   // ── Refs that mirror state for use inside processFrame ──
   // processFrame runs in a rAF loop. If it depends on React state (phase,
   // countdown, preview), each setState recreates the callback and
@@ -693,12 +716,13 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     frameBufferRef.current = []
     stableReadyFrames.current = 0
     countdownStartRef.current = null
+    sideDipFramesRef.current = 0
     setCountdown(null)
     updatePhase('idle')
     setValidationProgress(0)
     setFailsafeActive(false)
     if (advanceTimerRef.current) { clearTimeout(advanceTimerRef.current); advanceTimerRef.current = null }
-    resetSmoothing(); resetStability(); resetFaceLock()
+    resetSmoothing(); resetStability(); resetFaceLock(); resetContourSmoothing()
     // Reset badge hysteresis so next step starts at red
     for (const key of Object.keys(badgeTierCache)) delete badgeTierCache[key]
     // Reset auto-fit to neutral (will animate out via release speed)
@@ -890,23 +914,34 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           const canAct = !previewRef.current && curPhase !== 'validated' && curPhase !== 'advancing'
 
           if (isSideStep) {
-            // ── Compute side score (0–100) ──
-            // Only sub-scores relevant for side capture, no centering.
+            // ═══════════════════════════════════════════════════════
+            // SIDE CAPTURE (RIGHT / LEFT) — DETERMINISTIC RULE
+            // ═══════════════════════════════════════════════════════
+            // Single numeric score > 60 for 3 continuous seconds.
+            // Score excludes stability (volatile after head turn)
+            // and centering (drops naturally on angled poses).
+            // Grace: 2 brief dip-frames tolerated before reset.
+            // ═══════════════════════════════════════════════════════
             const qb = guide.qualityBreakdown
-            const sideScore = guide.faceDetected && guide.faceLocked && guide.angle === 'ok'
+            const SIDE_THRESHOLD = 60
+
+            // Gate: face must be detected, locked, and at correct angle.
+            // Score uses only sub-scores stable during side pose.
+            const sideGateOk = guide.faceDetected && guide.faceLocked && guide.angle === 'ok'
+            const sideScore = sideGateOk
               ? Math.round(
-                  (qb.distance * 0.30 +
-                   qb.angle * 0.30 +
+                  (qb.distance * 0.35 +
+                   qb.angle * 0.35 +
                    qb.lighting * 0.20 +
-                   qb.stability * 0.10 +
                    qb.sharpness * 0.10) * 100
                 )
               : 0
 
-            const SIDE_THRESHOLD = 65
+            const aboveThreshold = sideScore > SIDE_THRESHOLD
 
-            if (sideScore > SIDE_THRESHOLD && canAct) {
-              // ABOVE 60 — start or continue countdown
+            if (aboveThreshold && canAct) {
+              // ABOVE 60 — start or continue countdown, reset dip counter
+              sideDipFramesRef.current = 0
               if (!countdownStartRef.current) {
                 countdownStartRef.current = now
                 updatePhase('stabilizing')
@@ -920,14 +955,36 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 setCountdown(null)
                 triggerAutoAdvance()
               }
-            } else if (sideScore <= SIDE_THRESHOLD && canAct) {
-              // AT OR BELOW 60 — cancel countdown immediately
-              if (countdownStartRef.current || curPhase === 'stabilizing') {
-                countdownStartRef.current = null
-                setCountdown(null)
-                setValidationProgress(0)
-                if (curPhase === 'stabilizing') updatePhase('tracking')
+            } else if (!aboveThreshold && canAct) {
+              // AT OR BELOW 60 — grace: tolerate brief dips
+              if (countdownStartRef.current) {
+                sideDipFramesRef.current++
+                if (sideDipFramesRef.current > SIDE_MAX_DIP_FRAMES) {
+                  // Too many dip frames — hard reset countdown
+                  countdownStartRef.current = null
+                  sideDipFramesRef.current = 0
+                  setCountdown(null)
+                  setValidationProgress(0)
+                  if (curPhase === 'stabilizing') updatePhase('tracking')
+                }
+                // else: within grace window, keep countdown running
+              } else if (curPhase === 'stabilizing') {
+                // No active countdown but phase stuck — clean up
+                updatePhase('tracking')
               }
+            }
+
+            // ── Debug telemetry (dev only) ──
+            if (SIDE_DEBUG) {
+              setSideDebug({
+                score: sideScore,
+                threshold: SIDE_THRESHOLD,
+                above: aboveThreshold,
+                countdownRunning: !!countdownStartRef.current,
+                remainingMs: countdownStartRef.current ? Math.max(0, COUNTDOWN_MS - (now - countdownStartRef.current)) : 0,
+                dipFrames: sideDipFramesRef.current,
+                captured: curPhase === 'validated' || curPhase === 'advancing',
+              })
             }
           } else {
             // ═══ FRONT CAPTURE: unchanged — isFrontReady + stability frames ═══
@@ -980,11 +1037,19 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
             }
           }
 
-          // Draw REAL mesh from landmarks — the only visual feedback
-          // Pass the shared accent so mesh color matches the bottom bar
+          // Draw REAL mesh + dynamic face contour — unified on one canvas
           const meshAccent = accentFromQuality(guide.qualityScore)
           const ctx = mc.getContext('2d')
-          if (ctx) drawMesh(ctx, smoothed, mc.width, mc.height, guide.allOk, true, false, guide.qualityScore, undefined, meshAccent)
+          if (ctx) {
+            drawMesh(ctx, smoothed, mc.width, mc.height, guide.allOk, true, false, guide.qualityScore, undefined, meshAccent, showMesh)
+            // Dynamic face contour — follows real face, replaces fixed oval
+            const contour = computeFaceContour(smoothed, mc.width, mc.height, true)
+            if (contour.valid) {
+              drawDynamicVignette(ctx, contour, mc.width, mc.height, 0.65)
+              drawFaceContour(ctx, contour, meshAccent, guide.qualityScore)
+              drawContourAccents(ctx, contour, meshAccent, guide.qualityScore)
+            }
+          }
         }
       })
       .catch(() => { processingRef.current = false })
@@ -1167,71 +1232,32 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 />
                 <canvas
                   ref={meshCanvasRef}
-                  className="absolute inset-0 w-full h-full pointer-events-none transition-opacity duration-300"
-                  style={{ opacity: showMesh ? 1 : 0 }}
+                  className="absolute inset-0 w-full h-full pointer-events-none"
                 />
               </div>
 
-              {/* Vignette — generous center reveal matching enlarged oval */}
-              {!preview && (
-                <div className="absolute inset-0 pointer-events-none" style={{
-                  background: 'radial-gradient(ellipse 78% 72% at 50% 46%, transparent 38%, rgba(3,3,5,0.25) 55%, rgba(3,3,5,0.65) 75%, rgba(3,3,5,0.88) 100%)',
-                }} />
-              )}
-
-              {/* Face-placement oval guide — luminous border with breathing glow */}
-              {!preview && phase !== 'validated' && phase !== 'advancing' && (
+              {/* ── Initial face guide — shown only before face is detected ──
+                  Once the face is detected, the dynamic canvas contour takes over.
+                  This CSS oval is purely an initial positioning hint. */}
+              {!preview && !status.faceDetected && phase !== 'validated' && phase !== 'advancing' && (
                 <div className="absolute inset-0 z-[2] flex items-center justify-center pointer-events-none" style={{ paddingBottom: '1%' }}>
+                  {/* Static vignette for initial state */}
+                  <div className="absolute inset-0" style={{
+                    background: 'radial-gradient(ellipse 70% 65% at 50% 46%, transparent 35%, rgba(3,3,5,0.30) 55%, rgba(3,3,5,0.70) 75%, rgba(3,3,5,0.90) 100%)',
+                  }} />
                   <div
                     className="relative"
-                    style={{ width: '82%', aspectRatio: '7/10' }}
+                    style={{ width: '72%', aspectRatio: '7/10' }}
                   >
-                    {/* Outer glow halo — wide diffuse ring */}
-                    <div
-                      className="absolute rounded-[50%]"
-                      style={{
-                        inset: '-14px',
-                        border: `1px solid rgba(${status.faceDetected ? accentFromQuality(status.qualityScore) : '214,185,140'},0.06)`,
-                        boxShadow: `0 0 40px 12px rgba(${status.faceDetected ? accentFromQuality(status.qualityScore) : '214,185,140'},0.06), inset 0 0 40px 12px rgba(${status.faceDetected ? accentFromQuality(status.qualityScore) : '214,185,140'},0.03)`,
-                        animation: 'ovalBreathe 4s ease-in-out infinite',
-                        transition: 'border-color 0.8s ease, box-shadow 0.8s ease',
-                      }}
-                    />
-                    {/* Main oval ring — stronger, clearly visible */}
+                    {/* Soft hint oval — fades to nothing once face is found */}
                     <div
                       className="absolute inset-0 rounded-[50%]"
                       style={{
-                        border: `2px solid rgba(${status.faceDetected ? accentFromQuality(status.qualityScore) : '214,185,140'},${status.faceDetected ? '0.40' : '0.18'})`,
-                        boxShadow: status.faceDetected
-                          ? `0 0 28px 6px rgba(${accentFromQuality(status.qualityScore)},0.12), inset 0 0 28px 6px rgba(${accentFromQuality(status.qualityScore)},0.06), 0 0 0 1px rgba(${accentFromQuality(status.qualityScore)},0.08)`
-                          : '0 0 28px 6px rgba(214,185,140,0.05), inset 0 0 28px 6px rgba(214,185,140,0.03), 0 0 0 1px rgba(214,185,140,0.04)',
-                        transition: 'border-color 0.8s ease, box-shadow 0.8s ease',
+                        border: '1.5px solid rgba(214,185,140,0.14)',
+                        boxShadow: '0 0 28px 6px rgba(214,185,140,0.04), inset 0 0 28px 6px rgba(214,185,140,0.02)',
+                        animation: 'ovalBreathe 4s ease-in-out infinite',
                       }}
                     />
-                    {/* Corner accent marks — top and bottom crosshairs */}
-                    {(['top-0 left-1/2 -translate-x-1/2 -translate-y-[1px]', 'bottom-0 left-1/2 -translate-x-1/2 translate-y-[1px]'] as const).map((pos, i) => (
-                      <div key={i} className={`absolute ${pos}`}>
-                        <div
-                          className="w-12 h-[1.5px]"
-                          style={{
-                            background: `linear-gradient(90deg, transparent, rgba(${status.faceDetected ? accentFromQuality(status.qualityScore) : '214,185,140'},0.35), transparent)`,
-                            transition: 'background 0.8s ease',
-                          }}
-                        />
-                      </div>
-                    ))}
-                    {/* Side accent marks — left and right crosshairs */}
-                    {(['top-1/2 left-0 -translate-y-1/2 -translate-x-[1px]', 'top-1/2 right-0 -translate-y-1/2 translate-x-[1px]'] as const).map((pos, i) => (
-                      <div key={`side-${i}`} className={`absolute ${pos}`}>
-                        <div
-                          className="w-[1.5px] h-12"
-                          style={{
-                            background: `linear-gradient(180deg, transparent, rgba(${status.faceDetected ? accentFromQuality(status.qualityScore) : '214,185,140'},0.35), transparent)`,
-                            transition: 'background 0.8s ease',
-                          }}
-                        />
-                      </div>
-                    ))}
                   </div>
                 </div>
               )}
@@ -1283,6 +1309,18 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               {/* Flash */}
               {showFlash && (
                 <div className="absolute inset-0 z-30 bg-white animate-[flashFade_0.35s_ease-out_forwards] pointer-events-none" />
+              )}
+
+              {/* ── Side capture debug overlay (dev only) ── */}
+              {SIDE_DEBUG && sideDebug && isMulti && multiStep !== 'front' && !preview && (
+                <div className="absolute bottom-2 left-2 z-40 pointer-events-none">
+                  <div className="bg-black/80 rounded px-2 py-1 text-[9px] font-mono leading-[1.6] text-white/70 space-y-0">
+                    <div>score: <span className={sideDebug.above ? 'text-green-400' : 'text-red-400'}>{sideDebug.score}</span> / {sideDebug.threshold}</div>
+                    <div>above: {sideDebug.above ? '✓' : '✗'} | dips: {sideDebug.dipFrames}</div>
+                    <div>countdown: {sideDebug.countdownRunning ? `${(sideDebug.remainingMs / 1000).toFixed(1)}s` : 'off'}</div>
+                    <div>captured: {sideDebug.captured ? '✓' : '—'}</div>
+                  </div>
+                </div>
               )}
 
             </>
