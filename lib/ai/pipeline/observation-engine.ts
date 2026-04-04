@@ -23,6 +23,8 @@ import type {
   ObservationSource,
   YoungFaceProfile,
   QualityGateResult,
+  MultiViewContext,
+  CaptureView,
 } from './types'
 import type {
   WrinkleRegionResult,
@@ -31,6 +33,7 @@ import type {
   SkinTextureProfile,
   LipAnalysis,
 } from '../types'
+import { WRINKLE_TO_RELIABILITY } from './view-roles'
 import { clamp } from '../utils'
 
 // ─── Area Labels ──────────────────────────────────────────
@@ -62,6 +65,7 @@ export function generateObservations(
   lipMetric: ValidatedMetric<LipAnalysis> | null,
   youngProfile: YoungFaceProfile,
   qualityGate: QualityGateResult,
+  multiViewContext?: MultiViewContext,
 ): StructuredObservation[] {
   const ctx: ObservationContext = {
     wrinkleMetrics,
@@ -73,6 +77,7 @@ export function generateObservations(
     qualityGate,
     wrinkleByRegion: indexWrinkles(wrinkleMetrics),
     focusByRegion: indexFocusAreas(focusAreaMetrics),
+    multiViewContext,
   }
 
   return [
@@ -105,6 +110,47 @@ interface ObservationContext {
   qualityGate: QualityGateResult
   wrinkleByRegion: Map<string, ValidatedMetric<WrinkleRegionResult>>
   focusByRegion: Map<string, ValidatedMetric<FocusArea>>
+  multiViewContext?: MultiViewContext
+}
+
+/**
+ * Get contributing views for a wrinkle region from multi-view context.
+ */
+function getContributingViews(
+  wrinkleRegion: string,
+  ctx: ObservationContext,
+): CaptureView[] | undefined {
+  if (!ctx.multiViewContext) return undefined
+
+  // Check fused findings for this region
+  const fused = ctx.multiViewContext.fusedFindings.find(f => f.region === wrinkleRegion)
+  if (fused) return fused.contributingViews
+
+  // Fallback: check region reliability
+  const reliabilityRegions = WRINKLE_TO_RELIABILITY[wrinkleRegion]
+  if (!reliabilityRegions) return undefined
+
+  const views = new Set<CaptureView>()
+  for (const rr of reliabilityRegions) {
+    const rel = ctx.multiViewContext.regionReliabilities.find(r => r.region === rr)
+    if (rel) {
+      for (const v of rel.contributingViews) views.add(v)
+    }
+  }
+
+  return views.size > 0 ? [...views] : undefined
+}
+
+/**
+ * Get evidence summary for a region from multi-view context.
+ */
+function getEvidenceSummary(
+  wrinkleRegion: string,
+  ctx: ObservationContext,
+): string | undefined {
+  if (!ctx.multiViewContext) return undefined
+  const fused = ctx.multiViewContext.fusedFindings.find(f => f.region === wrinkleRegion)
+  return fused?.evidenceSummary
 }
 
 // ─── Index helpers ────────────────────────────────────────
@@ -185,6 +231,8 @@ function obs(
   score: number,
   sources: ObservationSource[],
   limitation?: string,
+  contributingViews?: CaptureView[],
+  evidenceSummary?: string,
 ): StructuredObservation {
   return {
     area,
@@ -197,6 +245,8 @@ function obs(
     score: clamp(Math.round(score), 0, 100),
     sources,
     ...(limitation ? { limitation } : {}),
+    ...(contributingViews ? { contributingViews } : {}),
+    ...(evidenceSummary ? { evidenceSummary } : {}),
   }
 }
 
@@ -235,7 +285,9 @@ function observeForehead(ctx: ObservationContext): StructuredObservation {
     ? 'Çizgi tespiti sınırlı güven düzeyindedir.'
     : undefined
 
-  return obs('forehead', text, vis, conf, impact, positive, score, sources, limitation)
+  const views = getContributingViews('forehead', ctx)
+  const evSummary = getEvidenceSummary('forehead', ctx)
+  return obs('forehead', text, vis, conf, impact, positive, score, sources, limitation, views, evSummary)
 }
 
 function observeGlabella(ctx: ObservationContext): StructuredObservation {
@@ -345,7 +397,10 @@ function observeCrowFeet(ctx: ObservationContext): StructuredObservation {
     positive = true
   }
 
-  return obs('crow_feet', text, vis, conf, impact, positive, score, sources)
+  // Crow's feet are side-view dependent — include view attribution
+  const views = getContributingViews('crow_feet_left', ctx) ?? getContributingViews('crow_feet_right', ctx)
+  const evSummary = getEvidenceSummary('crow_feet_left', ctx) ?? getEvidenceSummary('crow_feet_right', ctx)
+  return obs('crow_feet', text, vis, conf, impact, positive, score, sources, undefined, views, evSummary)
 }
 
 function observeSkinTexture(ctx: ObservationContext): StructuredObservation {
@@ -476,7 +531,9 @@ function observeNasolabial(ctx: ObservationContext): StructuredObservation {
     positive = true
   }
 
-  return obs('nasolabial', text, vis, conf, impact, positive, score, sources)
+  const nlViews = getContributingViews('nasolabial_left', ctx) ?? getContributingViews('nasolabial_right', ctx)
+  const nlEvSummary = getEvidenceSummary('nasolabial_left', ctx) ?? getEvidenceSummary('nasolabial_right', ctx)
+  return obs('nasolabial', text, vis, conf, impact, positive, score, sources, undefined, nlViews, nlEvSummary)
 }
 
 function observeJawline(ctx: ObservationContext): StructuredObservation {
@@ -506,7 +563,10 @@ function observeJawline(ctx: ObservationContext): StructuredObservation {
     positive = true
   }
 
-  return obs('jawline', text, vis, conf, impact, positive, score, sources)
+  // Jawline is profile-dependent — include view attribution
+  const jawViews = getContributingViews('jawline', ctx)
+  const jawEvSummary = getEvidenceSummary('jawline', ctx)
+  return obs('jawline', text, vis, conf, impact, positive, score, sources, undefined, jawViews, jawEvSummary)
 }
 
 function observeLowerFace(ctx: ObservationContext): StructuredObservation {

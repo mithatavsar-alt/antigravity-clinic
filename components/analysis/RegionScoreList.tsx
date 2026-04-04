@@ -21,6 +21,13 @@ function scoreColor(s: number): string {
   return '#C47A7A'
 }
 
+function statusLabel(status?: ShowcaseRegion['status']): string {
+  if (status === 'suppressed') return 'Yok'
+  if (status === 'low') return 'Düşük'
+  if (status === 'medium') return 'Orta'
+  return 'Yüksek'
+}
+
 // ─── Component ────────────────────────────────────────────────
 
 export default function RegionScoreList({ regions, currentIndex, locked, onSelect, onReset }: Props) {
@@ -33,7 +40,8 @@ export default function RegionScoreList({ regions, currentIndex, locked, onSelec
     <div className="flex flex-col gap-1.5">
       {sorted.map((item) => {
         const active = currentIndex === item.idx
-        const c = scoreColor(item.score)
+        const c = item.status === 'suppressed' ? 'rgba(248,246,242,0.24)' : scoreColor(item.score)
+        const suppressed = item.status === 'suppressed'
 
         return (
           <button
@@ -68,9 +76,21 @@ export default function RegionScoreList({ regions, currentIndex, locked, onSelec
                 style={{
                   color: active ? 'rgba(248,246,242,0.85)' : 'rgba(248,246,242,0.35)',
                   fontWeight: active ? 500 : 400,
+                  opacity: suppressed ? 0.55 : 1,
                 }}
               >
                 {item.label}
+              </span>
+
+              <span
+                className="font-body text-[9px] tracking-[0.10em] uppercase px-2 py-0.5 rounded-full flex-shrink-0"
+                style={{
+                  color: suppressed ? 'rgba(248,246,242,0.34)' : `${c}B0`,
+                  background: suppressed ? 'rgba(248,246,242,0.03)' : `${c}12`,
+                  border: `1px solid ${suppressed ? 'rgba(248,246,242,0.06)' : `${c}18`}`,
+                }}
+              >
+                {statusLabel(item.status)}
               </span>
 
               {/* "Seçildi" marker */}
@@ -93,7 +113,7 @@ export default function RegionScoreList({ regions, currentIndex, locked, onSelec
               className="font-mono text-[18px] font-light tabular-nums tracking-tight flex-shrink-0 transition-colors duration-300"
               style={{ color: active ? c : 'rgba(248,246,242,0.20)' }}
             >
-              {item.score}
+              {suppressed ? '—' : item.score}
             </span>
 
             {/* Active left accent */}

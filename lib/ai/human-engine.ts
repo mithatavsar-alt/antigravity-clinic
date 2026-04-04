@@ -230,14 +230,18 @@ export async function detectFaceFromVideo(
 }
 
 /**
- * Run age estimation on multiple frames (from dataURLs) and average the results.
- * Returns the averaged age, best gender, and averaged confidence.
- * Used for more reliable age estimation (requirement: 3 frames).
+ * Run age estimation on multiple distinct frames and aggregate robustly.
+ *
+ * Uses trimmed mean (drop highest/lowest when ≥4 frames) for age to reject
+ * outlier frames. Gender uses majority vote. Confidence uses median.
+ *
+ * Accepts genuinely distinct frames captured at different time points —
+ * NOT copies of the same image.
  */
 export async function detectFaceMultiFrame(
   images: HTMLImageElement[],
   minConfidence = 0.70,
-): Promise<{ age: number | null; gender: string | null; genderConfidence: number; confidence: number } | null> {
+): Promise<{ age: number | null; gender: string | null; genderConfidence: number; confidence: number; frameCount: number } | null> {
   if (!humanInstance || images.length === 0) return null
 
   const detections: Array<{ age: number; gender: string | null; genderConf: number; conf: number }> = []
@@ -262,9 +266,19 @@ export async function detectFaceMultiFrame(
 
   if (detections.length === 0) return null
 
-  // Average age
-  const avgAge = detections.reduce((s, d) => s + d.age, 0) / detections.length
-  const avgConf = detections.reduce((s, d) => s + d.conf, 0) / detections.length
+  // Trimmed mean for age: drop min/max when ≥4 detections
+  const ages = detections.map(d => d.age).sort((a, b) => a - b)
+  let trimmedAges = ages
+  if (ages.length >= 4) {
+    trimmedAges = ages.slice(1, -1) // drop lowest and highest
+  }
+  const avgAge = trimmedAges.reduce((s, a) => s + a, 0) / trimmedAges.length
+
+  // Median confidence (more robust than mean)
+  const confs = detections.map(d => d.conf).sort((a, b) => a - b)
+  const medianConf = confs.length % 2 === 0
+    ? (confs[confs.length / 2 - 1] + confs[confs.length / 2]) / 2
+    : confs[Math.floor(confs.length / 2)]
 
   // Most common gender (majority vote)
   const genderCounts: Record<string, number> = {}
@@ -280,7 +294,8 @@ export async function detectFaceMultiFrame(
     age: Math.round(avgAge),
     gender: bestGender,
     genderConfidence: avgGenderConf,
-    confidence: avgConf,
+    confidence: medianConf,
+    frameCount: detections.length,
   }
 }
 

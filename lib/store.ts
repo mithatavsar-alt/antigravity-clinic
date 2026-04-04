@@ -32,6 +32,23 @@ interface LeadAnalysisUpdate {
   lip_analysis?: Lead['lip_analysis']
   specialist_analysis?: Lead['specialist_analysis']
   multi_view_analysis?: Lead['multi_view_analysis']
+  capture_manifest?: Lead['capture_manifest']
+  capture_quality_score?: Lead['capture_quality_score']
+  analysis_input_quality_score?: Lead['analysis_input_quality_score']
+  report_confidence?: Lead['report_confidence']
+  recapture_recommended?: Lead['recapture_recommended']
+  recapture_views?: Lead['recapture_views']
+  recapture_reason?: Lead['recapture_reason']
+  liveness_status?: Lead['liveness_status']
+  liveness_confidence?: Lead['liveness_confidence']
+  liveness_required?: Lead['liveness_required']
+  liveness_passed?: Lead['liveness_passed']
+  liveness_signals?: Lead['liveness_signals']
+  overall_reliability_band?: Lead['overall_reliability_band']
+  evidence_coverage_score?: Lead['evidence_coverage_score']
+  suppression_count?: Lead['suppression_count']
+  limited_regions_count?: Lead['limited_regions_count']
+  canonical_analysis?: Lead['canonical_analysis']
   status?: LeadStatus
 }
 
@@ -161,6 +178,8 @@ export const useClinicStore = create<ClinicStore>()(
           // Strip large base64 data-URIs to avoid exceeding localStorage quota.
           // Object URLs (blob:) are session-scoped and can't be restored anyway.
           patient_photo_url: stripDataUri(l.patient_photo_url),
+          // Multi-frame captures are large base64 — strip from persistence (used in-session only)
+          captured_frames: undefined,
           doctor_frontal_photos: l.doctor_frontal_photos.map(stripDataUri).filter(Boolean) as string[],
           doctor_mimic_photos: l.doctor_mimic_photos.map(stripDataUri).filter(Boolean) as string[],
           optional_video_url: stripDataUri(l.optional_video_url),

@@ -15,7 +15,7 @@ export function HeroSection() {
   return (
     <section
       className="hero-section relative flex items-center justify-center overflow-hidden bg-[var(--color-bg)]"
-      style={{ minHeight: 'clamp(640px, 92vh, 960px)' }}
+      style={{ minHeight: 'clamp(680px, 94vh, 1080px)' }}
     >
       {/* Warm gradient wash */}
       <div
@@ -43,18 +43,18 @@ export function HeroSection() {
       {/* Decorative vertical gold accent — desktop only */}
       <div className="hidden lg:block absolute top-[15%] left-[48px] w-px h-[70%] pointer-events-none" style={{ background: 'linear-gradient(180deg, transparent, rgba(196,163,90,0.12) 30%, rgba(196,163,90,0.12) 70%, transparent)' }} />
 
-      <div className="relative z-10 container-main grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center py-28 sm:py-32 lg:py-16">
+      <div className="relative z-10 container-main grid grid-cols-1 lg:grid-cols-[54%_46%] gap-10 lg:gap-8 items-center py-28 sm:py-32 lg:py-24">
         {/* Mobile hero portrait — visible only below lg */}
         <motion.div
           initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, ease }}
-          className="lg:hidden relative w-full max-w-xs mx-auto aspect-[3/4] rounded-2xl overflow-hidden"
+          className="lg:hidden relative w-full max-w-sm mx-auto aspect-[4/5] rounded-2xl overflow-hidden"
         >
           <ImageWithFallback
-            src="/images/Hero/home.png"
+            src="/images/Hero/Home1.jpg"
             alt="Doğal güzellik — medikal estetik"
-            className="object-cover object-top"
+            className="object-cover object-center"
             sizes="(max-width: 1024px) 320px, 0vw"
             priority
             fallbackIcon="face"
@@ -83,7 +83,7 @@ export function HeroSection() {
             transition={{ duration: 0.8, delay: 0.1, ease }}
             className="mt-6"
           >
-            <EditorialHeading as="h1">
+            <EditorialHeading as="h1" className="!text-[clamp(2.8rem,6vw,5rem)] !leading-[0.98]">
               <span className="text-[var(--color-text)]">Doğal Güzelliğinizi</span>
               <br />
               <GoldItalic>Keşfedin</GoldItalic>
@@ -94,8 +94,8 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.2, ease }}
-            className="mt-7 font-body font-light text-[var(--color-text-secondary)] max-w-lg leading-[1.75]"
-            style={{ fontSize: 'clamp(15px, 1.6vw, 18px)' }}
+            className="mt-8 font-body font-light text-[var(--color-text-secondary)] max-w-xl leading-[1.8]"
+            style={{ fontSize: 'clamp(16px, 1.7vw, 19px)' }}
           >
             AI destekli yüz analizi ile kişiselleştirilmiş estetik değerlendirme.
             Bilimsel verilerle desteklenen öneriler.
@@ -106,7 +106,7 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.35, ease }}
-            className="mt-10 flex flex-col sm:flex-row items-start gap-4"
+            className="mt-11 flex flex-col sm:flex-row items-start gap-5"
           >
             <Link href="/analysis">
               <PremiumButton variant="primary" size="lg">
@@ -131,40 +131,47 @@ export function HeroSection() {
           </motion.div>
         </div>
 
-        {/* Right — Hero portrait */}
+        {/* Right — Hero portrait (supporting visual, not dominant) */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 1.0, delay: 0.2, ease }}
-          className="relative hidden lg:flex justify-center items-center"
+          className="relative hidden lg:flex justify-end items-center"
         >
           {/* Decorative ring */}
           <div
             className="absolute -inset-4 rounded-3xl pointer-events-none"
             style={{
-              background: 'linear-gradient(160deg, rgba(196,163,90,0.08) 0%, rgba(196,163,90,0.02) 100%)',
+              background: 'linear-gradient(160deg, rgba(196,163,90,0.06) 0%, rgba(196,163,90,0.01) 100%)',
             }}
           />
-          {/* Image container with elegant crop */}
-          <div className="relative w-full max-w-[520px] aspect-[3/4] rounded-3xl overflow-hidden group">
+          {/* Image container — right-aligned, premium but secondary */}
+          <div className="relative w-full max-w-[500px] aspect-[3/4] rounded-2xl overflow-hidden group" style={{ maxHeight: '640px' }}>
+            {/* Soft left-edge fade for text-to-image transition */}
+            <div
+              className="absolute inset-0 z-10 pointer-events-none"
+              style={{
+                background: 'linear-gradient(90deg, rgba(245,237,226,0.35) 0%, rgba(245,237,226,0.08) 10%, transparent 22%)',
+              }}
+            />
             <ImageWithFallback
-              src="/images/Hero/home.png"
+              src="/images/Hero/Home1.jpg"
               alt="Doğal güzellik — medikal estetik"
-              className="object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.03]"
-              sizes="(max-width: 1024px) 0vw, 520px"
+              className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+              sizes="(max-width: 1024px) 0vw, 500px"
               priority
               fallbackIcon="face"
             />
-            {/* Subtle warm overlay */}
+            {/* Subtle warm bottom overlay */}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
-                background: 'linear-gradient(180deg, transparent 50%, rgba(245,230,211,0.15) 100%)',
+                background: 'linear-gradient(180deg, transparent 55%, rgba(245,230,211,0.18) 100%)',
               }}
             />
             {/* Subtle AI overlay */}
             <div
-              className="absolute inset-0 pointer-events-none opacity-[0.07]"
+              className="absolute inset-0 pointer-events-none opacity-[0.06]"
               style={{
                 backgroundImage: `
                   radial-gradient(circle at 30% 40%, rgba(45,95,93,0.4) 0%, transparent 50%),

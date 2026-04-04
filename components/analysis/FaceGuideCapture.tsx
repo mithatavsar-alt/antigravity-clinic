@@ -36,16 +36,55 @@ import {
   drawFaceContour,
   drawDynamicVignette,
   drawContourAccents,
+  projectLandmarkToCanvas,
   resetContourSmoothing,
 } from '@/lib/ai/face-contour'
+import type {
+  CaptureFrameMetrics,
+  CaptureLivenessSignals,
+  CaptureLivenessStep,
+  CaptureManifest,
+  CaptureMetricSummary,
+  CapturePoseSummary,
+  CapturePoseVariance,
+  CaptureRegionVisibility,
+  CaptureViewKey,
+  CaptureViewManifest,
+  LivenessStatus,
+} from '@/types/capture'
 
 // ─── Types ──────────────────────────────────────────────────
 export type CaptureMode = 'single' | 'multi'
 export type MultiStep = 'front' | 'left' | 'right'
+export type { CaptureManifest, CaptureViewManifest, CaptureViewKey }
+
+export interface ViewQualityMeta {
+  view: CaptureViewKey
+  qualityScore: number
+  acceptanceScore: number
+  captured: boolean
+  qualityBand: CaptureViewManifest['quality_band']
+  recaptureRequired: boolean
+}
 
 export interface CaptureMetadata {
   confidence: 'high' | 'medium' | 'low'
   qualityScore: number
+  captureQualityScore: number
+  /** Top N temporally-distinct frames from the capture buffer (best quality) */
+  capturedFrames?: string[]
+  /** Accepted temporal frame sets preserved per view */
+  viewFrames?: Partial<Record<CaptureViewKey, string[]>>
+  /** Per-view quality scores (multi-capture only) */
+  viewQualities?: ViewQualityMeta[]
+  captureManifest?: CaptureManifest
+  recaptureRecommended?: boolean
+  recaptureViews?: CaptureViewKey[]
+  livenessStatus?: LivenessStatus
+  livenessConfidence?: number
+  livenessRequired?: boolean
+  livenessPassed?: boolean
+  livenessSignals?: CaptureLivenessSignals
 }
 
 export interface MultiCaptureResult {
@@ -77,6 +116,11 @@ const ADVANCE_DELAY_MS = 600
 const FAILSAFE_MS = 10000
 const BEST_FRAME_BUFFER_SIZE = 20
 const BEST_FRAME_WINDOW_MS = 3000
+/** How many distinct frames to export for multi-frame analysis */
+const MULTI_FRAME_EXPORT_COUNT = 8
+/** Minimum temporal gap (ms) between exported frames to ensure distinctness */
+const MULTI_FRAME_MIN_GAP_MS = 150
+const REJECTED_FRAME_SAMPLE_MS = 250
 
 // ─── Auto-fit (software preview fitting) ───────────────────
 // Smoothly zooms/pans the camera preview so the detected face
@@ -84,8 +128,8 @@ const BEST_FRAME_WINDOW_MS = 3000
 // "assisted" feeling. Purely visual — does NOT affect capture.
 const AUTOFIT_SMOOTHING = 0.07          // Per-frame blend toward target (gentle)
 const AUTOFIT_RELEASE_SPEED = 0.035     // Slower return to neutral when face lost
-const AUTOFIT_MAX_SCALE = 1.35          // Max zoom to preserve image quality
-const AUTOFIT_IDEAL_FACE_HEIGHT = 0.45  // Target face-height ratio in frame (lower = less aggressive zoom, fits larger oval)
+const AUTOFIT_MAX_SCALE = 1.3           // Max zoom to preserve image quality
+const AUTOFIT_IDEAL_FACE_HEIGHT = 0.43  // Target face-height ratio in frame for the face-only guide
 const AUTOFIT_MAX_SHIFT = 10            // Max translate in % of container
 const AUTOFIT_DEAD_ZONE = 0.03          // Ignore offsets smaller than this (reduces jitter)
 
@@ -121,9 +165,16 @@ const COUNTDOWN_MS = COUNTDOWN_SECONDS * 1000
 const HARD_MIN_DISTANCE   = 0.25
 const HARD_MIN_CENTERING  = 0.15
 const HARD_MIN_SHARPNESS  = 0.15
+const HARD_MIN_COMPLETENESS_FRONT = 0.72
+const HARD_MIN_COMPLETENESS_SIDE = 0.62
+const HARD_MIN_OCCLUSION_FRONT = 0.74
+const HARD_MIN_OCCLUSION_SIDE = 0.68
+const HARD_MIN_SIDE_CROW = 0.50
+const HARD_MIN_SIDE_NASOLABIAL = 0.50
+const HARD_MIN_SIDE_JAWLINE = 0.55
 
-/** Minimum ready frames before countdown starts (prevents single-frame triggers) */
-const STABILITY_FRAMES_REQUIRED = 4
+/** Minimum ready frames before countdown starts (prevents premature capture) */
+const STABILITY_FRAMES_REQUIRED = 6
 
 /** Soft checks required: front must pass all 6, sides need 5 of 6 */
 const MIN_PASSING_FRONT = 6
@@ -149,18 +200,31 @@ function isReadyForCapture(
   if (qb.centering < HARD_MIN_CENTERING) return false
   // Image unreadable
   if (qb.sharpness < HARD_MIN_SHARPNESS) return false
+  if (status.landmarkCompleteness < (isSide ? HARD_MIN_COMPLETENESS_SIDE : HARD_MIN_COMPLETENESS_FRONT)) return false
+  if (status.occlusionScore < (isSide ? HARD_MIN_OCCLUSION_SIDE : HARD_MIN_OCCLUSION_FRONT)) return false
   // Wrong pose direction: side requires 'ok' (correct yaw for left/right);
   // front rejects hard turns (angle score near zero).
   // This is a hard blocker — wrong-angle capture is never allowed.
   if (isSide && status.angle !== 'ok') return false
   if (!isSide && qb.angle < 0.25) return false
+  if (isSide && status.crowFeetScore < HARD_MIN_SIDE_CROW) return false
+  if (isSide && status.regionVisibility.nasolabial < HARD_MIN_SIDE_NASOLABIAL) return false
+  if (isSide && status.regionVisibility.jawline < HARD_MIN_SIDE_JAWLINE) return false
+
+  // ── Front-only hard blockers — full face visibility ──
+  if (!isSide) {
+    if (!status.eyesVisible) return false       // both eyes must be visible
+    if (!status.foreheadVisible) return false    // forehead not cropped
+    if (!status.chinVisible) return false        // chin not cropped
+    if (status.symmetryScore < 0.55) return false  // face roughly symmetric (frontal)
+  }
 
   // ── 6 soft checks — counted individually ──
   // 1. Distance   2. Lighting   3. Angle
   // 4. Centering  5. Sharpness  6. Stability
   const t = relaxed
-    ? (isSide ? 0.28 : 0.38)
-    : (isSide ? 0.38 : 0.48)
+    ? (isSide ? 0.28 : 0.40)
+    : (isSide ? 0.38 : 0.50)
 
   let passing = 0
   if (qb.distance  >= t) passing++                         // 1. Distance
@@ -175,7 +239,10 @@ function isReadyForCapture(
   // Front: strict 6/6 — all checks must pass
   // Left/Right: tolerant 5/6 — one marginal check won't stall capture
   const required = isSide ? MIN_PASSING_SIDE : MIN_PASSING_FRONT
-  return passing >= required
+  const acceptanceThreshold = relaxed
+    ? (isSide ? 0.76 : 0.80)
+    : (isSide ? 0.82 : 0.86)
+  return passing >= required && status.captureAcceptance >= acceptanceThreshold
 }
 
 // ─── MANUAL CAPTURE ELIGIBILITY (separate from auto) ───────
@@ -187,8 +254,8 @@ function isReadyForCapture(
 // Hard blockers for manual: no face, face too small, face outside
 // frame, image unreadable (blur). Extreme wrong-angle for front only.
 
-const MANUAL_THRESHOLD_FRONT = 0.75
-const MANUAL_THRESHOLD_SIDE  = 0.65
+const MANUAL_THRESHOLD_FRONT = 0.84
+const MANUAL_THRESHOLD_SIDE  = 0.82
 
 function isManualCaptureEligible(
   status: FaceGuideStatus,
@@ -206,25 +273,29 @@ function isManualCaptureEligible(
   if (qb.centering < HARD_MIN_CENTERING) return false
   // Image unreadable
   if (qb.sharpness < HARD_MIN_SHARPNESS) return false
+  if (status.landmarkCompleteness < (isSide ? HARD_MIN_COMPLETENESS_SIDE : HARD_MIN_COMPLETENESS_FRONT)) return false
+  if (status.occlusionScore < (isSide ? HARD_MIN_OCCLUSION_SIDE : HARD_MIN_OCCLUSION_FRONT)) return false
 
   // Front only: reject extreme wrong angles (looking sideways)
   // but NOT as strict as auto-capture's qb.angle < 0.25
   if (!isSide && qb.angle < 0.15) return false
 
-  // Side views: NO strict angle match required for manual.
-  // The user is responsible for framing; we only block unusable frames.
+  if (isSide && status.angle !== 'ok') return false
+  if (isSide && status.crowFeetScore < HARD_MIN_SIDE_CROW) return false
+  if (isSide && status.regionVisibility.nasolabial < HARD_MIN_SIDE_NASOLABIAL) return false
+  if (isSide && status.regionVisibility.jawline < HARD_MIN_SIDE_JAWLINE) return false
 
   // Score threshold — the live qualityScore is the gate
   const threshold = isSide ? MANUAL_THRESHOLD_SIDE : MANUAL_THRESHOLD_FRONT
-  return status.qualityScore >= threshold
+  return status.captureAcceptance >= threshold
 }
 
 const TIPS = [
-  'Doğal ve nötr bir ifade koruyun',
-  'Saçlarınız yüzünüzü örtmesin',
-  'Varsa gözlüğünüzü çıkarın',
-  'Doğal, dengeli ışık tercih edin',
-  'Sade bir arka plan en iyi sonucu verir',
+  'Rahat ve doğal ifadenizi koruyun',
+  'Saçlarınızın yüzünüzü örtmediğinden emin olun',
+  'Gözlük takıyorsanız çıkarmanız önerilir',
+  'Yüzünüze eşit ışık düşen bir ortam idealdir',
+  'Sade arka plan daha iyi sonuç verir',
 ]
 const MULTI_LABELS: Record<MultiStep, string> = {
   front: 'Ön Görünüm',
@@ -232,9 +303,183 @@ const MULTI_LABELS: Record<MultiStep, string> = {
   right: 'Sağ Yüz',
 }
 const MULTI_INSTRUCTIONS: Record<MultiStep, string> = {
-  front: 'Düz bakın — nötr ifade',
-  left: 'Sol yanağınızı hafifçe gösterin',
-  right: 'Sağ yanağınızı hafifçe gösterin',
+  front: 'Kameraya doğal bakın',
+  left: 'Sol yüz için başınızı hafifçe sağa çevirin',
+  right: 'Sağ yüz için başınızı hafifçe sola çevirin',
+}
+
+interface InitialGuideHint {
+  width: string
+  aspectRatio: string
+  path: string
+  mirror?: boolean
+  offsetX?: string
+}
+
+const FRONT_GUIDE_PATH = 'M50 7 C31 7 18 20 14 38 C11 55 14 73 24 87 C31 97 40 104 50 106 C60 104 69 97 76 87 C86 73 89 55 86 38 C82 20 69 7 50 7 Z'
+const SIDE_GUIDE_PATH = 'M58 8 C45 8 33 16 25 29 C18 41 17 57 22 72 C28 87 40 98 54 103 C66 104 75 99 81 90 C86 82 86 71 81 62 C77 54 70 48 65 42 C60 35 58 25 58 8 Z'
+
+function getInitialGuideHint(step: MultiStep): InitialGuideHint {
+  if (step === 'left') {
+    return {
+      width: '60%',
+      aspectRatio: '60 / 96',
+      path: SIDE_GUIDE_PATH,
+      offsetX: '-3%',
+    }
+  }
+  if (step === 'right') {
+    return {
+      width: '60%',
+      aspectRatio: '60 / 96',
+      path: SIDE_GUIDE_PATH,
+      mirror: true,
+      offsetX: '3%',
+    }
+  }
+  return {
+    width: '68%',
+    aspectRatio: '68 / 98',
+    path: FRONT_GUIDE_PATH,
+  }
+}
+
+interface AngleAssistCopy {
+  primary: string
+  secondary: string
+}
+
+interface StepTurnHint {
+  arrow: string
+  instruction: string
+  short: string
+  tone?: 'neutral' | 'good' | 'warn'
+}
+
+function getStepTurnHint(step: MultiStep, status: FaceGuideStatus): StepTurnHint | null {
+  if (step === 'left') {
+    if (status.faceDetected && (status.angle === 'ok' || status.angle === 'tilt')) {
+      return {
+        arrow: '✓',
+        instruction: 'Açı yeterli',
+        short: status.angle === 'tilt' ? 'Şimdi sadece baş eğimini düzeltin' : 'Sol yanak görünür durumda',
+        tone: 'good',
+      }
+    }
+    if (status.faceDetected && status.angle === 'look_left') {
+      return {
+        arrow: '←',
+        instruction: 'Biraz geri dönün',
+        short: 'Fazla döndünüz',
+        tone: 'warn',
+      }
+    }
+    return {
+      arrow: '→',
+      instruction: 'Başınızı hafifçe sağa çevirin',
+      short: 'Sol yanak görünmeli',
+      tone: 'neutral',
+    }
+  }
+  if (step === 'right') {
+    if (status.faceDetected && (status.angle === 'ok' || status.angle === 'tilt')) {
+      return {
+        arrow: '✓',
+        instruction: 'Açı yeterli',
+        short: status.angle === 'tilt' ? 'Şimdi sadece baş eğimini düzeltin' : 'Sağ yanak görünür durumda',
+        tone: 'good',
+      }
+    }
+    if (status.faceDetected && status.angle === 'look_right') {
+      return {
+        arrow: '→',
+        instruction: 'Biraz geri dönün',
+        short: 'Fazla döndünüz',
+        tone: 'warn',
+      }
+    }
+    return {
+      arrow: '←',
+      instruction: 'Başınızı hafifçe sola çevirin',
+      short: 'Sağ yanak görünmeli',
+      tone: 'neutral',
+    }
+  }
+  return null
+}
+
+function getAngleAssist(step: MultiStep, status: FaceGuideStatus): AngleAssistCopy | null {
+  if (step === 'front') return null
+
+  if (step === 'left') {
+    if (status.angle === 'look_right') {
+      return {
+        primary: 'Başınızı biraz daha sağa çevirin',
+        secondary: 'Sol yanağınız biraz daha görünür olmalı',
+      }
+    }
+    if (status.angle === 'look_left') {
+      return {
+        primary: 'Biraz sola geri dönün',
+        secondary: 'Fazla döndünüz, sol yanak görünürlüğü yeterli',
+      }
+    }
+    if (status.angle === 'ok' && status.crowFeetScore < SIDE_CROW_FEET_THRESHOLD) {
+      return {
+        primary: 'Sol göz kenarını biraz daha açın',
+        secondary: 'Sol yanak ve göz kenarı daha net görünmeli',
+      }
+    }
+    if (status.angle === 'ok') {
+      return {
+        primary: 'Açı doğru',
+        secondary: 'Bu pozisyonda sabit kalın, sol yanak görünür durumda',
+      }
+    }
+  }
+
+  if (status.angle === 'look_left') {
+    return {
+      primary: 'Başınızı biraz daha sola çevirin',
+      secondary: 'Sağ yanağınız biraz daha görünür olmalı',
+    }
+  }
+  if (status.angle === 'look_right') {
+    return {
+      primary: 'Biraz sağa geri dönün',
+      secondary: 'Fazla döndünüz, sağ yanak görünürlüğü yeterli',
+    }
+  }
+  if (status.angle === 'ok' && status.crowFeetScore < SIDE_CROW_FEET_THRESHOLD) {
+    return {
+      primary: 'Sağ göz kenarını biraz daha açın',
+      secondary: 'Sağ yanak ve göz kenarı daha net görünmeli',
+    }
+  }
+  if (status.angle === 'ok') {
+    return {
+      primary: 'Açı doğru',
+      secondary: 'Bu pozisyonda sabit kalın, sağ yanak görünür durumda',
+    }
+  }
+
+  return null
+}
+
+function getTiltAssist(status: FaceGuideStatus): AngleAssistCopy | null {
+  if (status.angle !== 'tilt') return null
+
+  if ((status.debug?.tiltDeg ?? 0) > 0) {
+    return {
+      primary: 'Başınızı hafifçe sola düzeltin',
+      secondary: 'Sağ gözünüz biraz daha aşağıda görünüyor; göz çizginizi yataylayın',
+    }
+  }
+
+  return {
+    primary: 'Başınızı hafifçe sağa düzeltin',
+    secondary: 'Sol gözünüz biraz daha aşağıda görünüyor; göz çizginizi yataylayın',
+  }
 }
 
 // ─── Badge component with score-driven color ───────────────
@@ -323,19 +568,24 @@ export interface OverlayRegionHighlight {
  * Resolve the shared accent RGB triplet from quality score.
  * This single source of truth drives mesh color AND bottom bar color.
  *
- * Premium med-tech violet palette:
- *   fail (< 0.5)       → muted warm purple (160,105,185)
- *   borderline (0.5–0.8) → refined violet  (145,115,215)
- *   accepted (≥ 0.8)   → electric violet   (135,130,240)
+ * Premium palette with clear quality progression:
+ *   low  (< 0.4)        → muted cool lavender  (140,115,175)
+ *   mid  (0.4–0.7)      → warm violet           (155,125,215)
+ *   high (0.7–0.9)      → luminous amethyst     (145,140,235)
+ *   ready (≥ 0.9)       → bright cyan-teal      (90,210,200)
  */
 export function accentFromQuality(q: number): string {
-  if (q >= 0.8) return '135,130,240'
-  if (q >= 0.5) {
-    const t = (q - 0.5) / 0.3
-    return `${Math.round(145 - 10 * t)},${Math.round(115 + 15 * t)},${Math.round(215 + 25 * t)}`
+  if (q >= 0.9) return '90,210,200'       // scan-ready: distinct teal shift
+  if (q >= 0.7) {
+    const t = (q - 0.7) / 0.2
+    return `${Math.round(145 - 55 * t)},${Math.round(140 + 70 * t)},${Math.round(235 - 35 * t)}`
   }
-  const t = q / 0.5
-  return `${Math.round(160 - 15 * t)},${Math.round(105 + 10 * t)},${Math.round(185 + 30 * t)}`
+  if (q >= 0.4) {
+    const t = (q - 0.4) / 0.3
+    return `${Math.round(155 - 10 * t)},${Math.round(125 + 15 * t)},${Math.round(215 + 20 * t)}`
+  }
+  const t = q / 0.4
+  return `${Math.round(140 + 15 * t)},${Math.round(115 + 10 * t)},${Math.round(175 + 40 * t)}`
 }
 
 export function drawMesh(
@@ -353,12 +603,17 @@ export function drawMesh(
   accentRgb?: string,
   /** When false, skip inner tesselation mesh (contour + features still draw) */
   showTesselation = true,
+  /** When true, skip ctx.clearRect (caller already cleared for layered rendering) */
+  skipClear = false,
+  sourceWidth?: number,
+  sourceHeight?: number,
 ) {
-  ctx.clearRect(0, 0, w, h)
+  if (!skipClear) ctx.clearRect(0, 0, w, h)
   ctx.save()
 
-  const toX = (lm: Landmark) => mirror ? (1 - lm.x) * w : lm.x * w
-  const toY = (lm: Landmark) => lm.y * h
+  const projected = landmarks.map((lm) =>
+    projectLandmarkToCanvas(lm, w, h, { mirror, sourceWidth, sourceHeight }),
+  )
 
   // Shared dynamic accent — drives ALL mesh colors
   const accent = accentRgb ?? accentFromQuality(qualityScore)
@@ -380,10 +635,10 @@ export function drawMesh(
     ctx.strokeStyle = `${color}${Math.min(1, opacity * baseOpacity).toFixed(3)})`
     let started = false
     for (const idx of indices) {
-      const lm = landmarks[idx]
-      if (!lm) continue
-      if (!started) { ctx.moveTo(toX(lm), toY(lm)); started = true }
-      else ctx.lineTo(toX(lm), toY(lm))
+      const point = projected[idx]
+      if (!point) continue
+      if (!started) { ctx.moveTo(point.x, point.y); started = true }
+      else ctx.lineTo(point.x, point.y)
     }
     ctx.stroke()
   }
@@ -403,31 +658,48 @@ export function drawMesh(
     ctx.lineJoin = 'round'
     ctx.lineCap = 'round'
     for (const [a, b] of FACEMESH_TESSELATION) {
-      const la = landmarks[a], lb = landmarks[b]
+      const la = projected[a], lb = projected[b]
       if (!la || !lb) continue
-      ctx.moveTo(toX(la), toY(la))
-      ctx.lineTo(toX(lb), toY(lb))
+      ctx.moveTo(la.x, la.y)
+      ctx.lineTo(lb.x, lb.y)
     }
     ctx.stroke()
   }
 
   // ════════════════════════════════════════════════════════════
-  // FEATURE CONTOURS — slightly brighter wireframe for key regions.
-  // The full mesh already provides dense detail in these areas;
-  // these contours reinforce boundaries at slightly higher opacity.
+  // FEATURE CONTOURS — key anatomical landmarks with soft glow.
+  // Two-pass rendering: subtle glow pass → crisp line pass.
+  // The glow gives depth without looking like a debug overlay.
   // ════════════════════════════════════════════════════════════
-  drawContour(JAWLINE, `rgba(${accent},`, 0.55, 0.7)
-  drawContour(LEFT_EYE, `rgba(${accent},`, 0.70, 0.8)
-  drawContour(RIGHT_EYE, `rgba(${accent},`, 0.70, 0.8)
-  drawContour(LEFT_EYEBROW, `rgba(${accent},`, 0.55, 0.6)
-  drawContour(RIGHT_EYEBROW, `rgba(${accent},`, 0.55, 0.6)
-  drawContour(NOSE_BRIDGE, `rgba(${accent},`, 0.60, 0.7)
-  drawContour(UPPER_LIP, `rgba(${accent},`, 0.55, 0.6)
-  drawContour(LOWER_LIP, `rgba(${accent},`, 0.55, 0.6)
+  const drawGlowContour = (
+    indices: number[],
+    opacity: number,
+    lineW: number,
+  ) => {
+    // Glow pass — wider, semi-transparent, with shadow blur
+    ctx.save()
+    ctx.shadowColor = `rgba(${accent},${(opacity * baseOpacity * 0.25).toFixed(3)})`
+    ctx.shadowBlur = 6
+    drawContour(indices, `rgba(${accent},`, opacity * 0.35, lineW + 1.5)
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
+    ctx.restore()
+    // Crisp line pass
+    drawContour(indices, `rgba(${accent},`, opacity, lineW)
+  }
+
+  drawGlowContour(JAWLINE, 0.55, 0.7)
+  drawGlowContour(LEFT_EYE, 0.75, 0.8)
+  drawGlowContour(RIGHT_EYE, 0.75, 0.8)
+  drawGlowContour(LEFT_EYEBROW, 0.55, 0.6)
+  drawGlowContour(RIGHT_EYEBROW, 0.55, 0.6)
+  drawGlowContour(NOSE_BRIDGE, 0.60, 0.7)
+  drawGlowContour(UPPER_LIP, 0.55, 0.6)
+  drawGlowContour(LOWER_LIP, 0.55, 0.6)
 
   // ════════════════════════════════════════════════════════════
-  // ANCHOR DOTS — key landmarks as small geometric vertex points
-  // Minimal, refined — just enough to mark structural nodes.
+  // ANCHOR DOTS — key landmarks as refined vertex points with glow
+  // Premium: outer glow ring + accent fill + bright core
   // ════════════════════════════════════════════════════════════
   const anchors = [
     1,    // nose tip
@@ -439,15 +711,21 @@ export function drawMesh(
     10,   // forehead top
   ]
   for (const idx of anchors) {
-    const lm = landmarks[idx]
-    if (!lm) continue
-    const x = toX(lm), y = toY(lm)
-    // Accent dot — small, clean
-    ctx.fillStyle = `rgba(${accent},${(0.55 * baseOpacity).toFixed(3)})`
-    ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill()
+    const point = projected[idx]
+    if (!point) continue
+    const { x, y } = point
+    // Soft glow ring
+    ctx.save()
+    ctx.shadowColor = `rgba(${accent},${(0.30 * baseOpacity).toFixed(3)})`
+    ctx.shadowBlur = 4
+    ctx.fillStyle = `rgba(${accent},${(0.45 * baseOpacity).toFixed(3)})`
+    ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI * 2); ctx.fill()
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
+    ctx.restore()
     // Bright core
-    ctx.fillStyle = `rgba(255,255,255,${(0.50 * baseOpacity).toFixed(3)})`
-    ctx.beginPath(); ctx.arc(x, y, 0.6, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = `rgba(255,255,255,${(0.55 * baseOpacity).toFixed(3)})`
+    ctx.beginPath(); ctx.arc(x, y, 0.7, 0, Math.PI * 2); ctx.fill()
   }
 
   // ════════════════════════════════════════════════════════════
@@ -475,9 +753,9 @@ export function drawMesh(
 
       let cx = 0, cy = 0, count = 0
       for (const idx of centerLandmarks) {
-        const lm = landmarks[idx]
-        if (!lm) continue
-        cx += toX(lm); cy += toY(lm); count++
+        const point = projected[idx]
+        if (!point) continue
+        cx += point.x; cy += point.y; count++
       }
       if (count === 0) continue
       cx /= count; cy /= count
@@ -592,7 +870,262 @@ function captureAlignedFrame(video: HTMLVideoElement, canvas: HTMLCanvasElement)
 }
 
 // ─── Best-frame scoring ─────────────────────────────────────
-interface ScoredFrame { dataUrl: string; score: number; time: number }
+interface ScoredFrame extends CaptureFrameMetrics {
+  dataUrl: string
+  score: number
+  time: number
+}
+
+interface ViewCaptureRuntime {
+  acceptedFrames: ScoredFrame[]
+  sampledFrames: CaptureFrameMetrics[]
+  rejectedReasons: Record<string, number>
+  guidanceHistory: string[]
+  selectedKeyframeId?: string
+  lastRejectionAt?: number
+  lastGuidance?: string
+  holdStartedAt?: number
+  holdDurationMs: number
+  countdownResets: number
+  blinkDetected: boolean
+}
+
+interface LivenessRuntime {
+  frontSteadyFrames: number
+  frontSteadyObservedAt?: number
+  leftObservedAt?: number
+  rightObservedAt?: number
+  blinkDetectedAt?: number
+  blinkInProgress: boolean
+  blinkCandidateAt?: number
+  blinkCount: number
+  baselineEyeOpenness: number
+  minEyeOpenness: number
+  maxEyeOpenness: number
+  yawLeftPeak: number
+  yawRightPeak: number
+  motionSamples: number[]
+}
+
+const VIEW_KEYS: CaptureViewKey[] = ['front', 'left', 'right']
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value))
+}
+
+function toQualityBand(score: number): CaptureViewManifest['quality_band'] {
+  if (score >= 0.82) return 'high'
+  if (score >= 0.65) return 'usable'
+  if (score >= 0.45) return 'weak'
+  return 'reject'
+}
+
+function toCaptureConfidence(score: number): CaptureMetadata['confidence'] {
+  if (score >= 0.85) return 'high'
+  if (score >= 0.68) return 'medium'
+  return 'low'
+}
+
+function targetAcceptedFrameCount(view: CaptureViewKey): number {
+  return view === 'front' ? 8 : 6
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid]
+}
+
+function variance(values: number[]): number {
+  if (values.length < 2) return 0
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length
+  return values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length
+}
+
+function summarizeMetric(values: number[]): CaptureMetricSummary {
+  if (values.length === 0) return { min: 0, median: 0, max: 0 }
+  return {
+    min: Math.min(...values),
+    median: median(values),
+    max: Math.max(...values),
+    variance: variance(values),
+  }
+}
+
+function summarizePose(frames: CaptureFrameMetrics[]): CapturePoseSummary {
+  return {
+    yaw: median(frames.map(frame => frame.pose.yaw)),
+    pitch: median(frames.map(frame => frame.pose.pitch)),
+    roll: median(frames.map(frame => frame.pose.roll)),
+  }
+}
+
+function summarizePoseVariance(frames: CaptureFrameMetrics[], pose: CapturePoseSummary): CapturePoseVariance {
+  const deviations = (values: number[], target: number) => median(values.map(value => Math.abs(value - target)))
+  return {
+    yaw: deviations(frames.map(frame => frame.pose.yaw), pose.yaw),
+    pitch: deviations(frames.map(frame => frame.pose.pitch), pose.pitch),
+    roll: deviations(frames.map(frame => frame.pose.roll), pose.roll),
+  }
+}
+
+function summarizeRegionVisibility(frames: CaptureFrameMetrics[]): CaptureRegionVisibility {
+  return {
+    forehead: median(frames.map(frame => frame.regionVisibility.forehead)),
+    periocular: median(frames.map(frame => frame.regionVisibility.periocular)),
+    nasolabial: median(frames.map(frame => frame.regionVisibility.nasolabial)),
+    jawline: median(frames.map(frame => frame.regionVisibility.jawline)),
+    lips: median(frames.map(frame => frame.regionVisibility.lips)),
+  }
+}
+
+function computeCenteringDrift(frames: CaptureFrameMetrics[]): number {
+  if (frames.length === 0) return 0
+  const medianCentering = median(frames.map(frame => frame.centering))
+  return median(frames.map(frame => Math.abs(frame.centering - medianCentering)))
+}
+
+function buildEmptyRuntime(): ViewCaptureRuntime {
+  return {
+    acceptedFrames: [],
+    sampledFrames: [],
+    rejectedReasons: {},
+    guidanceHistory: [],
+    holdDurationMs: 0,
+    countdownResets: 0,
+    blinkDetected: false,
+  }
+}
+
+function buildEmptyLivenessRuntime(): LivenessRuntime {
+  return {
+    frontSteadyFrames: 0,
+    blinkInProgress: false,
+    blinkCount: 0,
+    baselineEyeOpenness: 0,
+    minEyeOpenness: 1,
+    maxEyeOpenness: 0,
+    yawLeftPeak: 0,
+    yawRightPeak: 0,
+    motionSamples: [],
+  }
+}
+
+function clearLivenessForView(runtime: LivenessRuntime, view: CaptureViewKey): LivenessRuntime {
+  if (view === 'front') {
+    return {
+      ...runtime,
+      frontSteadyFrames: 0,
+      frontSteadyObservedAt: undefined,
+      blinkDetectedAt: undefined,
+      blinkInProgress: false,
+      blinkCandidateAt: undefined,
+      blinkCount: 0,
+      baselineEyeOpenness: 0,
+      minEyeOpenness: 1,
+      maxEyeOpenness: 0,
+      motionSamples: [],
+    }
+  }
+  if (view === 'left') {
+    return { ...runtime, leftObservedAt: undefined, yawLeftPeak: 0 }
+  }
+  return { ...runtime, rightObservedAt: undefined, yawRightPeak: 0 }
+}
+
+function computeEyeOpenness(landmarks: Landmark[]): number {
+  const leftTop = landmarks[159]
+  const leftBottom = landmarks[145]
+  const leftOuter = landmarks[33]
+  const leftInner = landmarks[133]
+  const rightTop = landmarks[386]
+  const rightBottom = landmarks[374]
+  const rightOuter = landmarks[362]
+  const rightInner = landmarks[263]
+
+  if (!leftTop || !leftBottom || !leftOuter || !leftInner || !rightTop || !rightBottom || !rightOuter || !rightInner) {
+    return 0
+  }
+
+  const leftWidth = Math.abs(leftOuter.x - leftInner.x) || 0.001
+  const rightWidth = Math.abs(rightOuter.x - rightInner.x) || 0.001
+  const leftOpen = Math.abs(leftTop.y - leftBottom.y) / leftWidth
+  const rightOpen = Math.abs(rightTop.y - rightBottom.y) / rightWidth
+  return clamp01(((leftOpen + rightOpen) / 2) / 0.18)
+}
+
+function computeLivenessSignals(runtime: LivenessRuntime, required: boolean): {
+  status: LivenessStatus
+  passed: boolean
+  confidence: number
+  steps: CaptureLivenessStep[]
+  signals: CaptureLivenessSignals
+} {
+  const stepConfidence: Record<CaptureLivenessStep['key'], number> = {
+    front: runtime.frontSteadyObservedAt ? 0.9 : Math.min(0.55, runtime.frontSteadyFrames / 6),
+    blink: runtime.blinkDetectedAt ? 0.92 : runtime.baselineEyeOpenness > 0 ? 0.25 : 0,
+    left_turn: runtime.leftObservedAt ? clamp01(Math.abs(runtime.yawLeftPeak) / 22) : 0,
+    right_turn: runtime.rightObservedAt ? clamp01(Math.abs(runtime.yawRightPeak) / 22) : 0,
+  }
+
+  const motionConsistency = runtime.motionSamples.length > 0
+    ? clamp01(median(runtime.motionSamples))
+    : 0
+  const frontObserved = !!runtime.frontSteadyObservedAt
+  const blinkDetected = !!runtime.blinkDetectedAt
+  const leftObserved = !!runtime.leftObservedAt
+  const rightObserved = !!runtime.rightObservedAt
+  const passed = required
+    ? (frontObserved && blinkDetected && leftObserved && rightObserved)
+    : (frontObserved && blinkDetected)
+
+  const confidence = clamp01(
+    stepConfidence.front * 0.25 +
+    stepConfidence.blink * 0.35 +
+    stepConfidence.left_turn * 0.20 +
+    stepConfidence.right_turn * 0.20 +
+    motionConsistency * 0.10,
+  )
+
+  const status: LivenessStatus = !required
+    ? (passed ? 'passed' : confidence > 0 ? 'in_progress' : 'not_required')
+    : passed
+      ? 'passed'
+      : frontObserved || blinkDetected || leftObserved || rightObserved
+        ? 'incomplete'
+        : 'not_started'
+
+  const steps: CaptureLivenessStep[] = [
+    { key: 'front', observed: frontObserved, confidence: stepConfidence.front, observed_at: runtime.frontSteadyObservedAt, detail: frontObserved ? 'Ön görünüm doğrulandı' : 'Ön görünüm sabitlenmedi' },
+    { key: 'blink', observed: blinkDetected, confidence: stepConfidence.blink, observed_at: runtime.blinkDetectedAt, detail: blinkDetected ? 'Göz kırpma sinyali alındı' : 'Blink doğrulanmadı' },
+    { key: 'left_turn', observed: leftObserved, confidence: stepConfidence.left_turn, observed_at: runtime.leftObservedAt, detail: leftObserved ? 'Sol dönüş doğrulandı' : 'Sol dönüş eksik' },
+    { key: 'right_turn', observed: rightObserved, confidence: stepConfidence.right_turn, observed_at: runtime.rightObservedAt, detail: rightObserved ? 'Sağ dönüş doğrulandı' : 'Sağ dönüş eksik' },
+  ]
+
+  return {
+    status,
+    passed,
+    confidence,
+    steps,
+    signals: {
+      front_steady_observed: frontObserved,
+      blink_detected: blinkDetected,
+      left_turn_observed: leftObserved,
+      right_turn_observed: rightObserved,
+      blink_count: runtime.blinkCount,
+      baseline_eye_openness: runtime.baselineEyeOpenness || undefined,
+      min_eye_openness: runtime.minEyeOpenness < 1 ? runtime.minEyeOpenness : undefined,
+      max_eye_openness: runtime.maxEyeOpenness || undefined,
+      yaw_left_peak: runtime.yawLeftPeak || undefined,
+      yaw_right_peak: runtime.yawRightPeak || undefined,
+      motion_consistency: motionConsistency || undefined,
+      step_confidence: stepConfidence,
+    },
+  }
+}
 
 function computeFrameScore(status: FaceGuideStatus): number {
   const { qualityBreakdown: qb } = status
@@ -621,6 +1154,19 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   const validationStartRef = useRef<number | null>(null)
   const faceFirstSeenRef = useRef<number | null>(null)
   const frameBufferRef = useRef<ScoredFrame[]>([])
+  /** Exported multi-frame data URLs for the current capture step */
+  const exportedFramesRef = useRef<string[]>([])
+  const exportedFramesByViewRef = useRef<Partial<Record<CaptureViewKey, string[]>>>({})
+  const captureSessionIdRef = useRef(`capture-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+  const captureFramesRef = useRef<CaptureFrameMetrics[]>([])
+  const acceptanceHistoryRef = useRef<CaptureManifest['acceptance_history']>([])
+  const livenessRuntimeRef = useRef<LivenessRuntime>(buildEmptyLivenessRuntime())
+  const viewRuntimeRef = useRef<Record<CaptureViewKey, ViewCaptureRuntime>>({
+    front: buildEmptyRuntime(),
+    left: buildEmptyRuntime(),
+    right: buildEmptyRuntime(),
+  })
+  const viewManifestsRef = useRef<Partial<Record<CaptureViewKey, CaptureViewManifest>>>({})
   const stableReadyFrames = useRef(0)
 
   const [initState, setInitState] = useState<InitState>('loading')
@@ -645,7 +1191,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   // Allows up to 3 consecutive non-ready frames before resetting.
   // Prevents micro-tremor dips from killing a valid countdown.
   const dipFramesRef = useRef(0)
-  const MAX_DIP_FRAMES = 3
+  const MAX_DIP_FRAMES = 4
 
   // ── Refs that mirror state for use inside processFrame ──
   // processFrame runs in a rAF loop. If it depends on React state (phase,
@@ -664,6 +1210,258 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   const updatePreview = useCallback((p: string | null) => {
     previewRef.current = p
     setPreview(p)
+  }, [])
+
+  const appendAcceptanceHistory = useCallback((view: CaptureViewKey, verdict: 'accept' | 'reject' | 'reset', reason: string, timestamp: number) => {
+    acceptanceHistoryRef.current.push({ view, verdict, reason, timestamp })
+  }, [])
+
+  const appendGuidance = useCallback((view: CaptureViewKey, guidance: string) => {
+    if (!guidance) return
+    const runtime = viewRuntimeRef.current[view]
+    if (runtime.lastGuidance === guidance) return
+    runtime.lastGuidance = guidance
+    runtime.guidanceHistory.push(guidance)
+    if (runtime.guidanceHistory.length > 20) runtime.guidanceHistory.shift()
+  }, [])
+
+  const startHoldTracking = useCallback((view: CaptureViewKey, timestamp: number) => {
+    const runtime = viewRuntimeRef.current[view]
+    if (!runtime.holdStartedAt) runtime.holdStartedAt = timestamp
+  }, [])
+
+  const finalizeHoldTracking = useCallback((view: CaptureViewKey, timestamp: number) => {
+    const runtime = viewRuntimeRef.current[view]
+    if (runtime.holdStartedAt) {
+      runtime.holdDurationMs += Math.max(0, timestamp - runtime.holdStartedAt)
+      runtime.holdStartedAt = undefined
+    }
+  }, [])
+
+  const registerCountdownReset = useCallback((view: CaptureViewKey, timestamp: number) => {
+    finalizeHoldTracking(view, timestamp)
+    viewRuntimeRef.current[view].countdownResets += 1
+  }, [finalizeHoldTracking])
+
+  const observeLiveness = useCallback((view: CaptureViewKey, guide: FaceGuideStatus, landmarks: Landmark[], timestamp: number) => {
+    const runtime = livenessRuntimeRef.current
+    const eyeOpenness = computeEyeOpenness(landmarks)
+    runtime.maxEyeOpenness = Math.max(runtime.maxEyeOpenness, eyeOpenness)
+    runtime.minEyeOpenness = Math.min(runtime.minEyeOpenness, eyeOpenness)
+
+    const frontalReady = view === 'front' && guide.angle === 'ok' && guide.captureAcceptance >= 0.78 && guide.qualityBreakdown.stability >= 0.35
+    if (frontalReady) {
+      runtime.frontSteadyFrames += 1
+      runtime.baselineEyeOpenness = runtime.baselineEyeOpenness === 0
+        ? eyeOpenness
+        : runtime.baselineEyeOpenness * 0.92 + eyeOpenness * 0.08
+      if (!runtime.frontSteadyObservedAt && runtime.frontSteadyFrames >= 4) {
+        runtime.frontSteadyObservedAt = timestamp
+      }
+    } else if (view === 'front') {
+      runtime.frontSteadyFrames = Math.max(0, runtime.frontSteadyFrames - 1)
+    }
+
+    if (runtime.frontSteadyObservedAt) {
+      const baseline = Math.max(runtime.baselineEyeOpenness, 0.18)
+      const closeThreshold = baseline * 0.62
+      const reopenThreshold = baseline * 0.84
+      if (!runtime.blinkInProgress && eyeOpenness > 0 && eyeOpenness <= closeThreshold) {
+        runtime.blinkInProgress = true
+        runtime.blinkCandidateAt = timestamp
+      } else if (runtime.blinkInProgress) {
+        const elapsed = timestamp - (runtime.blinkCandidateAt ?? timestamp)
+        if (eyeOpenness >= reopenThreshold && elapsed <= 900) {
+          runtime.blinkInProgress = false
+          runtime.blinkDetectedAt = runtime.blinkDetectedAt ?? timestamp
+          runtime.blinkCount += 1
+          viewRuntimeRef.current.front.blinkDetected = true
+        } else if (elapsed > 900) {
+          runtime.blinkInProgress = false
+          runtime.blinkCandidateAt = undefined
+        }
+      }
+    }
+
+    if (guide.debug?.yawDeg != null) {
+      const absYaw = Math.abs(guide.debug.yawDeg)
+      const motionConsistency = clamp01(
+        absYaw / 18 * 0.5 +
+        guide.qualityBreakdown.stability * 0.3 +
+        guide.captureAcceptance * 0.2,
+      )
+      runtime.motionSamples.push(motionConsistency)
+      if (runtime.motionSamples.length > 20) runtime.motionSamples.shift()
+    }
+
+    if (view === 'left' && guide.angle === 'ok' && guide.captureAcceptance >= 0.80) {
+      runtime.leftObservedAt = runtime.leftObservedAt ?? timestamp
+      runtime.yawLeftPeak = Math.min(runtime.yawLeftPeak, guide.debug?.yawDeg ?? 0)
+    }
+
+    if (view === 'right' && guide.angle === 'ok' && guide.captureAcceptance >= 0.80) {
+      runtime.rightObservedAt = runtime.rightObservedAt ?? timestamp
+      runtime.yawRightPeak = Math.max(runtime.yawRightPeak, guide.debug?.yawDeg ?? 0)
+    }
+  }, [])
+
+  const recordRejectedSample = useCallback((view: CaptureViewKey, frame: CaptureFrameMetrics, reason: string) => {
+    const runtime = viewRuntimeRef.current[view]
+    runtime.rejectedReasons[reason] = (runtime.rejectedReasons[reason] ?? 0) + 1
+    const now = frame.timestamp
+    if (!runtime.lastRejectionAt || now - runtime.lastRejectionAt >= REJECTED_FRAME_SAMPLE_MS) {
+      runtime.sampledFrames.push(frame)
+      captureFramesRef.current.push(frame)
+      runtime.lastRejectionAt = now
+    }
+  }, [])
+
+  const pushAcceptedFrame = useCallback((view: CaptureViewKey, frame: ScoredFrame) => {
+    const runtime = viewRuntimeRef.current[view]
+    runtime.acceptedFrames.push(frame)
+    runtime.sampledFrames.push(frame)
+    captureFramesRef.current.push(frame)
+  }, [])
+
+  const buildFrameMetrics = useCallback((
+    view: CaptureViewKey,
+    guide: FaceGuideStatus,
+    timestamp: number,
+    accepted: boolean,
+    rejectionReason?: string,
+    dataUrl?: string,
+  ): ScoredFrame => {
+    const brightness = clamp01((guide.debug?.brightness ?? 0) / 255)
+    const sharpness = clamp01(guide.qualityBreakdown.sharpness)
+    const eyeOpenness = landmarksRef.current ? computeEyeOpenness(landmarksRef.current) : 0
+    const frame: ScoredFrame = {
+      frameId: `${view}-${timestamp}-${Math.random().toString(36).slice(2, 7)}`,
+      view,
+      timestamp,
+      accepted,
+      qualityScore: clamp01(guide.qualityScore),
+      acceptanceScore: clamp01(guide.captureAcceptance),
+      pose: {
+        yaw: guide.debug?.yawDeg ?? 0,
+        pitch: guide.debug?.pitchDeg ?? 0,
+        roll: guide.debug?.tiltDeg ?? 0,
+      },
+      brightness,
+      shadow: clamp01(guide.shadowUniformity),
+      sharpness,
+      stability: clamp01(guide.qualityBreakdown.stability),
+      centering: clamp01(guide.qualityBreakdown.centering),
+      faceSize: clamp01(guide.faceHeightRatio / 0.6),
+      completeness: clamp01(guide.landmarkCompleteness),
+      occlusion: clamp01(guide.occlusionScore),
+      landmarkJitter: clamp01(1 - guide.qualityBreakdown.stability),
+      eyeOpenness,
+      regionVisibility: {
+        forehead: clamp01(guide.regionVisibility.forehead),
+        periocular: clamp01(guide.regionVisibility.periocular),
+        nasolabial: clamp01(guide.regionVisibility.nasolabial),
+        jawline: clamp01(guide.regionVisibility.jawline),
+        lips: clamp01(guide.regionVisibility.lips),
+      },
+      rejectionReason,
+      guidance: guide.mainMessage,
+      dataUrl: dataUrl ?? '',
+      score: computeFrameScore(guide),
+      time: timestamp,
+    }
+    return frame
+  }, [])
+
+  const finalizeViewManifest = useCallback((view: CaptureViewKey): CaptureViewManifest => {
+    const runtime = viewRuntimeRef.current[view]
+    finalizeHoldTracking(view, Date.now())
+    const acceptedFrames = runtime.acceptedFrames
+    const representative = acceptedFrames.length > 0
+      ? acceptedFrames.reduce((best, candidate) => (candidate.acceptanceScore > best.acceptanceScore ? candidate : best))
+      : null
+    const pose = acceptedFrames.length > 0 ? summarizePose(acceptedFrames) : undefined
+    const poseVariance = acceptedFrames.length > 0 && pose ? summarizePoseVariance(acceptedFrames, pose) : undefined
+    const qualityScore = representative ? representative.qualityScore : 0
+    const acceptanceScore = representative
+      ? median(acceptedFrames.map(frame => frame.acceptanceScore))
+      : 0
+    const qualityBand = toQualityBand(acceptanceScore)
+    const recaptureRequired = qualityBand === 'reject' || acceptedFrames.length < Math.max(1, Math.floor(targetAcceptedFrameCount(view) * 0.66))
+    const regionVisibility = summarizeRegionVisibility(acceptedFrames)
+    const occlusionIndicators = [
+      regionVisibility.forehead < 0.65 ? 'forehead_hidden' : null,
+      regionVisibility.periocular < 0.7 ? 'periocular_hidden' : null,
+      regionVisibility.nasolabial < 0.6 ? 'nasolabial_hidden' : null,
+      regionVisibility.jawline < 0.6 ? 'jawline_hidden' : null,
+      regionVisibility.lips < 0.75 ? 'lips_hidden' : null,
+    ].filter((value): value is string => !!value)
+    const livenessSignals = computeLivenessSignals(livenessRuntimeRef.current, mode === 'multi').signals
+
+    const manifest: CaptureViewManifest = {
+      view,
+      captured: acceptedFrames.length > 0,
+      quality_score: qualityScore,
+      acceptance_score: acceptanceScore,
+      quality_band: qualityBand,
+      capture_verdict: acceptedFrames.length > 0
+        ? recaptureRequired ? 'recapture_required' : 'accepted'
+        : 'rejected',
+      recapture_required: recaptureRequired,
+      accepted_frame_ids: acceptedFrames.map(frame => frame.frameId),
+      accepted_frame_count: acceptedFrames.length,
+      rejected_frame_count: Object.values(runtime.rejectedReasons).reduce((sum, value) => sum + value, 0),
+      rejected_reasons: Object.entries(runtime.rejectedReasons)
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((a, b) => b.count - a.count),
+      guidance_history: [...runtime.guidanceHistory],
+      representative_frame_id: representative?.frameId,
+      median_pose: pose,
+      pose_variance: poseVariance,
+      hold_duration_ms: runtime.holdDurationMs,
+      countdown_resets: runtime.countdownResets,
+      landmark_jitter: median(acceptedFrames.map(frame => frame.landmarkJitter ?? 0)),
+      blink_detected: runtime.blinkDetected,
+      brightness: summarizeMetric(acceptedFrames.map(frame => frame.brightness)),
+      shadow: summarizeMetric(acceptedFrames.map(frame => frame.shadow)),
+      sharpness: summarizeMetric(acceptedFrames.map(frame => frame.sharpness)),
+      centering_drift: computeCenteringDrift(acceptedFrames),
+      stability: median(acceptedFrames.map(frame => frame.stability)),
+      completeness: median(acceptedFrames.map(frame => frame.completeness)),
+      occlusion: median(acceptedFrames.map(frame => frame.occlusion)),
+      region_visibility: regionVisibility,
+      occlusion_indicators: occlusionIndicators.length > 0 ? occlusionIndicators : undefined,
+      liveness_signals: view === 'front'
+        ? {
+            front_steady_observed: livenessSignals.front_steady_observed,
+            blink_detected: livenessSignals.blink_detected,
+            blink_count: livenessSignals.blink_count,
+            baseline_eye_openness: livenessSignals.baseline_eye_openness,
+            min_eye_openness: livenessSignals.min_eye_openness,
+            max_eye_openness: livenessSignals.max_eye_openness,
+          }
+        : view === 'left'
+          ? {
+              left_turn_observed: livenessSignals.left_turn_observed,
+              yaw_left_peak: livenessSignals.yaw_left_peak,
+            }
+          : {
+              right_turn_observed: livenessSignals.right_turn_observed,
+              yaw_right_peak: livenessSignals.yaw_right_peak,
+            },
+    }
+
+    runtime.selectedKeyframeId = representative?.frameId
+    viewManifestsRef.current[view] = manifest
+    return manifest
+  }, [computeLivenessSignals, finalizeHoldTracking, mode])
+
+  const resetViewRuntime = useCallback((view: CaptureViewKey) => {
+    const existingFrameIds = new Set(viewRuntimeRef.current[view].sampledFrames.map(frame => frame.frameId))
+    viewRuntimeRef.current[view] = buildEmptyRuntime()
+    viewManifestsRef.current[view] = undefined
+    exportedFramesByViewRef.current[view] = undefined
+    captureFramesRef.current = captureFramesRef.current.filter(frame => !existingFrameIds.has(frame.frameId))
+    livenessRuntimeRef.current = clearLivenessForView(livenessRuntimeRef.current, view)
   }, [])
 
   // AI mesh overlay visibility — ON by default
@@ -690,6 +1488,30 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     return null
   }, [])
 
+  /**
+   * Export top N temporally-distinct frames from the buffer.
+   * Greedy selection: pick the highest-scored frame, then skip nearby frames
+   * (within MULTI_FRAME_MIN_GAP_MS), pick the next highest, and so on.
+   * This guarantees frames are from different render ticks, not duplicates.
+   */
+  const captureBestFrames = useCallback((count: number = MULTI_FRAME_EXPORT_COUNT): string[] => {
+    const buffer = [...frameBufferRef.current]
+    if (buffer.length === 0) return []
+
+    // Sort by score descending
+    buffer.sort((a, b) => b.score - a.score)
+
+    const selected: ScoredFrame[] = []
+    for (const frame of buffer) {
+      if (selected.length >= count) break
+      // Check temporal distance from all already-selected frames
+      const tooClose = selected.some(s => Math.abs(s.time - frame.time) < MULTI_FRAME_MIN_GAP_MS)
+      if (!tooClose) selected.push(frame)
+    }
+
+    return selected.map(f => f.dataUrl)
+  }, [])
+
   // Auto-advance
   const triggerAutoAdvance = useCallback(() => {
     if (advanceTimerRef.current) return
@@ -699,21 +1521,35 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
 
     advanceTimerRef.current = setTimeout(() => {
       updatePhase('advancing')
+      const exportCount = mode === 'multi'
+        ? targetAcceptedFrameCount(multiStep as CaptureViewKey)
+        : MULTI_FRAME_EXPORT_COUNT
+      // Export top N distinct frames BEFORE clearing the buffer
+      exportedFramesRef.current = captureBestFrames(exportCount)
+      exportedFramesByViewRef.current[multiStep as CaptureViewKey] = exportedFramesRef.current
       const bestDataUrl = captureBestFrame()
       if (bestDataUrl) {
+        const manifest = finalizeViewManifest(multiStep as CaptureViewKey)
+        appendAcceptanceHistory(
+          multiStep as CaptureViewKey,
+          manifest.recapture_required ? 'reset' : 'accept',
+          manifest.recapture_required ? 'capture_quality_limited' : 'capture_accepted',
+          Date.now(),
+        )
         if (mode === 'multi') setMultiPhotos((prev) => ({ ...prev, [multiStep]: bestDataUrl }))
         updatePreview(bestDataUrl)
       }
       frameBufferRef.current = []
       advanceTimerRef.current = null
     }, ADVANCE_DELAY_MS)
-  }, [captureBestFrame, mode, multiStep, updatePhase, updatePreview])
+  }, [appendAcceptanceHistory, captureBestFrame, captureBestFrames, finalizeViewManifest, mode, multiStep, updatePhase, updatePreview])
 
   // Reset
   const resetValidation = useCallback(() => {
     validationStartRef.current = null
     faceFirstSeenRef.current = null
     frameBufferRef.current = []
+    exportedFramesRef.current = []
     stableReadyFrames.current = 0
     countdownStartRef.current = null
     dipFramesRef.current = 0
@@ -797,6 +1633,12 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
         if (!raw || raw.length < 468) {
           // ── Miss ──
           pushMiss()
+          recordRejectedSample(
+            multiStep as CaptureViewKey,
+            buildFrameMetrics(multiStep as CaptureViewKey, NO_FACE_STATUS, now, false, 'no_face'),
+            'no_face',
+          )
+          appendGuidance(multiStep as CaptureViewKey, NO_FACE_STATUS.mainMessage)
           // Keep last mesh visible while face is locked (prevents flicker)
           if (!status.faceLocked) {
             setStatus(NO_FACE_STATUS)
@@ -832,6 +1674,8 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           const targetAngle: TargetAngle = mode === 'multi' ? multiStep as TargetAngle : 'front'
           const guide = evaluateFaceGuide(smoothed, brightness, shadowScore, targetAngle)
           setStatus(guide)
+          appendGuidance(multiStep as CaptureViewKey, guide.mainMessage)
+          observeLiveness(multiStep as CaptureViewKey, guide, smoothed, now)
 
           // ── AUTO-FIT: software preview fitting ──────────────
           // Compute signed face offset from landmarks (face guide uses abs values)
@@ -862,7 +1706,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
 
                 // Signed offset from center (raw landmark space)
                 const rawOffX = faceCX - 0.5     // positive = face right of center in raw
-                const rawOffY = faceCY - 0.45    // positive = face below ideal center
+                const rawOffY = faceCY - 0.47    // positive = face below the guide center
 
                 // Apply dead zone to reduce jitter on small movements
                 const offX = Math.abs(rawOffX) > AUTOFIT_DEAD_ZONE ? rawOffX : 0
@@ -902,6 +1746,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           //   4. Grace: up to 3 dip frames tolerated during countdown
           //   5. Auto-capture when countdown completes
           const isSideStep = mode === 'multi' && multiStep !== 'front'
+          const viewKey = multiStep as CaptureViewKey
           const curPhase = phaseRef.current
           const canAct = !previewRef.current && curPhase !== 'validated' && curPhase !== 'advancing'
 
@@ -920,6 +1765,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
             dipFramesRef.current = 0
             if (!countdownStartRef.current) {
               countdownStartRef.current = now
+              startHoldTracking(viewKey, now)
               updatePhase('stabilizing')
             }
             const elapsed = now - countdownStartRef.current
@@ -928,15 +1774,27 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
             setValidationProgress(Math.min(1, elapsed / COUNTDOWN_MS))
 
             if (elapsed >= COUNTDOWN_MS) {
-              setCountdown(null)
-              triggerAutoAdvance()
+              const minFrames = Math.max(isSideStep ? 5 : 6, targetAcceptedFrameCount(viewKey) - 2)
+              if (frameBufferRef.current.length >= minFrames) {
+                setCountdown(null)
+                triggerAutoAdvance()
+              }
+              // else: keep waiting — countdown stays at 0, will fire next frame when buffer fills
             }
           } else if (!readyNow && canAct) {
+            const rejectionReason = guide.debug.rejectionReason ?? (guide.angle === 'look_left' || guide.angle === 'look_right' ? 'wrong_view' : 'quality_not_ready')
+            recordRejectedSample(
+              viewKey,
+              buildFrameMetrics(viewKey, guide, now, false, rejectionReason),
+              rejectionReason,
+            )
             // Not ready — grace window during active countdown
             if (countdownStartRef.current) {
               dipFramesRef.current++
               if (dipFramesRef.current > MAX_DIP_FRAMES) {
                 // Too many dip frames — hard reset
+                appendAcceptanceHistory(viewKey, 'reset', rejectionReason, now)
+                registerCountdownReset(viewKey, now)
                 countdownStartRef.current = null
                 dipFramesRef.current = 0
                 setCountdown(null)
@@ -951,28 +1809,67 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
 
           // Buffer best frames — uses aligned 3:4 capture to match UI
           // Only buffer frames that meet minimum quality for clean results
-          const bufferThreshold = isSideStep ? 0.30 : 0.50
-          if (guide.qualityScore >= bufferThreshold && !previewRef.current && curPhase !== 'validated' && curPhase !== 'advancing') {
+          const bufferThreshold = isSideStep ? 0.76 : 0.80
+          // Front: only buffer frames where full face is visible (eyes + forehead + chin)
+          const faceFullyVisible = isSideStep || (guide.eyesVisible && guide.foreheadVisible && guide.chinVisible)
+          if (guide.captureAcceptance >= bufferThreshold && faceFullyVisible && !previewRef.current && curPhase !== 'validated' && curPhase !== 'advancing') {
             const cc = captureCanvasRef.current
             if (cc && video.videoWidth > 0) {
               const dataUrl = captureAlignedFrame(video, cc)
               if (dataUrl) {
-                frameBufferRef.current.push({ dataUrl, score: computeFrameScore(guide), time: now })
+                const runtime = viewRuntimeRef.current[viewKey]
+                const lastAccepted = runtime.acceptedFrames[runtime.acceptedFrames.length - 1]
+                if (!lastAccepted || now - lastAccepted.timestamp >= MULTI_FRAME_MIN_GAP_MS / 2) {
+                  const frame = buildFrameMetrics(viewKey, guide, now, true, undefined, dataUrl)
+                  pushAcceptedFrame(viewKey, frame)
+                  frameBufferRef.current.push(frame)
+                }
                 const cutoff = now - BEST_FRAME_WINDOW_MS
                 frameBufferRef.current = frameBufferRef.current.filter((f) => f.time > cutoff).slice(-BEST_FRAME_BUFFER_SIZE)
               }
             }
           }
 
-          // Draw REAL mesh + dynamic face contour — unified on one canvas
+          // Draw dynamic face contour + mesh — unified on one canvas.
+          // Order: vignette (background) → mesh (middle) → contour (foreground)
           const meshAccent = accentFromQuality(guide.qualityScore)
           const ctx = mc.getContext('2d')
           if (ctx) {
-            drawMesh(ctx, smoothed, mc.width, mc.height, guide.allOk, true, false, guide.qualityScore, undefined, meshAccent, showMesh)
-            // Dynamic face contour — follows real face, replaces fixed oval
-            const contour = computeFaceContour(smoothed, mc.width, mc.height, true)
+            // 1) Compute contour from live landmarks
+            const contour = computeFaceContour(smoothed, mc.width, mc.height, {
+              mirror: true,
+              sourceWidth: video.videoWidth,
+              sourceHeight: video.videoHeight,
+              targetAngle,
+            })
+
+            // 2) Clear canvas, draw vignette first (behind everything)
+            ctx.clearRect(0, 0, mc.width, mc.height)
             if (contour.valid) {
               drawDynamicVignette(ctx, contour, mc.width, mc.height, 0.65)
+            }
+
+            // 3) Draw mesh (tesselation + feature contours + anchors)
+            //    Pass skipClear=true since we already cleared above
+            drawMesh(
+              ctx,
+              smoothed,
+              mc.width,
+              mc.height,
+              guide.allOk,
+              true,
+              false,
+              guide.qualityScore,
+              undefined,
+              meshAccent,
+              showMesh,
+              true,
+              video.videoWidth,
+              video.videoHeight,
+            )
+
+            // 4) Draw outer face contour + accents on top
+            if (contour.valid) {
               drawFaceContour(ctx, contour, meshAccent, guide.qualityScore)
               drawContourAccents(ctx, contour, meshAccent, guide.qualityScore)
             }
@@ -983,7 +1880,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
 
     animFrameRef.current = requestAnimationFrame(processFrame)
   // eslint-disable-next-line react-hooks/exhaustive-deps -- phase/preview/countdown read via refs to avoid stale-closure restarts
-  }, [landmarksRef, status.faceLocked, triggerAutoAdvance, mode, multiStep, failsafeActive, updatePhase])
+  }, [appendAcceptanceHistory, appendGuidance, buildFrameMetrics, failsafeActive, landmarksRef, mode, multiStep, observeLiveness, pushAcceptedFrame, recordRejectedSample, registerCountdownReset, startHoldTracking, status.faceLocked, triggerAutoAdvance, updatePhase])
 
   useEffect(() => {
     if (initState === 'ready' && !preview) {
@@ -992,17 +1889,101 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     return () => cancelAnimationFrame(animFrameRef.current)
   }, [initState, preview, processFrame])
 
+  const buildCaptureManifest = useCallback((): CaptureManifest => {
+    const relevantViews = mode === 'multi' ? VIEW_KEYS : (['front'] as CaptureViewKey[])
+    const manifests = relevantViews.map(view => viewManifestsRef.current[view] ?? finalizeViewManifest(view))
+    const selectedKeyframes = manifests.reduce<Partial<Record<CaptureViewKey, string>>>((acc, manifest) => {
+      if (manifest.representative_frame_id) acc[manifest.view] = manifest.representative_frame_id
+      return acc
+    }, {})
+    const liveness = computeLivenessSignals(livenessRuntimeRef.current, mode === 'multi')
+
+    return {
+      schema_version: '2.0.0',
+      session_id: captureSessionIdRef.current,
+      mode,
+      captured_at: new Date(Math.min(...captureFramesRef.current.map(frame => frame.timestamp), Date.now())).toISOString(),
+      completed_at: new Date().toISOString(),
+      device_info: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+      browser_info: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+      liveness_required: mode === 'multi',
+      liveness_passed: liveness.passed,
+      liveness_status: liveness.status,
+      liveness_confidence: liveness.confidence,
+      liveness_signals: liveness.signals,
+      liveness_steps: liveness.steps,
+      frames: captureFramesRef.current
+        .filter(frame => relevantViews.includes(frame.view))
+        .map(({ dataUrl, ...frame }) => frame)
+        .sort((a, b) => a.timestamp - b.timestamp),
+      views: manifests,
+      selected_keyframes: selectedKeyframes,
+      acceptance_history: acceptanceHistoryRef.current.filter(event => relevantViews.includes(event.view)),
+    }
+  }, [computeLivenessSignals, finalizeViewManifest, mode])
+
+  const buildMeta = useCallback((): CaptureMetadata => {
+    const manifest = buildCaptureManifest()
+    const relevantViews = manifest.views.filter(view => mode === 'multi' || view.view === 'front')
+    const livenessMissingViews = manifest.liveness_required && !manifest.liveness_passed
+      ? manifest.liveness_steps
+        ?.filter(step => !step.observed)
+        .flatMap<CaptureViewKey>((step) => {
+          if (step.key === 'left_turn') return ['left']
+          if (step.key === 'right_turn') return ['right']
+          return ['front']
+        }) ?? ['front']
+      : []
+    const captureQualityScore = relevantViews.length > 0
+      ? Math.round(median(relevantViews.map(view => view.acceptance_score)) * 100)
+      : Math.round(status.captureAcceptance * 100)
+    const recaptureViews = Array.from(new Set([
+      ...relevantViews
+      .filter(view => view.recapture_required)
+      .map(view => view.view),
+      ...livenessMissingViews,
+    ]))
+    const primaryFrames = mode === 'multi'
+      ? (exportedFramesByViewRef.current.front ?? [])
+      : (exportedFramesByViewRef.current.front ?? exportedFramesRef.current)
+    const viewQualities: ViewQualityMeta[] = relevantViews.map(view => ({
+      view: view.view,
+      qualityScore: view.quality_score,
+      acceptanceScore: view.acceptance_score,
+      captured: view.captured,
+      qualityBand: view.quality_band,
+      recaptureRequired: view.recapture_required,
+    }))
+    const viewFrames = relevantViews.reduce<Partial<Record<CaptureViewKey, string[]>>>((acc, view) => {
+      const frames = exportedFramesByViewRef.current[view.view]
+      if (frames && frames.length > 0) acc[view.view] = frames
+      return acc
+    }, {})
+
+    return {
+      confidence: toCaptureConfidence(captureQualityScore / 100),
+      qualityScore: Math.round(status.qualityScore * 100),
+      captureQualityScore,
+      capturedFrames: primaryFrames.length > 0 ? primaryFrames : undefined,
+      viewFrames,
+      viewQualities,
+      captureManifest: manifest,
+      recaptureRecommended: recaptureViews.length > 0 || (manifest.liveness_required && !manifest.liveness_passed),
+      recaptureViews,
+      livenessStatus: manifest.liveness_status,
+      livenessConfidence: Math.round(manifest.liveness_confidence * 100),
+      livenessRequired: manifest.liveness_required,
+      livenessPassed: manifest.liveness_passed,
+      livenessSignals: manifest.liveness_signals,
+    }
+  }, [buildCaptureManifest, mode, status.captureAcceptance, status.qualityScore])
+
   // Auto-confirm: in single mode, call onCapture as soon as preview is set
   useEffect(() => {
     if (autoConfirm && mode === 'single' && preview && phase === 'advancing') {
-      const q = status.qualityScore
-      const meta: CaptureMetadata = {
-        confidence: q >= 0.85 ? 'high' : 'medium',
-        qualityScore: q,
-      }
-      onCapture(preview, meta)
+      onCapture(preview, buildMeta())
     }
-  }, [autoConfirm, mode, preview, phase]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autoConfirm, buildMeta, mode, onCapture, phase, preview])
 
   // Manual capture — separate, more lenient eligibility (score-based fallback).
   // Auto-capture uses isReadyForCapture() with strict 6/6 / 5/6 soft-check gates.
@@ -1011,21 +1992,29 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   const manualCaptureEnabled = isManualCaptureEligible(status, isSideStep)
   const takeSnapshot = () => {
     if (!manualCaptureEnabled) return
+    const viewKey = multiStep as CaptureViewKey
+    exportedFramesRef.current = captureBestFrames(targetAcceptedFrameCount(viewKey))
+    exportedFramesByViewRef.current[viewKey] = exportedFramesRef.current
     const dataUrl = captureBestFrame()
     if (!dataUrl) return
+    if (viewRuntimeRef.current[viewKey].acceptedFrames.length === 0) {
+      const frame = buildFrameMetrics(viewKey, status, Date.now(), true, undefined, dataUrl)
+      pushAcceptedFrame(viewKey, frame)
+      frameBufferRef.current.push(frame)
+    }
     setShowFlash(true); setTimeout(() => setShowFlash(false), 350)
-    if (mode === 'multi') setMultiPhotos((prev) => ({ ...prev, [multiStep]: dataUrl }))
+    const manifest = finalizeViewManifest(viewKey)
+    appendAcceptanceHistory(
+      viewKey,
+      manifest.recapture_required ? 'reset' : 'accept',
+      'manual_capture',
+      Date.now(),
+    )
+    if (mode === 'multi') {
+      setMultiPhotos((prev) => ({ ...prev, [multiStep]: dataUrl }))
+    }
     updatePreview(dataUrl); updatePhase('advancing')
   }
-
-  const buildMeta = useCallback((): CaptureMetadata => {
-    const q = status.qualityScore
-    // Since capture gate is strict, captured frames are at least 'medium'
-    return {
-      confidence: q >= 0.85 ? 'high' : 'medium',
-      qualityScore: q,
-    }
-  }, [status.qualityScore])
 
   const confirmSingle = () => { if (preview) onCapture(preview, buildMeta()) }
 
@@ -1043,7 +2032,13 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     }
   }
 
-  const retake = () => { updatePreview(null); resetValidation(); updatePhase('detecting') }
+  const retake = () => {
+    appendAcceptanceHistory(multiStep as CaptureViewKey, 'reset', 'manual_retake', Date.now())
+    resetViewRuntime(multiStep as CaptureViewKey)
+    updatePreview(null)
+    resetValidation()
+    updatePhase('detecting')
+  }
 
   // ─── Render ───────────────────────────────────────────────
   const isMulti = mode === 'multi'
@@ -1051,6 +2046,11 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   const STEP_ORDER: MultiStep[] = ['front', 'left', 'right']
   const stepNumber = STEP_ORDER.indexOf(multiStep) + 1
   const totalSteps = STEP_ORDER.length
+  const livenessOverview = computeLivenessSignals(livenessRuntimeRef.current, mode === 'multi')
+  const currentGuideHint = getInitialGuideHint(isMulti ? multiStep : 'front')
+  const angleAssist = isMulti ? getAngleAssist(multiStep, status) : null
+  const stepTurnHint = isMulti ? getStepTurnHint(multiStep, status) : null
+  const tiltAssist = getTiltAssist(status)
 
   return (
     <div
@@ -1078,7 +2078,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           </button>
 
           <span className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(214,185,140,0.5)]">
-            Yüz Tarama
+            AI Yüz Tarama
           </span>
 
           {isMulti && !preview ? (
@@ -1118,8 +2118,8 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 <div className="absolute inset-3 rounded-full border border-[rgba(196,163,90,0.12)]" />
               </div>
               <div className="text-center px-4">
-                <p className="font-body text-[12px] sm:text-[13px] text-white/60 tracking-wide">AI modeli yükleniyor</p>
-                <p className="font-body text-[10px] text-white/25 mt-1">İlk kullanımda biraz sürebilir</p>
+                <p className="font-body text-[12px] sm:text-[13px] text-white/60 tracking-wide">AI tarama motoru hazırlanıyor</p>
+                <p className="font-body text-[10px] text-white/25 mt-1">İlk kullanımda birkaç saniye sürebilir</p>
               </div>
             </div>
           )}
@@ -1147,7 +2147,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               <div
                 ref={autoFitWrapperRef}
                 className="absolute inset-0"
-                style={{ willChange: 'transform', transformOrigin: '50% 43%' }}
+                style={{ willChange: 'transform', transformOrigin: '50% 45%' }}
               >
                 <video
                   ref={videoRef}
@@ -1167,21 +2167,51 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 <div className="absolute inset-0 z-[2] flex items-center justify-center pointer-events-none" style={{ paddingBottom: '1%' }}>
                   {/* Static vignette for initial state */}
                   <div className="absolute inset-0" style={{
-                    background: 'radial-gradient(ellipse 70% 65% at 50% 46%, transparent 35%, rgba(3,3,5,0.30) 55%, rgba(3,3,5,0.70) 75%, rgba(3,3,5,0.90) 100%)',
+                    background: isMulti && multiStep !== 'front'
+                      ? 'radial-gradient(ellipse 62% 66% at 50% 46%, transparent 34%, rgba(3,3,5,0.28) 54%, rgba(3,3,5,0.70) 75%, rgba(3,3,5,0.90) 100%)'
+                      : 'radial-gradient(ellipse 68% 65% at 50% 46%, transparent 35%, rgba(3,3,5,0.30) 55%, rgba(3,3,5,0.70) 75%, rgba(3,3,5,0.90) 100%)',
                   }} />
                   <div
                     className="relative"
-                    style={{ width: '72%', aspectRatio: '7/10' }}
+                    style={{
+                      width: currentGuideHint.width,
+                      aspectRatio: currentGuideHint.aspectRatio,
+                      transform: `translateX(${currentGuideHint.offsetX ?? '0%'}) ${currentGuideHint.mirror ? 'scaleX(-1)' : ''}`.trim(),
+                    }}
                   >
-                    {/* Soft hint oval — fades to nothing once face is found */}
-                    <div
-                      className="absolute inset-0 rounded-[50%]"
-                      style={{
-                        border: '1.5px solid rgba(214,185,140,0.14)',
-                        boxShadow: '0 0 28px 6px rgba(214,185,140,0.04), inset 0 0 28px 6px rgba(214,185,140,0.02)',
-                        animation: 'ovalBreathe 4s ease-in-out infinite',
-                      }}
-                    />
+                    <svg
+                      viewBox="0 0 100 112"
+                      className="absolute inset-0 w-full h-full overflow-visible"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d={currentGuideHint.path}
+                        fill="none"
+                        stroke="rgba(214,185,140,0.10)"
+                        strokeWidth="4.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ filter: 'blur(8px)', animation: 'ovalBreathe 4s ease-in-out infinite' }}
+                      />
+                      <path
+                        d={currentGuideHint.path}
+                        fill="none"
+                        stroke="rgba(214,185,140,0.17)"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ animation: 'ovalBreathe 4s ease-in-out infinite' }}
+                      />
+                      <path
+                        d={currentGuideHint.path}
+                        fill="none"
+                        stroke="rgba(255,255,255,0.05)"
+                        strokeWidth="0.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ animation: 'ovalBreathe 4s ease-in-out infinite' }}
+                      />
+                    </svg>
                   </div>
                 </div>
               )}
@@ -1315,6 +2345,44 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 {currentStepLabel} — {stepNumber}/{totalSteps}
               </span>
             )}
+            {stepTurnHint && (
+              <div
+                className="inline-flex items-center gap-2 px-3 py-1 rounded-full border"
+                style={{
+                  borderColor: stepTurnHint.tone === 'good'
+                    ? 'rgba(74,227,167,0.16)'
+                    : stepTurnHint.tone === 'warn'
+                      ? 'rgba(214,185,140,0.14)'
+                      : 'rgba(214,185,140,0.10)',
+                  background: stepTurnHint.tone === 'good'
+                    ? 'rgba(74,227,167,0.06)'
+                    : stepTurnHint.tone === 'warn'
+                      ? 'rgba(214,185,140,0.07)'
+                      : 'rgba(214,185,140,0.05)',
+                }}
+              >
+                <span
+                  className="font-display text-[15px] leading-none"
+                  style={{
+                    color: stepTurnHint.tone === 'good'
+                      ? 'rgba(74,227,167,0.82)'
+                      : 'rgba(214,185,140,0.78)',
+                  }}
+                >
+                  {stepTurnHint.arrow}
+                </span>
+                <span
+                  className="font-body text-[10px] tracking-[0.08em] uppercase"
+                  style={{
+                    color: stepTurnHint.tone === 'good'
+                      ? 'rgba(74,227,167,0.80)'
+                      : 'rgba(212,185,106,0.75)',
+                  }}
+                >
+                  {stepTurnHint.instruction}
+                </span>
+              </div>
+            )}
             <p className={`font-display text-[15px] sm:text-[17px] font-normal text-center leading-[1.35] tracking-[0.01em] transition-colors duration-500 whitespace-pre-line ${
               phase === 'stabilizing' ? 'text-[#D4B96A]'
                 : status.faceDetected && status.qualityScore >= 0.5 ? 'text-white/90'
@@ -1324,16 +2392,26 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 const isSide = isMulti && multiStep !== 'front'
                 // Countdown active (front or side)
                 if (countdown !== null && countdown > 0) {
-                  return isSide ? 'Harika, burada kalın' : 'Hazır olun…'
+                  return isSide ? 'Mükemmel, bu pozisyonda kalın' : 'Sabit kalın, çekim başlıyor…'
                 }
-                if (phase === 'stabilizing') return 'Harika, sabit kalın…'
+                if (phase === 'stabilizing') return 'Harika, tam böyle kalın…'
+                if (phase === 'tracking' && status.faceDetected && tiltAssist) {
+                  return tiltAssist.primary
+                }
+                if (isSide && phase === 'tracking' && status.faceDetected && angleAssist) {
+                  return angleAssist.primary
+                }
                 // Side-specific: crow's feet not yet visible
                 if (isSide && phase === 'tracking' && status.faceDetected && status.angle === 'ok' && status.crowFeetScore < SIDE_CROW_FEET_THRESHOLD) {
-                  return 'Göz kenarını biraz daha gösterin'
+                  return 'Göz kenarı bölgesini biraz daha gösterin'
+                }
+                // Front-specific: chin not visible
+                if (!isSide && phase === 'tracking' && status.faceDetected && !status.chinVisible) {
+                  return 'Çeneniz çerçevede görünür olsun'
                 }
                 if (phase === 'tracking' && status.faceDetected) return status.mainMessage
                 if (phase === 'idle' || phase === 'detecting' || !status.faceDetected) {
-                  return isMulti ? MULTI_INSTRUCTIONS[multiStep] : 'Yüzünüzü çerçevenin içinde tutun'
+                  return isMulti ? MULTI_INSTRUCTIONS[multiStep] : 'Yüzünüzü çerçeveye yerleştirin'
                 }
                 return status.mainMessage
               })()}
@@ -1342,19 +2420,66 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
             {(() => {
               const isSide = isMulti && multiStep !== 'front'
               if (countdown !== null && countdown > 0) {
-                return <p className="font-body text-[10px] text-[#D4B96A]/40 text-center tracking-wide">Çekim hazırlanıyor</p>
+                return <p className="font-body text-[10px] text-[#D4B96A]/40 text-center tracking-wide">AI tarama hazırlanıyor</p>
+              }
+              if (phase === 'tracking' && status.faceDetected && tiltAssist) {
+                return <p className="font-body text-[10px] text-white/28 text-center tracking-wide">{tiltAssist.secondary}</p>
+              }
+              if (stepTurnHint && (phase === 'idle' || phase === 'detecting') && !status.faceDetected) {
+                return <p className="font-body text-[10px] text-white/28 text-center tracking-wide">{stepTurnHint.short}</p>
+              }
+              if (isSide && phase === 'tracking' && status.faceDetected && angleAssist) {
+                return <p className="font-body text-[10px] text-white/28 text-center tracking-wide">{angleAssist.secondary}</p>
               }
               if (isSide && phase === 'tracking' && status.faceDetected && status.angle === 'ok' && status.crowFeetScore < SIDE_CROW_FEET_THRESHOLD) {
-                return <p className="font-body text-[10px] text-white/25 text-center tracking-wide">Kaz ayağı bölgesi görünür olmalı</p>
+                return <p className="font-body text-[10px] text-white/25 text-center tracking-wide">Göz kenarı bölgesi analiz için görünür olmalı</p>
               }
               if ((phase === 'idle' || phase === 'detecting') && !status.faceDetected) {
-                return <p className="font-body text-[10px] text-white/30 text-center tracking-wide">Başınızı dik tutun ve kameraya bakın</p>
+                return <p className="font-body text-[10px] text-white/30 text-center tracking-wide">Doğal ifadenizle kameraya bakın</p>
               }
               if (phase === 'tracking' && status.faceDetected) {
                 return <p className="font-body text-[10px] text-white/22 text-center tracking-wide" key={tipIndex}>{TIPS[tipIndex]}</p>
               }
               return null
             })()}
+            {livenessOverview.status !== 'not_required' && (
+              <div className="flex items-center justify-center gap-2 flex-wrap pt-1">
+                {livenessOverview.steps.map((step) => {
+                  const active = (step.key === 'front' && multiStep === 'front')
+                    || (step.key === 'blink' && multiStep === 'front')
+                    || (step.key === 'left_turn' && multiStep === 'left')
+                    || (step.key === 'right_turn' && multiStep === 'right')
+                  const tone = step.observed
+                    ? 'rgba(74,227,167,0.72)'
+                    : active
+                      ? 'rgba(214,185,140,0.62)'
+                      : 'rgba(248,246,242,0.18)'
+                  const label = step.key === 'front'
+                    ? 'Ön'
+                    : step.key === 'blink'
+                      ? 'Blink'
+                      : step.key === 'left_turn'
+                        ? 'Sol'
+                        : 'Sağ'
+
+                  return (
+                    <span
+                      key={step.key}
+                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full border"
+                      style={{
+                        borderColor: step.observed ? 'rgba(74,227,167,0.16)' : active ? 'rgba(214,185,140,0.16)' : 'rgba(255,255,255,0.05)',
+                        background: step.observed ? 'rgba(74,227,167,0.06)' : active ? 'rgba(214,185,140,0.05)' : 'rgba(255,255,255,0.02)',
+                      }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone }} />
+                      <span className="font-body text-[9px] tracking-[0.12em] uppercase" style={{ color: tone }}>
+                        {label}
+                      </span>
+                    </span>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1416,15 +2541,15 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                   <div className="w-[76px] sm:w-[86px]">
                     {manualCaptureEnabled ? (
                       <p className="font-body text-[9px] text-[rgba(0,255,180,0.5)] tracking-[0.08em] uppercase leading-tight text-center">
-                        Manuel çekim
+                        Çekim hazır
                       </p>
                     ) : status.faceDetected ? (
                       <p className="font-body text-[9px] text-white/20 tracking-[0.08em] uppercase leading-tight text-center">
-                        {phase === 'stabilizing' ? 'Doğrulanıyor…' : `Skor ${isSideStep ? '65' : '75'}+`}
+                        {phase === 'stabilizing' ? 'Taranıyor…' : 'Konumlanıyor…'}
                       </p>
                     ) : (
                       <p className="font-body text-[9px] text-white/15 tracking-[0.08em] uppercase leading-tight text-center">
-                        Otomatik çekim
+                        Otomatik tarama
                       </p>
                     )}
                   </div>

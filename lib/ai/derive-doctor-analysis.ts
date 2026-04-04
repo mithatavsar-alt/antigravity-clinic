@@ -1,4 +1,5 @@
-import type { AnalysisResult } from './types'
+import type { AnalysisResult, EnhancedAnalysisResult } from './types'
+import type { TrustGatedResult } from './pipeline/types'
 import type {
   DoctorAnalysis,
   PatientSummary,
@@ -14,57 +15,31 @@ import type {
 } from '@/types/lead'
 import { concernAreaLabels } from '@/types/lead'
 
-function scoreToRegionValue(score: number, baseline: number): number {
-  // Map a 0-100 score to a 0-1 region relevance value
-  // Higher deviation from ideal = higher region score (more intervention needed)
-  const deviation = Math.abs(score - 85) / 85
-  return Math.min(1, Math.max(0, baseline + deviation * 0.4))
-}
-
-function inferRiskLevel(result: AnalysisResult): 'low' | 'medium' | 'high' {
-  const avg = (result.scores.symmetry + result.scores.proportion) / 2
-  if (avg >= 75) return 'low'
-  if (avg >= 50) return 'medium'
-  return 'high'
-}
-
-function inferDoseRange(riskLevel: 'low' | 'medium' | 'high'): {
-  range_cc: string
-  upper_limit_cc: string
-} {
-  switch (riskLevel) {
-    case 'low':
-      return { range_cc: '0.4 - 0.8 cc', upper_limit_cc: '1.0 cc' }
-    case 'medium':
-      return { range_cc: '0.8 - 1.6 cc', upper_limit_cc: '2.0 cc' }
-    case 'high':
-      return { range_cc: '1.6 - 2.4 cc', upper_limit_cc: '3.0 cc' }
-  }
-}
-
+/**
+ * Derive doctor analysis from enhanced pipeline results.
+ *
+ * RELIABILITY: This now uses the trust pipeline output (wrinkle scores,
+ * image quality, confidence) instead of raw geometry-only metrics.
+ * Dose recommendations have been REMOVED — they had no clinical basis.
+ * Region scores now reflect actual wrinkle/texture analysis, not geometry proxies.
+ */
 export function deriveDoctorAnalysis(
   leadId: string,
-  result: AnalysisResult,
-  lead: Partial<Lead>
+  geometry: AnalysisResult,
+  lead: Partial<Lead>,
+  enhanced?: EnhancedAnalysisResult | null,
+  trustResult?: TrustGatedResult | null,
 ): DoctorAnalysis {
-  const { metrics, scores } = result
-  const symNorm = scores.symmetry / 100
-  const propNorm = scores.proportion / 100
+  const { metrics, scores } = geometry
 
-  // Derive region scores from actual facial metrics
-  const regionScores: Record<string, number> = {
-    alin: Math.min(1, Math.abs(1 - metrics.faceRatio / 1.35) * 1.2),
-    glabella: Math.min(1, (1 - symNorm) * 1.5),
-    kaz_ayagi: Math.min(1, Math.max(0.1, 0.3 + (1 - symNorm) * 0.5)),
-    goz_alti: Math.min(1, Math.abs(metrics.eyeDistanceRatio - 0.32) * 3),
-    yanak_orta_yuz: Math.min(1, Math.abs(metrics.noseToFaceWidth - 0.25) * 3),
-    nazolabial: Math.min(1, Math.abs(1 - propNorm) * 1.2),
-    dudak: Math.min(1, Math.abs(metrics.mouthToNoseWidth - 1.6) * 0.5),
-    marionette: scoreToRegionValue(scores.proportion, 0.2),
-    jawline: Math.min(1, Math.abs(metrics.faceRatio - 1.35) * 1.5),
-    cene_ucu: Math.min(1, Math.abs(metrics.faceRatio - 1.35)),
-    cilt_kalitesi: Math.max(0.15, 0.5 - symNorm * 0.3),
-    simetri_gozlemi: Math.min(1, (1 - metrics.symmetryRatio) * 3),
+  // ── Region scores: prefer enhanced wrinkle data if available ──
+  let regionScores: Record<string, number>
+
+  if (enhanced?.wrinkleAnalysis && trustResult) {
+    regionScores = buildRegionScoresFromEnhanced(enhanced, trustResult)
+  } else {
+    // Fallback: geometry-only (less reliable)
+    regionScores = buildRegionScoresFromGeometry(metrics, scores)
   }
 
   // Round all values
@@ -72,30 +47,134 @@ export function deriveDoctorAnalysis(
     regionScores[key] = Math.round(regionScores[key] * 100) / 100
   }
 
-  const riskLevel = inferRiskLevel(result)
-  const dose = inferDoseRange(riskLevel)
+  // ── Quality checks: use actual image quality, not existence check ──
+  const imageQualityScore = enhanced?.imageQuality?.overallScore ?? 0
+  const frontalQuality: PhotoQuality = imageQualityScore >= 60 ? 'good'
+    : imageQualityScore >= 30 ? 'acceptable'
+    : lead.patient_photo_url ? 'acceptable'
+    : 'poor'
+
+  // ── Risk level from actual analysis confidence ──
+  const overallConfidence = trustResult?.overallConfidence ?? 50
+  const riskLevel = overallConfidence >= 65 ? 'low' as const
+    : overallConfidence >= 40 ? 'medium' as const
+    : 'high' as const
 
   const hasMimics = (lead.doctor_mimic_photos?.length ?? 0) >= 2
   const hasVideo = !!lead.optional_video_url
 
+  // ── Stability score from symmetry + proportion ──
+  const symNorm = scores.symmetry / 100
+  const propNorm = scores.proportion / 100
+  const stabilityScore = Math.round((symNorm * 0.6 + propNorm * 0.4) * 100) / 100
+
   return {
     lead_id: leadId,
     quality_checks: {
-      frontal_quality: lead.patient_photo_url ? 'good' : 'poor',
+      frontal_quality: frontalQuality,
       mimic_set_complete: hasMimics,
       video_present: hasVideo,
     },
     region_scores: regionScores,
-    stability_score: Math.round((symNorm * 0.6 + propNorm * 0.4) * 100) / 100,
+    stability_score: stabilityScore,
     overfill_risk_level: riskLevel,
     identity_preservation_score: Math.round((symNorm * 0.5 + propNorm * 0.5) * 100) / 100,
+    // Dose recommendation removed — no clinical basis for automated dosing.
+    // Doctor should determine dosing based on clinical examination.
     dose_recommendation: {
-      range_cc: dose.range_cc,
-      upper_limit_cc: dose.upper_limit_cc,
+      range_cc: '—',
+      upper_limit_cc: '—',
       risk_level: riskLevel,
     },
-    feature_schema_version: '1.0.0',
-    model_version: 'facemesh-v1',
+    feature_schema_version: '2.0.0',
+    model_version: trustResult ? 'human-trust-v2' : 'human-v1',
+  }
+}
+
+/**
+ * Build region scores from enhanced wrinkle analysis + trust pipeline.
+ * Uses actual texture-based scores instead of geometry proxies.
+ */
+function buildRegionScoresFromEnhanced(
+  enhanced: EnhancedAnalysisResult,
+  trustResult: TrustGatedResult,
+): Record<string, number> {
+  const wa = enhanced.wrinkleAnalysis!
+  const normalize = (score: number) => Math.round(Math.min(1, score / 100) * 100) / 100
+
+  // Helper: get wrinkle score for a region, considering trust pipeline confidence
+  const getScore = (regionKey: string): number => {
+    const wrinkleRegion = wa.regions.find(r => r.region === regionKey)
+    if (!wrinkleRegion) return 0.1
+
+    // Find the trust-validated metric for this region
+    const validated = trustResult.wrinkleMetrics.find(
+      m => m.data.region === regionKey
+    )
+
+    // If the metric was hidden (low confidence), discount the score
+    if (validated?.decision === 'hide') {
+      return Math.min(normalize(wrinkleRegion.score), 0.15)
+    }
+    if (validated?.decision === 'soft') {
+      return normalize(wrinkleRegion.score) * 0.7
+    }
+    return normalize(wrinkleRegion.score)
+  }
+
+  // Bilateral: average left+right, weighted by confidence
+  const bilateral = (leftKey: string, rightKey: string): number => {
+    const l = getScore(leftKey)
+    const r = getScore(rightKey)
+    return Math.round(((l + r) / 2) * 100) / 100
+  }
+
+  return {
+    alin: getScore('forehead'),
+    glabella: getScore('glabella'),
+    kaz_ayagi: bilateral('crow_feet_left', 'crow_feet_right'),
+    goz_alti: bilateral('under_eye_left', 'under_eye_right'),
+    yanak_orta_yuz: bilateral('cheek_left', 'cheek_right'),
+    nazolabial: bilateral('nasolabial_left', 'nasolabial_right'),
+    dudak: enhanced.lipAnalysis?.evaluable
+      ? normalize(enhanced.lipAnalysis.volume === 'low' ? 40 : enhanced.lipAnalysis.volume === 'full' ? 20 : 15)
+      : 0.15,
+    marionette: bilateral('marionette_left', 'marionette_right'),
+    jawline: getScore('jawline'),
+    cene_ucu: getScore('jawline') * 0.8,
+    cilt_kalitesi: enhanced.skinTexture
+      ? normalize(100 - enhanced.skinTexture.smoothness)
+      : 0.3,
+    simetri_gozlemi: enhanced.symmetryAnalysis
+      ? normalize((100 - enhanced.symmetryAnalysis.overallScore))
+      : 0.2,
+  }
+}
+
+/**
+ * Fallback: geometry-only region scores (legacy path).
+ * Less reliable — no texture or wrinkle data.
+ */
+function buildRegionScoresFromGeometry(
+  metrics: AnalysisResult['metrics'],
+  scores: AnalysisResult['scores'],
+): Record<string, number> {
+  const symNorm = scores.symmetry / 100
+  const propNorm = scores.proportion / 100
+
+  return {
+    alin: Math.min(1, Math.abs(1 - metrics.faceRatio / 1.35) * 1.2),
+    glabella: Math.min(1, (1 - symNorm) * 1.5),
+    kaz_ayagi: Math.min(1, Math.max(0.1, 0.3 + (1 - symNorm) * 0.5)),
+    goz_alti: Math.min(1, Math.abs(metrics.eyeDistanceRatio - 0.32) * 3),
+    yanak_orta_yuz: Math.min(1, Math.abs(metrics.noseToFaceWidth - 0.25) * 3),
+    nazolabial: Math.min(1, Math.abs(1 - propNorm) * 1.2),
+    dudak: Math.min(1, Math.abs(metrics.mouthToNoseWidth - 1.6) * 0.5),
+    marionette: Math.min(1, Math.max(0, 0.2 + Math.abs(scores.proportion - 85) / 85 * 0.4)),
+    jawline: Math.min(1, Math.abs(metrics.faceRatio - 1.35) * 1.5),
+    cene_ucu: Math.min(1, Math.abs(metrics.faceRatio - 1.35)),
+    cilt_kalitesi: Math.max(0.15, 0.5 - symNorm * 0.3),
+    simetri_gozlemi: Math.min(1, (1 - metrics.symmetryRatio) * 3),
   }
 }
 
@@ -106,18 +185,14 @@ export function derivePatientSummary(
   const area = concernArea ?? 'genel_yuz_dengesi'
   const focusAreas: string[] = []
 
-  // Derive focus areas from actual analysis
   if (result.metrics.symmetryRatio < 0.9) focusAreas.push('Simetri Düzeltme')
   if (result.metrics.eyeDistanceRatio < 0.28 || result.metrics.eyeDistanceRatio > 0.36) focusAreas.push('Göz Çevresi')
   if (result.metrics.noseToFaceWidth > 0.3) focusAreas.push('Burun Bölgesi')
   if (result.metrics.faceRatio < 1.2 || result.metrics.faceRatio > 1.5) focusAreas.push('Yüz Oranı')
   if (result.metrics.mouthToNoseWidth < 1.3 || result.metrics.mouthToNoseWidth > 1.8) focusAreas.push('Dudak / Alt Yüz')
 
-  // Always include the concern area label
   const concernLabel = concernAreaLabels[area]
   if (!focusAreas.includes(concernLabel)) focusAreas.unshift(concernLabel)
-
-  // If we have few areas, add generic ones
   if (focusAreas.length < 2) focusAreas.push('Genel Yüz Dengesi')
 
   const avg = Math.round((result.scores.symmetry + result.scores.proportion) / 2)
@@ -129,8 +204,8 @@ export function derivePatientSummary(
     focus_areas: focusAreas.slice(0, 4),
     consultation_recommended: true,
     summary_text: `AI ön analiz tamamlandı. Yüz oranları ${qualityLabel} bir profil gösteriyor. ${concernLabel} odağında detaylı doktor değerlendirmesi önerilir. Simetri skoru: ${result.scores.symmetry}/100, Oran uyumu: ${result.scores.proportion}/100.`,
-    feature_schema_version: '1.0.0',
-    model_version: 'facemesh-v1',
+    feature_schema_version: '2.0.0',
+    model_version: 'human-v1',
   }
 }
 

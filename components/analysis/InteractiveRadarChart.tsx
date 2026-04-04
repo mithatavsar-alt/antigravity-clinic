@@ -10,6 +10,8 @@ export interface ShowcaseRegion {
   label: string
   score: number
   confidence?: number
+  status?: 'high' | 'medium' | 'low' | 'suppressed'
+  sourceView?: string
 }
 
 interface Props {
@@ -223,9 +225,11 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
         {/* Interactive dots */}
         {regions.map((r, i) => {
           const [x, y] = polar(i, n, vis(r.score))
-          const c = scoreColor(r.score)
+          const c = r.status === 'suppressed' ? 'rgba(248,246,242,0.18)' : scoreColor(r.score)
           const active = currentIndex === i
           const dr = active ? DOT_R_ACTIVE : DOT_R
+          const suppressed = r.status === 'suppressed'
+          const muted = r.status === 'low'
 
           return (
             <g key={`dot-${i}`}>
@@ -251,7 +255,7 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
               <circle
                 cx={x} cy={y} r={dr * 2.5}
                 fill={c} filter="url(#irDotGlow)"
-                opacity={active ? 0.50 : 0.10}
+                opacity={suppressed ? 0.08 : active ? 0.50 : muted ? 0.16 : 0.10}
                 style={{ transition: 'opacity 0.4s ease-out' }}
               />
               {/* Core dot */}
@@ -260,6 +264,7 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
                 fill={c}
                 stroke="rgba(10,8,6,0.6)"
                 strokeWidth={STROKE_W * 0.8}
+                opacity={suppressed ? 0.35 : muted ? 0.72 : 1}
                 style={{ transition: 'r 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}
               />
               {/* Hit area */}
@@ -289,6 +294,8 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
         const dy = sin > 0.3 ? 6 : sin < -0.3 ? -4 : 3
         const active = currentIndex === i
         const lift = active ? -2 : 0
+        const suppressed = r.status === 'suppressed'
+        const muted = r.status === 'low'
 
         // Split multi-word labels into lines for clean wrapping
         const words = r.label.split(' ')
@@ -300,7 +307,15 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
             <text
               x={lx} y={ly + dy + lift + (isMultiWord && sin < -0.3 ? -lineHeight * 0.4 : 0)}
               textAnchor={anchor}
-              fill={active ? scoreColor(r.score) : 'rgba(248,246,242,0.50)'}
+              fill={
+                suppressed
+                  ? 'rgba(248,246,242,0.18)'
+                  : active
+                    ? scoreColor(r.score)
+                    : muted
+                      ? 'rgba(248,246,242,0.32)'
+                      : 'rgba(248,246,242,0.50)'
+              }
               style={{
                 fontSize: `${active ? LABEL_FONT_ACTIVE : LABEL_FONT}px`,
                 fontFamily: "'Outfit', system-ui, sans-serif",
@@ -327,16 +342,16 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
             <text
               x={lx} y={ly + dy + (isMultiWord ? lineHeight + 10 : 16) + lift + (isMultiWord && sin < -0.3 ? -lineHeight * 0.4 : 0)}
               textAnchor={anchor}
-              fill={scoreColor(r.score)}
+              fill={suppressed ? 'rgba(248,246,242,0.22)' : scoreColor(r.score)}
               style={{
                 fontSize: `${VB * 0.026}px`,
                 fontFamily: "'JetBrains Mono', monospace",
                 fontWeight: 400,
-                opacity: active ? 0.8 : 0,
+                opacity: active ? (suppressed ? 0.55 : 0.8) : 0,
                 transition: 'opacity 0.3s ease-out',
               }}
             >
-              {r.score}/100
+              {suppressed ? 'YOK' : `${r.score}/100`}
             </text>
           </g>
         )
@@ -364,7 +379,7 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
             transition: 'fill 0.5s ease-out',
           }}
         >
-          {centerScore}
+          {currentRegion?.status === 'suppressed' ? '—' : centerScore}
         </text>
         {/* Crisp score number */}
         <text
@@ -379,7 +394,7 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
             transition: 'fill 0.5s ease-out',
           }}
         >
-          {centerScore}
+          {currentRegion?.status === 'suppressed' ? '—' : centerScore}
         </text>
 
         {/* Dynamic subtitle — region name or "Genel Denge" */}
@@ -417,8 +432,10 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
               animation: 'centerLabelIn 0.35s ease-out 0.1s both',
             }}
           >
-            {currentRegion?.label.toUpperCase() ?? 'GENEL DENGE'}
-          </text>
+              {(currentRegion?.status === 'suppressed'
+                ? 'DEGERLENDIRILMEDI'
+                : currentRegion?.label.toUpperCase()) ?? 'GENEL DENGE'}
+            </text>
         </g>
       </g>
     </svg>

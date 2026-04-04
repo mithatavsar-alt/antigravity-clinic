@@ -11,13 +11,14 @@
  * - Left view: left under-eye, left crow's feet, left nasolabial, left cheek, left jawline
  * - Right view: right under-eye, right crow's feet, right nasolabial, right cheek, right jawline
  *
- * The pipeline does NOT simply average scores — it extracts view-specific
+ * The pipeline does NOT simply average scores â€” it extracts view-specific
  * measurements and assigns each region to the view that sees it best.
  */
 
 import type { Landmark } from './types'
 import type { CalibrationContext, SubScore } from './specialists/types'
 import { classifySeverity, normalizeScore, applyAgeModulation, applyQualityPenalty } from './specialists/types'
+import type { TemporalViewAggregate } from './temporal-aggregation'
 import {
   extractGrayscaleRegion,
   extractColorRegion,
@@ -32,7 +33,7 @@ import {
   angleDeg,
 } from './specialists/pixel-utils'
 
-// ─── Types ──────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type ViewKey = 'front' | 'left' | 'right'
 
@@ -42,6 +43,7 @@ export interface ViewAnalysis {
   image: HTMLImageElement
   quality: ViewQuality
   poseValidation: PoseValidation
+  temporal?: TemporalViewAggregate
 }
 
 export interface ViewQuality {
@@ -57,6 +59,11 @@ export interface ViewQuality {
   landmarkCount: number
   /** Brightness 0-255 */
   brightness: number
+  temporalScore?: number
+  frameCount?: number
+  landmarkJitter?: number
+  brightnessVariance?: number
+  sharpnessVariance?: number
 }
 
 export interface PoseValidation {
@@ -100,6 +107,9 @@ export interface ViewSummary {
   visibleRegionCount: number
   limitations: string[]
   narrative: string
+  frameCount?: number
+  temporalConfidence?: number
+  sourceMode?: 'temporal_aggregate' | 'single_frame'
 }
 
 /** Bilateral comparison of matched left/right regions */
@@ -164,7 +174,7 @@ export interface MultiViewResult {
   analyzedAt: number
 }
 
-// ─── Landmark Indices ───────────────────────────────────────
+// â”€â”€â”€ Landmark Indices â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Crow's feet ROI
 const CROW_LEFT = [33, 130, 226, 247, 30, 29, 27, 28, 56, 190, 243, 112, 26, 22, 23, 24, 110, 25]
@@ -207,7 +217,7 @@ const R_BROW_OUTER = 276
 const L_CHEEK_UPPER = 116
 const R_CHEEK_UPPER = 345
 
-// ─── Pose Validation ────────────────────────────────────────
+// â”€â”€â”€ Pose Validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function validatePose(landmarks: Landmark[], expectedView: ViewKey): PoseValidation {
   const noseTip = landmarks[NOSE_TIP]
@@ -238,8 +248,8 @@ function validatePose(landmarks: Landmark[], expectedView: ViewKey): PoseValidat
 
   // Pose correctness check
   // Convention (raw non-mirrored image coordinates):
-  //   noseOffset > 0 → nose right of bridge → user turned head LEFT → shows RIGHT cheek
-  //   noseOffset < 0 → nose left of bridge  → user turned head RIGHT → shows LEFT cheek
+  //   noseOffset > 0 â†’ nose right of bridge â†’ user turned head LEFT â†’ shows RIGHT cheek
+  //   noseOffset < 0 â†’ nose left of bridge  â†’ user turned head RIGHT â†’ shows LEFT cheek
   // "left" view = show left cheek = noseOffset NEGATIVE
   // "right" view = show right cheek = noseOffset POSITIVE
   let poseCorrect = false
@@ -254,14 +264,14 @@ function validatePose(landmarks: Landmark[], expectedView: ViewKey): PoseValidat
   return { poseCorrect, yawDeg, pitchDeg, tiltDeg, noseOffset }
 }
 
-// ─── View Quality Assessment ────────────────────────────────
+// â”€â”€â”€ View Quality Assessment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function assessViewQuality(
   landmarks: Landmark[],
   image: HTMLImageElement,
   detectionConfidence: number,
+  temporal?: TemporalViewAggregate,
 ): ViewQuality {
-  // Canvas for brightness measurement
   const canvas = document.createElement('canvas')
   const w = image.naturalWidth || image.width
   const h = image.naturalHeight || image.height
@@ -284,32 +294,54 @@ function assessViewQuality(
   const landmarkCount = landmarks.length
   const hasEnoughLandmarks = landmarkCount >= 468
 
-  // Quality score
   let score = 0
   if (hasEnoughLandmarks) {
     const brightScore = brightness >= 55 && brightness <= 225
       ? (brightness >= 90 && brightness <= 180 ? 1 : 0.7)
       : 0.3
     const confScore = Math.min(1, detectionConfidence / 0.8)
-    score = brightScore * 0.4 + confScore * 0.6
+    const temporalScore = temporal?.temporalConfidence ?? 0
+    score = temporal
+      ? brightScore * 0.25 + confScore * 0.35 + temporalScore * 0.40
+      : brightScore * 0.4 + confScore * 0.6
   }
 
-  const usable = hasEnoughLandmarks && score >= 0.3
+  const temporalUsable = temporal ? temporal.frameCount >= 3 && temporal.temporalConfidence >= 0.45 : true
+  const usable = hasEnoughLandmarks && temporalUsable && score >= 0.3
   const issue = !hasEnoughLandmarks
-    ? 'Yüz algılanamadı'
-    : brightness < 55 ? 'Görüntü çok karanlık'
-    : brightness > 225 ? 'Görüntü çok parlak'
-    : score < 0.3 ? 'Düşük algılama kalitesi'
-    : undefined
+    ? 'Yüz algilanamadi'
+    : temporal && temporal.frameCount < 3
+      ? 'Yeterli zamansal örnek toplanamadi'
+      : temporal && temporal.temporalConfidence < 0.45
+        ? 'Zamansal tutarlilik yetersiz'
+        : brightness < 55
+          ? 'Görüntü çok karanlik'
+          : brightness > 225
+            ? 'Görüntü çok parlak'
+            : score < 0.3
+              ? 'Düsük algilama kalitesi'
+              : undefined
 
-  return { score, usable, issue, detectionConfidence, landmarkCount, brightness }
+  return {
+    score,
+    usable,
+    issue,
+    detectionConfidence,
+    landmarkCount,
+    brightness,
+    temporalScore: temporal?.temporalConfidence,
+    frameCount: temporal?.frameCount,
+    landmarkJitter: temporal?.landmarkJitter,
+    brightnessVariance: temporal?.brightness.variance,
+    sharpnessVariance: temporal?.sharpness.variance,
+  }
 }
 
-// ─── Region Extraction Functions ────────────────────────────
+// â”€â”€â”€ Region Extraction Functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Analyze crow's feet from the view that sees them best.
- * Left view → left crow's feet, Right view → right crow's feet.
+ * Left view â†’ left crow's feet, Right view â†’ right crow's feet.
  */
 function analyzeCrowFeet(
   view: ViewAnalysis,
@@ -330,21 +362,31 @@ function analyzeCrowFeet(
     const edges = sobelLateralBias(region.data, region.width, region.height)
     const density = edgeDensity(edges, region.width, region.height)
 
+    // Texture-first: reduce age modulation (0.35 instead of 0.7)
+    // Actual wrinkle texture should dominate over age expectation
     score = normalizeScore(density, 0.02, 0.25)
-    score = applyAgeModulation(score, calibration.estimatedAge, 0.7)
+    score = applyAgeModulation(score, calibration.estimatedAge, 0.35)
     confidence = applyQualityPenalty(70, view.quality.score * 100, 0.8)
 
     // Texture roughness
     const roughness = textureRoughness(region.data)
     const texScore = normalizeScore(roughness, 0.1, 0.8)
 
+    // Local contrast for fine wrinkle detection
+    const lc = localContrast(region.data, region.width, region.height)
+    const lcScore = normalizeScore(lc, 0.05, 0.7)
+
     subScores.push(
-      { key: 'edge_density', label: 'Çizgi Yoğunluğu', score, weight: 0.6, confidence },
-      { key: 'texture', label: 'Doku Pürüzlülüğü', score: texScore, weight: 0.4, confidence: confidence * 0.9 },
+      { key: 'edge_density', label: 'Ã‡izgi YoÄŸunluÄŸu', score, weight: 0.45, confidence },
+      { key: 'texture', label: 'Doku PÃ¼rÃ¼zlÃ¼lÃ¼ÄŸÃ¼', score: texScore, weight: 0.30, confidence: confidence * 0.9 },
+      { key: 'local_contrast', label: 'Yerel Kontrast', score: lcScore, weight: 0.25, confidence: confidence * 0.85 },
     )
 
-    // Weighted combination
-    score = Math.round(score * 0.6 + texScore * 0.4)
+    // Weighted combination: edge 45%, texture 30%, local contrast 25%
+    score = Math.round(score * 0.45 + texScore * 0.30 + lcScore * 0.25)
+
+    // Noise guard: very low edge density â†’ cap score
+    if (density < 0.015 && score > 20) score = 20
   }
 
   // Corner angle geometry
@@ -356,32 +398,32 @@ function analyzeCrowFeet(
     if (!isNaN(angle)) {
       const deviation = Math.abs(160 - angle)
       const angleScore = normalizeScore(deviation, 0, 30)
-      subScores.push({ key: 'corner_angle', label: 'Göz Köşe Açısı', score: angleScore, weight: 0.2, confidence: 65 })
+      subScores.push({ key: 'corner_angle', label: 'GÃ¶z KÃ¶ÅŸe AÃ§Ä±sÄ±', score: angleScore, weight: 0.2, confidence: 65 })
       score = Math.round(score * 0.75 + angleScore * 0.25)
     }
   }
 
   const severity = classifySeverity(score)
   const isPositive = score < 15
-  const sideLabel = side === 'left' ? 'Sol' : 'Sağ'
+  const sideLabel = side === 'left' ? 'Sol' : 'SaÄŸ'
 
   return {
     key: `crow_feet_${side}`,
-    label: `${sideLabel} Göz Çevresi`,
-    icon: '◎',
+    label: `${sideLabel} GÃ¶z Ã‡evresi`,
+    icon: 'â—Ž',
     sourceView: view.view,
     score,
     confidence,
     severity,
     observation: isPositive
-      ? `${sideLabel} göz çevresinde belirgin kaz ayağı çizgisi gözlemlenmemiştir.`
+      ? `${sideLabel} gÃ¶z Ã§evresinde belirgin kaz ayaÄŸÄ± Ã§izgisi gÃ¶zlemlenmemiÅŸtir.`
       : score >= 55
-        ? `${sideLabel} göz çevresinde belirgin mimik çizgileri tespit edilmiştir.`
+        ? `${sideLabel} gÃ¶z Ã§evresinde belirgin mimik Ã§izgileri tespit edilmiÅŸtir.`
         : score >= 35
-          ? `${sideLabel} göz çevresinde orta düzeyde mimik çizgisi gözlemlenmiştir.`
-          : `${sideLabel} göz çevresinde hafif düzeyde çizgi izleri tespit edilmiştir.`,
+          ? `${sideLabel} gÃ¶z Ã§evresinde orta dÃ¼zeyde mimik Ã§izgisi gÃ¶zlemlenmiÅŸtir.`
+          : `${sideLabel} gÃ¶z Ã§evresinde hafif dÃ¼zeyde Ã§izgi izleri tespit edilmiÅŸtir.`,
     isPositive,
-    consultationNote: !isPositive && score >= 25 ? `${sideLabel} göz çevresi mimik çizgileri değerlendirilebilir.` : undefined,
+    consultationNote: !isPositive && score >= 25 ? `${sideLabel} gÃ¶z Ã§evresi mimik Ã§izgileri deÄŸerlendirilebilir.` : undefined,
     subScores,
   }
 }
@@ -436,7 +478,7 @@ function analyzeUnderEye(
   if (lm[innerEye] && lm[cheekTop] && lm[tearTrough]) {
     const troughDepth = Math.abs(lm[tearTrough].z - (lm[innerEye].z + lm[cheekTop].z) / 2)
     const depthScore = normalizeScore(troughDepth, 0.002, 0.02)
-    subScores.push({ key: 'tear_trough', label: 'Gözyaşı Çukuru', score: depthScore, weight: 0.30, confidence: 55 })
+    subScores.push({ key: 'tear_trough', label: 'GÃ¶zyaÅŸÄ± Ã‡ukuru', score: depthScore, weight: 0.30, confidence: 55 })
     score = Math.round(score * 0.65 + depthScore * 0.35)
   }
 
@@ -445,25 +487,25 @@ function analyzeUnderEye(
 
   const severity = classifySeverity(score)
   const isPositive = score < 15
-  const sideLabel = side === 'left' ? 'Sol' : 'Sağ'
+  const sideLabel = side === 'left' ? 'Sol' : 'SaÄŸ'
 
   return {
     key: `under_eye_${side}`,
-    label: `${sideLabel} Göz Altı`,
-    icon: '◈',
+    label: `${sideLabel} GÃ¶z AltÄ±`,
+    icon: 'â—ˆ',
     sourceView: view.view,
     score,
     confidence,
     severity,
     observation: isPositive
-      ? `${sideLabel} göz altı bölgesinde belirgin doku kaybı gözlemlenmemiştir.`
+      ? `${sideLabel} gÃ¶z altÄ± bÃ¶lgesinde belirgin doku kaybÄ± gÃ¶zlemlenmemiÅŸtir.`
       : score >= 55
-        ? `${sideLabel} göz altı bölgesinde belirgin doku değişimi ve koyu halka tespit edilmiştir.`
+        ? `${sideLabel} gÃ¶z altÄ± bÃ¶lgesinde belirgin doku deÄŸiÅŸimi ve koyu halka tespit edilmiÅŸtir.`
         : score >= 35
-          ? `${sideLabel} göz altında orta düzeyde değişiklik gözlemlenmiştir.`
-          : `${sideLabel} göz altında hafif düzeyde değişiklik izleri tespit edilmiştir.`,
+          ? `${sideLabel} gÃ¶z altÄ±nda orta dÃ¼zeyde deÄŸiÅŸiklik gÃ¶zlemlenmiÅŸtir.`
+          : `${sideLabel} gÃ¶z altÄ±nda hafif dÃ¼zeyde deÄŸiÅŸiklik izleri tespit edilmiÅŸtir.`,
     isPositive,
-    consultationNote: !isPositive && score >= 25 ? `${sideLabel} göz altı doku değişimi değerlendirilebilir.` : undefined,
+    consultationNote: !isPositive && score >= 25 ? `${sideLabel} gÃ¶z altÄ± doku deÄŸiÅŸimi deÄŸerlendirilebilir.` : undefined,
     subScores,
   }
 }
@@ -495,7 +537,7 @@ function analyzeNasolabial(
     const normalizedDist = foldDist / faceWidth
 
     const distScore = normalizeScore(normalizedDist * 10, 0, 3)
-    subScores.push({ key: 'fold_depth', label: 'Çizgi Derinliği', score: distScore, weight: 0.5, confidence: 55 })
+    subScores.push({ key: 'fold_depth', label: 'Ã‡izgi DerinliÄŸi', score: distScore, weight: 0.5, confidence: 55 })
     score = distScore
   }
 
@@ -518,23 +560,23 @@ function analyzeNasolabial(
 
   const severity = classifySeverity(score)
   const isPositive = score < 15
-  const sideLabel = side === 'left' ? 'Sol' : 'Sağ'
+  const sideLabel = side === 'left' ? 'Sol' : 'SaÄŸ'
 
   return {
     key: `nasolabial_${side}`,
     label: `${sideLabel} Nazolabial`,
-    icon: '⌒',
+    icon: 'âŒ’',
     sourceView: view.view,
     score,
     confidence,
     severity,
     observation: isPositive
-      ? `${sideLabel} nazolabial bölgede belirgin çizgi tespit edilmemiştir.`
+      ? `${sideLabel} nazolabial bÃ¶lgede belirgin Ã§izgi tespit edilmemiÅŸtir.`
       : score >= 55
-        ? `${sideLabel} nazolabial çizgide belirgin derinlik tespit edilmiştir.`
+        ? `${sideLabel} nazolabial Ã§izgide belirgin derinlik tespit edilmiÅŸtir.`
         : score >= 35
-          ? `${sideLabel} nazolabial alanda orta düzeyde çizgi gözlemlenmiştir.`
-          : `${sideLabel} nazolabial alanda hafif çizgi izleri tespit edilmiştir.`,
+          ? `${sideLabel} nazolabial alanda orta dÃ¼zeyde Ã§izgi gÃ¶zlemlenmiÅŸtir.`
+          : `${sideLabel} nazolabial alanda hafif Ã§izgi izleri tespit edilmiÅŸtir.`,
     isPositive,
     subScores,
   }
@@ -563,7 +605,7 @@ function analyzeCheekVolume(
   const volumeGap = Math.abs(noseZ - cheekZ)
 
   const volumeScore = normalizeScore(volumeGap, 0.002, 0.02)
-  subScores.push({ key: 'volume', label: 'Hacim Desteği', score: volumeScore, weight: 0.4, confidence: 55 })
+  subScores.push({ key: 'volume', label: 'Hacim DesteÄŸi', score: volumeScore, weight: 0.4, confidence: 55 })
   score = volumeScore
 
   // Cheek texture
@@ -587,7 +629,7 @@ function analyzeCheekVolume(
     const ratio = jawWidth > 0 ? cheekWidth / jawWidth : 1
     const deviation = Math.max(0, 1.05 - ratio) * 100
     const ratioScore = normalizeScore(deviation, 0, 30)
-    subScores.push({ key: 'midface_ratio', label: 'Orta Yüz Oranı', score: ratioScore, weight: 0.3, confidence: 60 })
+    subScores.push({ key: 'midface_ratio', label: 'Orta YÃ¼z OranÄ±', score: ratioScore, weight: 0.3, confidence: 60 })
     score = Math.round(score * 0.7 + ratioScore * 0.3)
   }
 
@@ -596,23 +638,23 @@ function analyzeCheekVolume(
 
   const severity = classifySeverity(score)
   const isPositive = score < 15
-  const sideLabel = side === 'left' ? 'Sol' : 'Sağ'
+  const sideLabel = side === 'left' ? 'Sol' : 'SaÄŸ'
 
   return {
     key: `cheek_${side}`,
     label: `${sideLabel} Yanak`,
-    icon: '△',
+    icon: 'â–³',
     sourceView: view.view,
     score,
     confidence,
     severity,
     observation: isPositive
-      ? `${sideLabel} yanak bölgesinde yeterli hacim desteği korunmuş görünmektedir.`
+      ? `${sideLabel} yanak bÃ¶lgesinde yeterli hacim desteÄŸi korunmuÅŸ gÃ¶rÃ¼nmektedir.`
       : score >= 55
-        ? `${sideLabel} yanak bölgesinde belirgin hacim değişimi gözlemlenmiştir.`
+        ? `${sideLabel} yanak bÃ¶lgesinde belirgin hacim deÄŸiÅŸimi gÃ¶zlemlenmiÅŸtir.`
         : score >= 35
-          ? `${sideLabel} yanakta orta düzeyde değişiklik tespit edilmiştir.`
-          : `${sideLabel} yanakta hafif düzeyde değişiklik izleri gözlemlenmiştir.`,
+          ? `${sideLabel} yanakta orta dÃ¼zeyde deÄŸiÅŸiklik tespit edilmiÅŸtir.`
+          : `${sideLabel} yanakta hafif dÃ¼zeyde deÄŸiÅŸiklik izleri gÃ¶zlemlenmiÅŸtir.`,
     isPositive,
     subScores,
   }
@@ -645,7 +687,7 @@ function analyzeJawline(
     const inverseDensity = Math.max(0, 0.15 - density)
     const defMetric = inverseDensity * 0.6 + roughness * 0.4
     const defScore = normalizeScore(defMetric, 0.02, 0.18)
-    subScores.push({ key: 'definition', label: 'Çene Hattı Netliği', score: defScore, weight: 0.5, confidence: 60 })
+    subScores.push({ key: 'definition', label: 'Ã‡ene HattÄ± NetliÄŸi', score: defScore, weight: 0.5, confidence: 60 })
     score = defScore
   }
 
@@ -658,7 +700,7 @@ function analyzeJawline(
     if (!isNaN(jawAngle)) {
       const deviation = Math.abs(120 - jawAngle)
       const angleScore = normalizeScore(deviation, 0, 25)
-      subScores.push({ key: 'jaw_angle', label: 'Çene Açısı', score: angleScore, weight: 0.3, confidence: 60 })
+      subScores.push({ key: 'jaw_angle', label: 'Ã‡ene AÃ§Ä±sÄ±', score: angleScore, weight: 0.3, confidence: 60 })
       score = Math.round(score * 0.6 + angleScore * 0.4)
     }
   }
@@ -677,30 +719,30 @@ function analyzeJawline(
 
   const severity = classifySeverity(score)
   const isPositive = score < 15
-  const sideLabel = side === 'left' ? 'Sol' : 'Sağ'
+  const sideLabel = side === 'left' ? 'Sol' : 'SaÄŸ'
 
   return {
     key: `jawline_${side}`,
-    label: `${sideLabel} Çene Hattı`,
-    icon: '⬡',
+    label: `${sideLabel} Ã‡ene HattÄ±`,
+    icon: 'â¬¡',
     sourceView: view.view,
     score,
     confidence,
     severity,
     observation: isPositive
-      ? `${sideLabel} çene hattı net ve konturu iyi tanımlanmıştır.`
+      ? `${sideLabel} Ã§ene hattÄ± net ve konturu iyi tanÄ±mlanmÄ±ÅŸtÄ±r.`
       : score >= 55
-        ? `${sideLabel} çene hattında belirgin kontur kaybı tespit edilmiştir.`
+        ? `${sideLabel} Ã§ene hattÄ±nda belirgin kontur kaybÄ± tespit edilmiÅŸtir.`
         : score >= 35
-          ? `${sideLabel} çene hattında orta düzeyde değişiklik gözlemlenmiştir.`
-          : `${sideLabel} çene hattında hafif düzeyde değişiklik izleri tespit edilmiştir.`,
+          ? `${sideLabel} Ã§ene hattÄ±nda orta dÃ¼zeyde deÄŸiÅŸiklik gÃ¶zlemlenmiÅŸtir.`
+          : `${sideLabel} Ã§ene hattÄ±nda hafif dÃ¼zeyde deÄŸiÅŸiklik izleri tespit edilmiÅŸtir.`,
     isPositive,
-    consultationNote: !isPositive && score >= 25 ? `${sideLabel} çene hattı konturu klinik değerlendirmede ele alınabilir.` : undefined,
+    consultationNote: !isPositive && score >= 25 ? `${sideLabel} Ã§ene hattÄ± konturu klinik deÄŸerlendirmede ele alÄ±nabilir.` : undefined,
     subScores,
   }
 }
 
-// ─── Front View Analysis (Central Regions) ──────────────────
+// â”€â”€â”€ Front View Analysis (Central Regions) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function analyzeSymmetry(
   view: ViewAnalysis,
@@ -722,7 +764,7 @@ function analyzeSymmetry(
   const widthAsym = Math.abs(leftDist - rightDist) / maxDist
 
   const symScore = normalizeScore(widthAsym, 0, 0.25)
-  subScores.push({ key: 'width_symmetry', label: 'Genişlik Simetrisi', score: symScore, weight: 0.3, confidence: 65 })
+  subScores.push({ key: 'width_symmetry', label: 'GeniÅŸlik Simetrisi', score: symScore, weight: 0.3, confidence: 65 })
   score = symScore
 
   // Eye symmetry
@@ -735,7 +777,7 @@ function analyzeSymmetry(
   const earMax = Math.max(leftEAR, rightEAR, 0.001)
   const eyeAsym = Math.abs(leftEAR - rightEAR) / earMax
   const eyeSymScore = normalizeScore(eyeAsym, 0, 0.3)
-  subScores.push({ key: 'eye_symmetry', label: 'Göz Simetrisi', score: eyeSymScore, weight: 0.25, confidence: 60 })
+  subScores.push({ key: 'eye_symmetry', label: 'GÃ¶z Simetrisi', score: eyeSymScore, weight: 0.25, confidence: 60 })
   score = Math.round(score * 0.55 + eyeSymScore * 0.45)
 
   // Lip symmetry
@@ -768,19 +810,19 @@ function analyzeSymmetry(
 
   return {
     key: 'symmetry',
-    label: 'Yüz Simetrisi',
-    icon: '⬡',
+    label: 'YÃ¼z Simetrisi',
+    icon: 'â¬¡',
     sourceView: 'front',
     score,
     confidence,
     severity,
     observation: isPositive
-      ? 'Yüz simetrisi dengeli ve uyumlu görünmektedir.'
+      ? 'YÃ¼z simetrisi dengeli ve uyumlu gÃ¶rÃ¼nmektedir.'
       : score >= 55
-        ? 'Yüz simetrisinde belirgin farklılık tespit edilmiştir.'
+        ? 'YÃ¼z simetrisinde belirgin farklÄ±lÄ±k tespit edilmiÅŸtir.'
         : score >= 35
-          ? 'Yüz simetrisinde orta düzeyde farklılık gözlemlenmiştir.'
-          : 'Yüz simetrisinde hafif düzeyde farklılık izleri tespit edilmiştir.',
+          ? 'YÃ¼z simetrisinde orta dÃ¼zeyde farklÄ±lÄ±k gÃ¶zlemlenmiÅŸtir.'
+          : 'YÃ¼z simetrisinde hafif dÃ¼zeyde farklÄ±lÄ±k izleri tespit edilmiÅŸtir.',
     isPositive,
     subScores,
   }
@@ -811,7 +853,7 @@ function analyzeLips(
     const avgDensity = (upperDensity + lowerDensity) / 2
     const inverseDef = Math.max(0, 0.12 - avgDensity)
     const contourScore = normalizeScore(inverseDef, 0.01, 0.10)
-    subScores.push({ key: 'contour', label: 'Kontur Netliği', score: contourScore, weight: 0.35, confidence: 55 })
+    subScores.push({ key: 'contour', label: 'Kontur NetliÄŸi', score: contourScore, weight: 0.35, confidence: 55 })
     score = contourScore
   }
 
@@ -850,7 +892,7 @@ function analyzeLips(
   return {
     key: 'lips',
     label: 'Dudak & Perioral',
-    icon: '◇',
+    icon: 'â—‡',
     sourceView: 'front',
     score,
     confidence,
@@ -858,12 +900,12 @@ function analyzeLips(
     observation: isPositive
       ? 'Dudak konturu belirgin ve hacim dengesi uyumludur.'
       : score >= 55
-        ? 'Dudak bölgesinde belirgin kontur kaybı ve hacim değişimi tespit edilmiştir.'
+        ? 'Dudak bÃ¶lgesinde belirgin kontur kaybÄ± ve hacim deÄŸiÅŸimi tespit edilmiÅŸtir.'
         : score >= 35
-          ? 'Dudak alanında orta düzeyde değişiklik gözlemlenmiştir.'
-          : 'Dudak alanında hafif düzeyde değişiklik izleri tespit edilmiştir.',
+          ? 'Dudak alanÄ±nda orta dÃ¼zeyde deÄŸiÅŸiklik gÃ¶zlemlenmiÅŸtir.'
+          : 'Dudak alanÄ±nda hafif dÃ¼zeyde deÄŸiÅŸiklik izleri tespit edilmiÅŸtir.',
     isPositive,
-    consultationNote: !isPositive && score >= 25 ? 'Dudak hacim dengesi ve kontur netliği değerlendirilebilir.' : undefined,
+    consultationNote: !isPositive && score >= 25 ? 'Dudak hacim dengesi ve kontur netliÄŸi deÄŸerlendirilebilir.' : undefined,
     subScores,
   }
 }
@@ -893,7 +935,7 @@ function analyzeForehead(
     const texScore = normalizeScore(roughness * 0.5 + contrast * 0.5, 0.05, 0.5)
 
     subScores.push(
-      { key: 'lines', label: 'Alın Çizgileri', score: lineScore, weight: 0.5, confidence: 60 },
+      { key: 'lines', label: 'AlÄ±n Ã‡izgileri', score: lineScore, weight: 0.5, confidence: 60 },
       { key: 'texture', label: 'Cilt Dokusu', score: texScore, weight: 0.3, confidence: 55 },
     )
     score = Math.round(lineScore * 0.6 + texScore * 0.4)
@@ -909,7 +951,7 @@ function analyzeForehead(
     const ratio = faceHeight > 0 ? foreheadHeight / faceHeight : 0.33
     const deviation = Math.abs(ratio - 0.33) * 100
     const propScore = normalizeScore(deviation, 0, 20)
-    subScores.push({ key: 'proportion', label: 'Alın Oranı', score: propScore, weight: 0.2, confidence: 65 })
+    subScores.push({ key: 'proportion', label: 'AlÄ±n OranÄ±', score: propScore, weight: 0.2, confidence: 65 })
     score = Math.round(score * 0.8 + propScore * 0.2)
   }
 
@@ -921,51 +963,56 @@ function analyzeForehead(
 
   return {
     key: 'forehead',
-    label: 'Alın Bölgesi',
-    icon: '⌂',
+    label: 'AlÄ±n BÃ¶lgesi',
+    icon: 'âŒ‚',
     sourceView: 'front',
     score,
     confidence,
     severity,
     observation: isPositive
-      ? 'Alın bölgesinde belirgin çizgi tespit edilmemiştir, cilt dokusu korunmuştur.'
+      ? 'AlÄ±n bÃ¶lgesinde belirgin Ã§izgi tespit edilmemiÅŸtir, cilt dokusu korunmuÅŸtur.'
       : score >= 55
-        ? 'Alın bölgesinde belirgin mimik çizgileri ve doku değişimi gözlemlenmiştir.'
+        ? 'AlÄ±n bÃ¶lgesinde belirgin mimik Ã§izgileri ve doku deÄŸiÅŸimi gÃ¶zlemlenmiÅŸtir.'
         : score >= 35
-          ? 'Alın bölgesinde orta düzeyde mimik çizgisi tespit edilmiştir.'
-          : 'Alın bölgesinde hafif düzeyde çizgi izleri gözlemlenmiştir.',
+          ? 'AlÄ±n bÃ¶lgesinde orta dÃ¼zeyde mimik Ã§izgisi tespit edilmiÅŸtir.'
+          : 'AlÄ±n bÃ¶lgesinde hafif dÃ¼zeyde Ã§izgi izleri gÃ¶zlemlenmiÅŸtir.',
     isPositive,
-    consultationNote: !isPositive && score >= 25 ? 'Alın çizgileri klinik değerlendirmede ele alınabilir.' : undefined,
+    consultationNote: !isPositive && score >= 25 ? 'AlÄ±n Ã§izgileri klinik deÄŸerlendirmede ele alÄ±nabilir.' : undefined,
     subScores,
   }
 }
 
-// ─── Synthesis Helpers ──────────────────────────────────────
+// â”€â”€â”€ Synthesis Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-const VIEW_LABELS: Record<ViewKey, string> = { front: 'Ön Görünüm', left: 'Sol Yüz', right: 'Sağ Yüz' }
+const VIEW_LABELS: Record<ViewKey, string> = { front: 'Ã–n GÃ¶rÃ¼nÃ¼m', left: 'Sol YÃ¼z', right: 'SaÄŸ YÃ¼z' }
 
 function buildViewSummaries(views: ViewAnalysis[], regionsByView: Record<ViewKey, MultiViewRegion[]>): ViewSummary[] {
   return views.map(v => {
     const regions = regionsByView[v.view] ?? []
     const limitations: string[] = []
-    if (!v.quality.usable) limitations.push('Görüntü kalitesi yetersiz — bu açı analizi sınırlıdır')
+    if (!v.quality.usable) limitations.push('Görüntü kalitesi yetersiz - bu açi analizi sinirlidir')
     else {
-      if (v.quality.brightness < 70) limitations.push('Düşük aydınlatma analiz hassasiyetini azaltmış olabilir')
-      if (v.quality.brightness > 200) limitations.push('Yüksek parlaklık detay kaybına yol açmış olabilir')
-      if (!v.poseValidation.poseCorrect) limitations.push('Poz hedeflenen açıyla tam örtüşmemiştir')
+      if (v.quality.brightness < 70) limitations.push('Düsük aydinlatma analiz hassasiyetini azaltmis olabilir')
+      if (v.quality.brightness > 200) limitations.push('Yüksek parlaklik detay kaybina yol açmis olabilir')
+      if (!v.poseValidation.poseCorrect) limitations.push('Poz hedeflenen açiyla tam örtüsmemistir')
+      if (v.temporal && v.temporal.frameCount < 4) limitations.push('Temporal örnek sayisi sinirli kaldi')
+      if (v.temporal && v.temporal.landmarkJitter > 0.012) limitations.push('Landmark stabilitesi düsük kaldi')
+      if (v.temporal && (v.temporal.sharpness.variance ?? 0) > 0.04) limitations.push('Netlik kararliligi sinirli')
     }
 
     const qualityScore = Math.round(v.quality.score * 100)
-    const qLabel = qualityScore >= 70 ? 'iyi' : qualityScore >= 40 ? 'kabul edilebilir' : 'sınırlı'
+    const qLabel = qualityScore >= 70 ? 'iyi' : qualityScore >= 40 ? 'kabul edilebilir' : 'sinirli'
     const regionCount = regions.filter(r => r.confidence >= 30).length
 
     let narrative: string
     if (!v.quality.usable) {
-      narrative = `${VIEW_LABELS[v.view]} görüntüsü analiz için yeterli kaliteye sahip değildir.`
+      narrative = `${VIEW_LABELS[v.view]} görüntüsü analiz için yeterli kaliteye sahip degildir.`
     } else if (regionCount === 0) {
-      narrative = `${VIEW_LABELS[v.view]} görüntüsünden değerlendirilebilir bölge tespit edilememiştir.`
+      narrative = `${VIEW_LABELS[v.view]} görüntüsünden degerlendirilebilir bölge tespit edilememistir.`
+    } else if (v.temporal) {
+      narrative = `${VIEW_LABELS[v.view]} görüntüsü ${qLabel} kalitede - ${v.temporal.frameCount} kabul edilmis frame ile ${regionCount} bölge degerlendirilmistir.`
     } else {
-      narrative = `${VIEW_LABELS[v.view]} görüntüsü ${qLabel} kalitede — ${regionCount} bölge değerlendirilmiştir.`
+      narrative = `${VIEW_LABELS[v.view]} görüntüsü ${qLabel} kalitede - ${regionCount} bölge degerlendirilmistir.`
     }
 
     return {
@@ -978,6 +1025,9 @@ function buildViewSummaries(views: ViewAnalysis[], regionsByView: Record<ViewKey
       visibleRegionCount: regionCount,
       limitations,
       narrative,
+      frameCount: v.temporal?.frameCount,
+      temporalConfidence: v.temporal ? Math.round(v.temporal.temporalConfidence * 100) : undefined,
+      sourceMode: v.temporal ? 'temporal_aggregate' : 'single_frame',
     }
   })
 }
@@ -988,11 +1038,11 @@ function buildBilateralComparisons(
   rightRegions: MultiViewRegion[],
 ): BilateralComparison[] {
   const PAIRS: { base: string; label: string }[] = [
-    { base: 'crow_feet', label: 'Göz Çevresi' },
-    { base: 'under_eye', label: 'Göz Altı' },
+    { base: 'crow_feet', label: 'GÃ¶z Ã‡evresi' },
+    { base: 'under_eye', label: 'GÃ¶z AltÄ±' },
     { base: 'nasolabial', label: 'Nazolabial' },
     { base: 'cheek', label: 'Yanak' },
-    { base: 'jawline', label: 'Çene Hattı' },
+    { base: 'jawline', label: 'Ã‡ene HattÄ±' },
   ]
 
   const results: BilateralComparison[] = []
@@ -1009,13 +1059,13 @@ function buildBilateralComparisons(
 
     let note: string
     if (asymmetryLevel === 'symmetrical') {
-      note = `${label} bölgesinde sol-sağ dengesi korunmuş görünmektedir.`
+      note = `${label} bÃ¶lgesinde sol-saÄŸ dengesi korunmuÅŸ gÃ¶rÃ¼nmektedir.`
     } else if (asymmetryLevel === 'mild_asymmetry') {
-      const higher = left.score > right.score ? 'sol' : 'sağ'
-      note = `${label} bölgesinde ${higher} tarafta hafif farklılık gözlemlenmiştir.`
+      const higher = left.score > right.score ? 'sol' : 'saÄŸ'
+      note = `${label} bÃ¶lgesinde ${higher} tarafta hafif farklÄ±lÄ±k gÃ¶zlemlenmiÅŸtir.`
     } else {
-      const higher = left.score > right.score ? 'sol' : 'sağ'
-      note = `${label} bölgesinde ${higher} tarafta belirgin farklılık tespit edilmiştir — klinik değerlendirme önerilir.`
+      const higher = left.score > right.score ? 'sol' : 'saÄŸ'
+      note = `${label} bÃ¶lgesinde ${higher} tarafta belirgin farklÄ±lÄ±k tespit edilmiÅŸtir â€” klinik deÄŸerlendirme Ã¶nerilir.`
     }
 
     results.push({
@@ -1044,16 +1094,16 @@ function buildConfidenceNotes(allRegions: MultiViewRegion[], views: ViewAnalysis
 
     if (r.confidence >= 60 && sourceView?.poseValidation.poseCorrect) {
       level = 'high'
-      explanation = `${r.label} — ${viewLabel} üzerinden yüksek güvenilirlikle değerlendirilmiştir.`
+      explanation = `${r.label} â€” ${viewLabel} Ã¼zerinden yÃ¼ksek gÃ¼venilirlikle deÄŸerlendirilmiÅŸtir.`
     } else if (r.confidence >= 35) {
       level = 'medium'
       const reasons: string[] = []
       if (!sourceView?.poseValidation.poseCorrect) reasons.push('poz hedeften hafif sapma')
-      if (sourceView && sourceView.quality.score < 0.6) reasons.push('görüntü kalitesi orta düzeyde')
-      explanation = `${r.label} — ${viewLabel} üzerinden değerlendirilmiştir${reasons.length > 0 ? ` (${reasons.join(', ')})` : ''}.`
+      if (sourceView && sourceView.quality.score < 0.6) reasons.push('gÃ¶rÃ¼ntÃ¼ kalitesi orta dÃ¼zeyde')
+      explanation = `${r.label} â€” ${viewLabel} Ã¼zerinden deÄŸerlendirilmiÅŸtir${reasons.length > 0 ? ` (${reasons.join(', ')})` : ''}.`
     } else {
       level = 'low'
-      explanation = `${r.label} — sınırlı görünürlük nedeniyle düşük güvenilirlikle değerlendirilmiştir.`
+      explanation = `${r.label} â€” sÄ±nÄ±rlÄ± gÃ¶rÃ¼nÃ¼rlÃ¼k nedeniyle dÃ¼ÅŸÃ¼k gÃ¼venilirlikle deÄŸerlendirilmiÅŸtir.`
     }
 
     return { region: r.key, label: r.label, level, explanation }
@@ -1076,31 +1126,31 @@ function buildOverallNarrative(
 
   // Opening
   if (usableCount === 3) {
-    parts.push('Üç açıdan (ön, sol, sağ) elde edilen görüntüler analiz edilmiştir.')
+    parts.push('ÃœÃ§ aÃ§Ä±dan (Ã¶n, sol, saÄŸ) elde edilen gÃ¶rÃ¼ntÃ¼ler analiz edilmiÅŸtir.')
   } else if (usableCount === 2) {
-    parts.push(`İki açıdan elde edilen görüntüler analiz edilmiştir — bir görünüm sınırlı kalitededir.`)
+    parts.push(`Ä°ki aÃ§Ä±dan elde edilen gÃ¶rÃ¼ntÃ¼ler analiz edilmiÅŸtir â€” bir gÃ¶rÃ¼nÃ¼m sÄ±nÄ±rlÄ± kalitededir.`)
   } else {
-    parts.push('Analiz sınırlı sayıda kullanılabilir görüntüyle gerçekleştirilmiştir.')
+    parts.push('Analiz sÄ±nÄ±rlÄ± sayÄ±da kullanÄ±labilir gÃ¶rÃ¼ntÃ¼yle gerÃ§ekleÅŸtirilmiÅŸtir.')
   }
 
   // Region count
-  parts.push(`Toplamda ${regionCount} bölge değerlendirilmiştir.`)
+  parts.push(`Toplamda ${regionCount} bÃ¶lge deÄŸerlendirilmiÅŸtir.`)
 
   // Bilateral
   if (notableAsymmetries.length > 0) {
     const labels = notableAsymmetries.map(a => a.label.toLowerCase()).join(', ')
-    parts.push(`Sol-sağ karşılaştırmada ${labels} bölge${notableAsymmetries.length > 1 ? 'lerinde' : 'sinde'} belirgin farklılık gözlemlenmiştir.`)
+    parts.push(`Sol-saÄŸ karÅŸÄ±laÅŸtÄ±rmada ${labels} bÃ¶lge${notableAsymmetries.length > 1 ? 'lerinde' : 'sinde'} belirgin farklÄ±lÄ±k gÃ¶zlemlenmiÅŸtir.`)
   } else if (bilaterals.length > 0) {
-    parts.push('Sol-sağ karşılaştırmada genel denge korunmuş görünmektedir.')
+    parts.push('Sol-saÄŸ karÅŸÄ±laÅŸtÄ±rmada genel denge korunmuÅŸ gÃ¶rÃ¼nmektedir.')
   }
 
   // Confidence
   if (globalConfidence >= 65) {
-    parts.push('Genel analiz güvenilirliği yüksektir.')
+    parts.push('Genel analiz gÃ¼venilirliÄŸi yÃ¼ksektir.')
   } else if (globalConfidence >= 40) {
-    parts.push('Genel analiz güvenilirliği orta düzeydedir — bazı bulgular görüntü kalitesinden etkilenmiş olabilir.')
+    parts.push('Genel analiz gÃ¼venilirliÄŸi orta dÃ¼zeydedir â€” bazÄ± bulgular gÃ¶rÃ¼ntÃ¼ kalitesinden etkilenmiÅŸ olabilir.')
   } else {
-    parts.push('Görüntü kalitesi nedeniyle bazı bulgular sınırlı güvenilirlikle sunulmaktadır.')
+    parts.push('GÃ¶rÃ¼ntÃ¼ kalitesi nedeniyle bazÄ± bulgular sÄ±nÄ±rlÄ± gÃ¼venilirlikle sunulmaktadÄ±r.')
   }
 
   return parts.join(' ')
@@ -1146,13 +1196,14 @@ function buildSynthesis(
   return { strongestAreas, improvementAreas, bilateralComparisons, confidenceNotes, overallNarrative }
 }
 
-// ─── Main Pipeline ──────────────────────────────────────────
+// â”€â”€â”€ Main Pipeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface MultiViewInput {
   view: ViewKey
   image: HTMLImageElement
   landmarks: Landmark[]
   detectionConfidence: number
+  temporal?: TemporalViewAggregate
 }
 
 /**
@@ -1166,19 +1217,20 @@ export function runMultiViewPipeline(
   inputs: MultiViewInput[],
   calibration: CalibrationContext,
 ): MultiViewResult {
-  // ── Step 1: Validate each view ──
+  // â”€â”€ Step 1: Validate each view â”€â”€
   const views: ViewAnalysis[] = inputs.map(input => ({
     view: input.view,
     landmarks: input.landmarks,
     image: input.image,
-    quality: assessViewQuality(input.landmarks, input.image, input.detectionConfidence),
+    quality: assessViewQuality(input.landmarks, input.image, input.detectionConfidence, input.temporal),
     poseValidation: validatePose(input.landmarks, input.view),
+    temporal: input.temporal,
   }))
 
   // Check for recapture needs
   const recaptureNeeded: ViewKey[] = []
   for (const v of views) {
-    if (!v.quality.usable) {
+    if (!v.quality.usable || !v.poseValidation.poseCorrect) {
       recaptureNeeded.push(v.view)
     }
   }
@@ -1187,7 +1239,7 @@ export function runMultiViewPipeline(
   const leftView = views.find(v => v.view === 'left')
   const rightView = views.find(v => v.view === 'right')
 
-  // ── Step 2: Extract central regions from front view ──
+  // â”€â”€ Step 2: Extract central regions from front view â”€â”€
   const centralRegions: MultiViewRegion[] = []
   if (frontView && frontView.quality.usable) {
     centralRegions.push(
@@ -1197,9 +1249,9 @@ export function runMultiViewPipeline(
     )
   }
 
-  // ── Step 3: Extract left-side regions from left view ──
+  // â”€â”€ Step 3: Extract left-side regions from left view â”€â”€
   const leftRegions: MultiViewRegion[] = []
-  const leftSource = leftView?.quality.usable ? leftView : frontView
+  const leftSource = leftView?.quality.usable ? leftView : null
   if (leftSource && leftSource.quality.usable) {
     leftRegions.push(
       analyzeCrowFeet(leftSource, 'left', calibration),
@@ -1208,19 +1260,11 @@ export function runMultiViewPipeline(
       analyzeCheekVolume(leftSource, 'left', calibration),
       analyzeJawline(leftSource, 'left', calibration),
     )
-
-    // Penalize confidence if we fell back to front view
-    if (leftSource === frontView) {
-      for (const r of leftRegions) {
-        r.confidence = Math.round(r.confidence * 0.7)
-        r.observation += ' (ön görünümden değerlendirildi — sol açı tercih edilir)'
-      }
-    }
   }
 
-  // ── Step 4: Extract right-side regions from right view ──
+  // â”€â”€ Step 4: Extract right-side regions from right view â”€â”€
   const rightRegions: MultiViewRegion[] = []
-  const rightSource = rightView?.quality.usable ? rightView : frontView
+  const rightSource = rightView?.quality.usable ? rightView : null
   if (rightSource && rightSource.quality.usable) {
     rightRegions.push(
       analyzeCrowFeet(rightSource, 'right', calibration),
@@ -1229,17 +1273,9 @@ export function runMultiViewPipeline(
       analyzeCheekVolume(rightSource, 'right', calibration),
       analyzeJawline(rightSource, 'right', calibration),
     )
-
-    // Penalize confidence if we fell back to front view
-    if (rightSource === frontView) {
-      for (const r of rightRegions) {
-        r.confidence = Math.round(r.confidence * 0.7)
-        r.observation += ' (ön görünümden değerlendirildi — sağ açı tercih edilir)'
-      }
-    }
   }
 
-  // ── Step 5: Fuse results with confidence weighting ──
+  // â”€â”€ Step 5: Fuse results with confidence weighting â”€â”€
   const allRegions = [...centralRegions, ...leftRegions, ...rightRegions]
 
   // Global score: weighted by confidence, not simple average
@@ -1255,7 +1291,10 @@ export function runMultiViewPipeline(
   // Global confidence: average of all view qualities
   const usableViews = views.filter(v => v.quality.usable)
   const globalConfidence = usableViews.length > 0
-    ? Math.round(usableViews.reduce((s, v) => s + v.quality.score * 100, 0) / usableViews.length)
+    ? Math.round(usableViews.reduce((s, v) => {
+      const temporalBoost = v.temporal ? v.temporal.temporalConfidence * 100 : v.quality.score * 100
+      return s + (v.quality.score * 100 * 0.65) + (temporalBoost * 0.35)
+    }, 0) / usableViews.length)
     : 0
 
   // Priority regions: highest concern first (score * confidence product)
@@ -1264,14 +1303,14 @@ export function runMultiViewPipeline(
     .sort((a, b) => (b.score * b.confidence) - (a.score * a.confidence))
     .map(r => r.key)
 
-  // ── Step 6: Build per-view summaries ──
+  // â”€â”€ Step 6: Build per-view summaries â”€â”€
   const regionsByView: Record<ViewKey, MultiViewRegion[]> = { front: [], left: [], right: [] }
   for (const r of allRegions) {
     regionsByView[r.sourceView].push(r)
   }
   const viewSummaries = buildViewSummaries(views, regionsByView)
 
-  // ── Step 7: Build cross-view synthesis ──
+  // â”€â”€ Step 7: Build cross-view synthesis â”€â”€
   const synthesis = buildSynthesis(allRegions, leftRegions, rightRegions, views, viewSummaries, globalScore, globalConfidence)
 
   return {
@@ -1289,3 +1328,6 @@ export function runMultiViewPipeline(
     analyzedAt: Date.now(),
   }
 }
+
+
+

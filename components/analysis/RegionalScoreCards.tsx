@@ -35,6 +35,8 @@ export interface RegionCardData {
   consultationNote?: string
   /** Optional limitation note for low-confidence regions */
   limitation?: string
+  /** Optional source view for multi-view outputs */
+  sourceView?: string
 }
 
 /** Multi-view region shape (from multi-view pipeline) */
@@ -374,6 +376,8 @@ function ScoreArc({ score, color }: { score: number; color: string }) {
 
 function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
   const sev = SEVERITY_STYLES[card.severity]
+  const lowConfidence = card.confidence < 45
+  const mediumConfidence = card.confidence >= 45 && card.confidence < 70
   const scoreColor = card.isPositive ? '#3D9B7A'
     : card.score >= 55 ? '#C8785A'
     : card.score >= 35 ? '#E5A83B'
@@ -384,8 +388,11 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
     <div
       className="rounded-xl border bg-[rgba(248,246,242,0.015)] overflow-hidden"
       style={{
-        borderColor: card.isPositive ? 'rgba(61,155,122,0.10)' : 'rgba(214,185,140,0.08)',
+        borderColor: lowConfidence
+          ? 'rgba(200,120,90,0.12)'
+          : card.isPositive ? 'rgba(61,155,122,0.10)' : 'rgba(214,185,140,0.08)',
         animation: `cardEntrance 0.4s ease-out ${idx * 0.08}s both`,
+        opacity: lowConfidence ? 0.82 : 1,
       }}
     >
       <div className="flex gap-3 p-3.5 sm:p-4">
@@ -403,6 +410,33 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
             >
               {sev.label}
             </span>
+            {card.sourceView && (
+              <span
+                className="px-2 py-0.5 rounded-full text-[9px] font-medium tracking-[0.10em] uppercase"
+                style={{
+                  background: 'rgba(248,246,242,0.03)',
+                  color: lowConfidence ? 'rgba(200,120,90,0.72)' : 'rgba(248,246,242,0.42)',
+                }}
+              >
+                {card.sourceView}
+              </span>
+            )}
+            {mediumConfidence && !lowConfidence && (
+              <span
+                className="px-2 py-0.5 rounded-full text-[9px] font-medium tracking-[0.10em] uppercase"
+                style={{ background: 'rgba(214,185,140,0.05)', color: 'rgba(214,185,140,0.62)' }}
+              >
+                Orta Guven
+              </span>
+            )}
+            {lowConfidence && (
+              <span
+                className="px-2 py-0.5 rounded-full text-[9px] font-medium tracking-[0.10em] uppercase"
+                style={{ background: 'rgba(200,120,90,0.08)', color: 'rgba(200,120,90,0.72)' }}
+              >
+                Dusuk Guven
+              </span>
+            )}
           </div>
           <p className="font-body text-[12px] sm:text-[11px] text-[rgba(248,246,242,0.48)] leading-[1.65] mb-2">
             {card.observation}
@@ -410,11 +444,11 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
           <ConfidenceBar value={card.confidence} />
         </div>
       </div>
-      {card.limitation && (
+      {(card.limitation || lowConfidence) && (
         <div className="px-4 sm:px-3.5 py-2 border-t border-[rgba(200,120,90,0.06)]">
           <p className="font-body text-[9px] text-[rgba(200,120,90,0.5)] leading-[1.5] flex items-center gap-1.5">
             <span className="opacity-60">⚠</span>
-            {card.limitation}
+            {card.limitation ?? 'Bu bolge mevcut kanitla sinirli guvenle degerlendirildi.'}
           </p>
         </div>
       )}
@@ -454,6 +488,7 @@ function multiViewToCards(regions: MultiViewRegionData[]): RegionCardData[] {
     observation: r.observation,
     isPositive: r.isPositive,
     consultationNote: r.consultationNote,
+    sourceView: r.sourceView,
   }))
 }
 

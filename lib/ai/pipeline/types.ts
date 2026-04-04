@@ -97,6 +97,10 @@ export interface QualityGateResult {
   degradeMessage?: string
   /** Raw image quality data */
   rawAssessment: ImageQualityAssessment | null
+  /** Whether the system recommends recapture for better results */
+  recaptureRecommended: boolean
+  /** Specific reason for recapture recommendation (Turkish) */
+  recaptureReason?: string
 }
 
 export type QualityBlocker =
@@ -176,6 +180,10 @@ export interface TrustGatedResult {
   suppressedCount: number
   /** How many metrics are shown with soft language */
   softCount: number
+  /** Multi-view context (null for single-view analysis) */
+  multiViewContext: MultiViewContext | null
+  /** Fused findings with evidence chains (empty for single-view) */
+  fusedFindings: FusedFinding[]
 }
 
 export interface TrustFinding {
@@ -243,6 +251,10 @@ export interface StructuredObservation {
   score: number
   /** Which data sources informed this observation */
   sources: ObservationSource[]
+  /** Which capture views contributed to this observation */
+  contributingViews?: CaptureView[]
+  /** Evidence summary explaining what backed this finding */
+  evidenceSummary?: string
 }
 
 /** What raw data contributed to an observation */
@@ -262,6 +274,125 @@ export const IMPACT_WEIGHT: Record<string, number> = {
   secondary: 3,
   minor: 2,
   neutral: 1,
+}
+
+// ─── View-Aware Reliability Architecture ─────────────────
+
+/** Captured view identifier */
+export type CaptureView = 'front' | 'left' | 'right'
+
+/** Per-view quality profile — computed once per captured image */
+export interface ViewQualityProfile {
+  view: CaptureView
+  /** Overall quality 0–1 */
+  quality: number
+  /** Quality band */
+  band: 'high' | 'usable' | 'weak' | 'reject'
+  /** Whether this view is usable for analysis */
+  usable: boolean
+  /** Specific quality factors */
+  factors: {
+    framing: number       // 0–1: face centering + size
+    sharpness: number     // 0–1: Laplacian-based
+    exposure: number      // 0–1: brightness + contrast
+    posefit: number       // 0–1: how well pose matches expected view
+    landmarkConf: number  // 0–1: detection confidence
+    stability: number     // 0–1: temporal stability (capture-time only)
+  }
+  /** Rejection reason if not usable */
+  rejectReason?: string
+}
+
+/** Reliability of a specific region from a specific view */
+export interface RegionViewReliability {
+  /** Which region */
+  region: ReliabilityRegion
+  /** Which view provided this reading */
+  view: CaptureView
+  /** How visible this region is from this view (0–1) */
+  visibility: number
+  /** Confidence in analysis from this view (0–1) */
+  confidence: number
+  /** Whether this view is authoritative for this region */
+  isAuthoritative: boolean
+}
+
+/** Fused reliability for a region across all captured views */
+export interface RegionReliability {
+  region: ReliabilityRegion
+  /** Turkish display label */
+  label: string
+  /** Overall visibility across views (0–1) */
+  visibility: number
+  /** Overall confidence (0–1) */
+  confidence: number
+  /** Confidence band */
+  band: ConfidenceBand
+  /** Which views contributed */
+  contributingViews: CaptureView[]
+  /** Per-view breakdown */
+  viewBreakdown: RegionViewReliability[]
+  /** Whether sufficient evidence exists */
+  sufficient: boolean
+  /** If insufficient, reason why */
+  insufficientReason?: string
+}
+
+/** All facial regions tracked for reliability */
+export type ReliabilityRegion =
+  | 'forehead'
+  | 'glabella'
+  | 'periocular_left'
+  | 'periocular_right'
+  | 'under_eye_left'
+  | 'under_eye_right'
+  | 'cheek_left'
+  | 'cheek_right'
+  | 'nasolabial_left'
+  | 'nasolabial_right'
+  | 'lips'
+  | 'chin'
+  | 'jawline_left'
+  | 'jawline_right'
+  | 'profile_left'
+  | 'profile_right'
+
+/** A fused finding that carries its evidence chain */
+export interface FusedFinding {
+  /** Region key */
+  region: string
+  /** Turkish display label */
+  label: string
+  /** Finding intensity: 'none' | 'mild' | 'moderate' | 'notable' */
+  intensity: 'none' | 'mild' | 'moderate' | 'notable'
+  /** Confidence band (separate from intensity) */
+  confidence: ConfidenceBand
+  /** Confidence score 0–100 */
+  confidenceScore: number
+  /** Which views contributed evidence */
+  contributingViews: CaptureView[]
+  /** Evidence summary (Turkish) */
+  evidenceSummary: string
+  /** Reasons for weakened confidence (if any) */
+  confidenceWeakeners: string[]
+  /** Raw scores from each contributing view */
+  viewScores: { view: CaptureView; score: number; weight: number }[]
+  /** Whether multi-view agreement strengthened this finding */
+  multiViewAgreement: boolean
+}
+
+/** Multi-view context passed into the trust pipeline */
+export interface MultiViewContext {
+  /** Per-view quality profiles */
+  viewQualities: ViewQualityProfile[]
+  /** Per-region reliability map */
+  regionReliabilities: RegionReliability[]
+  /** Which views were captured */
+  capturedViews: CaptureView[]
+  /** Whether this is a multi-view analysis (3 views) or single-view */
+  isMultiView: boolean
+  /** Fused findings from multi-view fusion engine */
+  fusedFindings: FusedFinding[]
 }
 
 // ─── Pipeline Configuration ────────────────────────────────

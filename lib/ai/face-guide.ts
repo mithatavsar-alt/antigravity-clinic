@@ -7,6 +7,8 @@ export interface FaceGuideStatus {
   centering: 'ok' | 'off_center'
   eyesVisible: boolean
   foreheadVisible: boolean
+  /** Chin is visible in frame and not cropped */
+  chinVisible: boolean
   faceDetected: boolean
   allOk: boolean
   mainMessage: string
@@ -14,6 +16,7 @@ export interface FaceGuideStatus {
   validCount: number
   /** Continuous frame quality score 0–1 for auto-capture */
   qualityScore: number
+  captureAcceptance: number
   /** Sub-scores breakdown — each dimension is independent */
   qualityBreakdown: {
     distance: number
@@ -23,12 +26,24 @@ export interface FaceGuideStatus {
     sharpness: number
     stability: number
   }
+  landmarkCompleteness: number
+  occlusionScore: number
+  regionVisibility: {
+    forehead: number
+    periocular: number
+    nasolabial: number
+    jawline: number
+    lips: number
+  }
+  shadowUniformity: number
   /** Face height as fraction of frame (0–1) for UI display */
   faceHeightRatio: number
   /** Face lock state — true when face has been reliably detected for several frames */
   faceLocked: boolean
   /** Crow's feet landmark visibility score 0–1 (for side-capture readiness) */
   crowFeetScore: number
+  /** Left/right face width symmetry ratio 0–1 (1 = perfectly symmetric) */
+  symmetryScore: number
   /** Debug info for overlay */
   debug: FaceDebugInfo
 }
@@ -158,15 +173,22 @@ export const NO_FACE_STATUS: FaceGuideStatus = {
   centering: 'off_center',
   eyesVisible: false,
   foreheadVisible: false,
+  chinVisible: false,
   faceDetected: false,
   allOk: false,
-  mainMessage: 'Yüzünüzü çerçevenin içine yerleştirin',
+  mainMessage: 'Yüzünüzü çerçeveye yerleştirin',
   validCount: 0,
   qualityScore: 0,
+  captureAcceptance: 0,
   qualityBreakdown: { distance: 0, angle: 0, centering: 0, lighting: 0, sharpness: 0, stability: 0 },
+  landmarkCompleteness: 0,
+  occlusionScore: 0,
+  regionVisibility: { forehead: 0, periocular: 0, nasolabial: 0, jawline: 0, lips: 0 },
+  shadowUniformity: 0,
   faceHeightRatio: 0,
   faceLocked: false,
   crowFeetScore: 0,
+  symmetryScore: 0,
   debug: {
     faceSizePct: 0, centerOffsetX: 0, centerOffsetY: 0,
     tiltDeg: 0, yawDeg: 0, pitchDeg: 0, noseOffset: 0, targetAngle: 'front',
@@ -182,11 +204,11 @@ function trackStability(cx: number, cy: number, area: number): number {
   const now = performance.now()
   positionHistory.push({ cx, cy, area, time: now })
 
-  // Keep only recent history (last ~1.5s)
-  const cutoff = now - 1500
+  // Keep only recent history (last ~2s for smoother stability reading)
+  const cutoff = now - 2000
   positionHistory = positionHistory.filter((p) => p.time > cutoff)
 
-  if (positionHistory.length < 3) return 0
+  if (positionHistory.length < 4) return 0
 
   // Calculate movement variance across recent frames
   let totalMovement = 0
@@ -349,8 +371,11 @@ export function detectShadow(
   return lastShadowScore
 }
 
-// ─── Landmark smoothing ─────────────────────────────────────
-const SMOOTHING = 0.35 // 0 = no smoothing, 1 = fully frozen
+// ─── Adaptive landmark smoothing ────────────────────────────
+// When the user is still → heavier smoothing (less jitter).
+// When moving → lighter smoothing (responsive tracking).
+const SMOOTHING_STILL = 0.45    // heavy smoothing when stable
+const SMOOTHING_MOVING = 0.20   // light smoothing during movement
 let smoothedLandmarks: Landmark[] | null = null
 
 export function smoothLandmarks(raw: Landmark[]): Landmark[] {
@@ -358,11 +383,29 @@ export function smoothLandmarks(raw: Landmark[]): Landmark[] {
     smoothedLandmarks = raw.map((l) => ({ ...l }))
     return smoothedLandmarks
   }
+
+  // Estimate per-frame movement from a few key landmarks
+  const keys = [10, 152, 234, 454, 1]  // forehead, chin, cheeks, nose
+  let movement = 0
+  for (const k of keys) {
+    if (raw[k] && smoothedLandmarks[k]) {
+      const dx = raw[k].x - smoothedLandmarks[k].x
+      const dy = raw[k].y - smoothedLandmarks[k].y
+      movement += Math.sqrt(dx * dx + dy * dy)
+    }
+  }
+  movement /= keys.length
+
+  // Adaptive blend: more movement → lower smoothing (more responsive)
+  // movement ~0 → SMOOTHING_STILL, movement > 0.02 → SMOOTHING_MOVING
+  const t = Math.min(1, movement / 0.02)
+  const smoothing = SMOOTHING_STILL * (1 - t) + SMOOTHING_MOVING * t
+
   for (let i = 0; i < raw.length; i++) {
     smoothedLandmarks[i] = {
-      x: smoothedLandmarks[i].x * SMOOTHING + raw[i].x * (1 - SMOOTHING),
-      y: smoothedLandmarks[i].y * SMOOTHING + raw[i].y * (1 - SMOOTHING),
-      z: smoothedLandmarks[i].z * SMOOTHING + raw[i].z * (1 - SMOOTHING),
+      x: smoothedLandmarks[i].x * smoothing + raw[i].x * (1 - smoothing),
+      y: smoothedLandmarks[i].y * smoothing + raw[i].y * (1 - smoothing),
+      z: smoothedLandmarks[i].z * smoothing + raw[i].z * (1 - smoothing),
     }
   }
   return smoothedLandmarks
@@ -406,6 +449,46 @@ export const RIGHT_UNDER_EYE = [362, 382, 381, 380, 374, 373, 390, 249, 263, 463
 export const LEFT_NASOLABIAL = [92, 165, 167, 164, 393, 391, 322]
 export const RIGHT_NASOLABIAL = [206, 205, 36, 142, 126, 217, 174]
 
+function isLandmarkVisible(lm: Landmark | undefined, pad = 0.03): boolean {
+  if (!lm) return false
+  return lm.x >= pad && lm.x <= 1 - pad && lm.y >= pad && lm.y <= 1 - pad
+}
+
+function visibilityRatio(landmarks: Landmark[], indices: number[], pad = 0.03): number {
+  if (indices.length === 0) return 0
+  let visible = 0
+  for (const idx of indices) {
+    if (isLandmarkVisible(landmarks[idx], pad)) visible++
+  }
+  return visible / indices.length
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid]
+}
+
+function computeRegionVisibility(landmarks: Landmark[], targetAngle: TargetAngle) {
+  const forehead = visibilityRatio(landmarks, FOREHEAD_ZONE)
+  const periocular = targetAngle === 'right'
+    ? visibilityRatio(landmarks, RIGHT_EYE.concat(RIGHT_EYEBROW))
+    : targetAngle === 'left'
+      ? visibilityRatio(landmarks, LEFT_EYE.concat(LEFT_EYEBROW))
+      : (visibilityRatio(landmarks, LEFT_EYE.concat(LEFT_EYEBROW)) + visibilityRatio(landmarks, RIGHT_EYE.concat(RIGHT_EYEBROW))) / 2
+  const nasolabial = targetAngle === 'right'
+    ? visibilityRatio(landmarks, RIGHT_NASOLABIAL)
+    : targetAngle === 'left'
+      ? visibilityRatio(landmarks, LEFT_NASOLABIAL)
+      : (visibilityRatio(landmarks, LEFT_NASOLABIAL) + visibilityRatio(landmarks, RIGHT_NASOLABIAL)) / 2
+  const jawline = visibilityRatio(landmarks, JAWLINE)
+  const lips = visibilityRatio(landmarks, UPPER_LIP.concat(LOWER_LIP))
+  return { forehead, periocular, nasolabial, jawline, lips }
+}
+
 // ─── Face evaluation (STRICT ENFORCEMENT) ────────────────────
 //
 // Distance: face height must be 60–90% of frame (ideal 70–85%)
@@ -443,28 +526,28 @@ export function evaluateFaceGuide(
   const faceArea = faceWidth * faceHeight
 
   // ── 1. DISTANCE — face height ratio ──
-  // With the enlarged outer oval (82% width, 7:10 aspect), the face can be
-  // smaller in frame and still look well-placed. Relaxed lower bound.
+  // Keep the face clearly inside the active face-only guide.
   const faceHeightRatio = faceHeight // already normalized 0-1
   let distance: FaceGuideStatus['distance'] = 'ok'
-  if (faceHeightRatio < 0.32) distance = 'too_far'
-  else if (faceHeightRatio > 0.80) distance = 'too_close'
+  if (faceHeightRatio < 0.34) distance = 'too_far'
+  else if (faceHeightRatio > 0.78) distance = 'too_close'
 
   // ── 2. CENTERING ──
-  // Y target 0.48 matches the enlarged oval guide (paddingBottom: 1%, nearly centered)
+  // Keep the face centered inside the visible facial guide without using
+  // the looser helmet-like tolerances from the regression.
   const offsetX = Math.abs(faceCenterX - 0.5)
-  const offsetY = Math.abs(faceCenterY - 0.48)
-  // Relax centering — larger oval means more tolerance
-  const centerThresholdX = targetAngle === 'front' ? 0.12 : 0.20
-  const centerThresholdY = targetAngle === 'front' ? 0.12 : 0.16
+  const offsetY = Math.abs(faceCenterY - 0.47)
+  const centerThresholdX = targetAngle === 'front' ? 0.105 : 0.13
+  const centerThresholdY = targetAngle === 'front' ? 0.10 : 0.12
   const centering: FaceGuideStatus['centering'] =
     (offsetX > centerThresholdX || offsetY > centerThresholdY) ? 'off_center' : 'ok'
 
   // ── 3. HEAD POSE (stricter: ≈±10° yaw/pitch, ±5° roll) ──
   // Roll (head tilt): eye line angle
   const eyeDx = Math.abs(leftEyeTop.x - rightEyeTop.x)
-  const eyeDy = Math.abs(leftEyeTop.y - rightEyeTop.y)
-  const tiltRatio = eyeDx > 0.01 ? eyeDy / eyeDx : 0
+  const eyeDySigned = rightEyeTop.y - leftEyeTop.y
+  const tiltRatioSigned = eyeDx > 0.01 ? eyeDySigned / eyeDx : 0
+  const tiltRatio = Math.abs(tiltRatioSigned)
   // tan(5°) ≈ 0.087 — strict roll threshold
   const ROLL_THRESHOLD = 0.087
 
@@ -480,12 +563,13 @@ export function evaluateFaceGuide(
   // ≈±10° pitch threshold
   const PITCH_THRESHOLD = 0.15
 
-  // Angle evaluation — target-aware for multi-angle capture
-  // For angled captures: accept yaw in a very wide range (noseOffset ±0.09–0.55)
-  // Very forgiving so users don't have to hunt for an exact pose.
-  const ANGLED_MIN = 0.09   // very slight turn accepted (was 0.12)
-  const ANGLED_MAX = 0.55   // generous max (was 0.50)
-  const ANGLED_IDEAL = 0.24 // ideal angle (~17°, easy target)
+  // Angle evaluation — target-aware for multi-angle capture.
+  // Require a visibly side-oriented pose so left/right steps do not
+  // still look almost frontal.
+  const ANGLED_MIN = 0.115
+  const ANGLED_MAX = 0.44
+  const ANGLED_IDEAL = 0.20
+  const SIDE_NEAR_MIN = ANGLED_MIN * 0.82
 
   // Angle evaluation — target-aware for multi-angle capture.
   //
@@ -511,15 +595,14 @@ export function evaluateFaceGuide(
     else if (pitchOffset > PITCH_THRESHOLD) angle = 'look_down'
   } else if (targetAngle === 'left') {
     // Left face view: expect negative noseOffset (head turned right IRL)
-    // Relaxed pitch threshold — users tilt naturally when turning
-    const sidePitch = PITCH_THRESHOLD * 1.4
+    const sidePitch = PITCH_THRESHOLD * 1.32
     if (noseOffset > -ANGLED_MIN) angle = 'look_right'     // not turned enough
     else if (noseOffset < -ANGLED_MAX) angle = 'look_left'  // turned too far
     else if (pitchOffset < -sidePitch) angle = 'look_up'
     else if (pitchOffset > sidePitch) angle = 'look_down'
   } else if (targetAngle === 'right') {
     // Right face view: expect positive noseOffset (head turned left IRL)
-    const sidePitch = PITCH_THRESHOLD * 1.4
+    const sidePitch = PITCH_THRESHOLD * 1.32
     if (noseOffset < ANGLED_MIN) angle = 'look_left'       // not turned enough
     else if (noseOffset > ANGLED_MAX) angle = 'look_right'  // turned too far
     else if (pitchOffset < -sidePitch) angle = 'look_up'
@@ -541,54 +624,130 @@ export function evaluateFaceGuide(
     foreheadY < 0.40 &&        // reasonable position
     foreheadAboveEyes > 0.04   // meaningful distance above eyes (forehead is showing)
 
+  // ── 5b. CHIN VISIBILITY ──
+  // Chin must be in frame — not cropped at the bottom
+  const chinY = chin.y
+  const chinBelowNose = chinY - noseTip.y
+  const chinVisible =
+    chinY < 0.97 &&           // not cut off at bottom
+    chinY > 0.40 &&           // reasonable position (not too high)
+    chinBelowNose > 0.04      // meaningful distance below nose (chin is showing)
+
+  // ── 5c. FACE SYMMETRY ──
+  // Compare left/right face half widths (nose to cheek distances)
+  const leftHalfW = Math.abs(noseTip.x - leftCheek.x)
+  const rightHalfW = Math.abs(rightCheek.x - noseTip.x)
+  const maxHalf = Math.max(leftHalfW, rightHalfW)
+  const symmetryScore = maxHalf > 0.01 ? Math.min(leftHalfW, rightHalfW) / maxHalf : 0
+  const regionVisibility = computeRegionVisibility(landmarks, targetAngle)
+  const CROW_FEET_LEFT_LM = [33, 130, 226, 247, 30, 29, 27, 28]
+  const CROW_FEET_RIGHT_LM = [263, 359, 446, 467, 260, 259, 257, 258]
+  const crowLandmarks = targetAngle === 'left' ? CROW_FEET_LEFT_LM
+    : targetAngle === 'right' ? CROW_FEET_RIGHT_LM : []
+  const crowFeetScore = crowLandmarks.length > 0 ? visibilityRatio(landmarks, crowLandmarks) : 1
+  const sideEvidenceStrong = targetAngle === 'front'
+    ? false
+    : crowFeetScore >= 0.42 && regionVisibility.nasolabial >= 0.48 && regionVisibility.jawline >= 0.52
+  const nearSidePoseAccepted = targetAngle === 'left'
+    ? noseOffset <= -SIDE_NEAR_MIN && noseOffset > -ANGLED_MIN
+    : targetAngle === 'right'
+      ? noseOffset >= SIDE_NEAR_MIN && noseOffset < ANGLED_MIN
+      : false
+
+  if (targetAngle !== 'front' && sideEvidenceStrong && nearSidePoseAccepted && (angle === 'look_left' || angle === 'look_right')) {
+    angle = 'ok'
+  }
+
+  const requiredRegionScores = targetAngle === 'front'
+    ? [
+        Math.min(regionVisibility.forehead, foreheadVisible ? 1 : 0),
+        regionVisibility.periocular,
+        regionVisibility.nasolabial,
+        regionVisibility.jawline,
+        regionVisibility.lips,
+      ]
+    : [
+        regionVisibility.periocular,
+        regionVisibility.nasolabial,
+        regionVisibility.jawline,
+        regionVisibility.lips,
+        crowFeetScore,
+      ]
+  const landmarkCompleteness = median(requiredRegionScores)
+  const occlusionScore = Math.min(
+    1,
+    Math.max(
+      0,
+      landmarkCompleteness * 0.7 +
+      (eyesVisible ? 0.15 : 0) +
+      ((targetAngle === 'front' ? foreheadVisible : true) ? 0.1 : 0) +
+      ((targetAngle === 'front' ? chinVisible : true) ? 0.05 : 0),
+    ),
+  )
+
   // ── 6. LIGHTING + SHADOW ──
   let lighting: FaceGuideStatus['lighting'] = 'ok'
   if (brightness < 55) lighting = 'too_dark'
   else if (brightness > 225) lighting = 'too_bright'
   else if (shadowScore < 0.5) lighting = 'shadow'
 
-  // ── Validation count (4 core checks) ──
+  // ── Validation count (5 core checks) ──
   const distanceOk = distance === 'ok'
   const angleOk = angle === 'ok'
   const lightingOk = lighting === 'ok'
   const foreheadOk = foreheadVisible
+  const chinOk = chinVisible
   const validCount =
     (distanceOk ? 1 : 0) +
     (angleOk ? 1 : 0) +
     (lightingOk ? 1 : 0) +
-    (foreheadOk ? 1 : 0)
+    (foreheadOk ? 1 : 0) +
+    (chinOk ? 1 : 0)
 
-  // For angled captures, forehead may be partially hidden — don't require it
+  // For angled captures, forehead/chin may be partially hidden — don't require them
   const foreheadRequired = targetAngle === 'front'
+  const chinRequired = targetAngle === 'front'
+  const sideTruthful = targetAngle === 'front'
+    ? true
+    : crowFeetScore >= 0.45 && regionVisibility.nasolabial >= 0.50 && regionVisibility.jawline >= 0.55
   const allOk =
     centering === 'ok' &&
     distanceOk &&
     angleOk &&
     lightingOk &&
     eyesVisible &&
-    (foreheadRequired ? foreheadVisible : true)
+    landmarkCompleteness >= (targetAngle === 'front' ? 0.72 : 0.62) &&
+    occlusionScore >= (targetAngle === 'front' ? 0.74 : 0.68) &&
+    sideTruthful &&
+    (foreheadRequired ? foreheadVisible : true) &&
+    (chinRequired ? chinVisible : true)
 
-  // Main message priority — premium, calm guidance
-  let mainMessage = 'Harika, pozisyon uygun'
-  if (distance === 'too_far') mainMessage = 'Biraz daha yaklaşın'
-  else if (distance === 'too_close') mainMessage = 'Biraz geri çekilin'
-  else if (centering === 'off_center') mainMessage = 'Yüzünüzü çerçevenin ortasına getirin'
-  else if (angle === 'tilt') mainMessage = 'Başınızı hafifçe düzeltin'
+  const tiltCorrectionMessage = tiltRatioSigned > 0
+    ? 'Başınızı hafifçe sola düzeltin'
+    : 'Başınızı hafifçe sağa düzeltin'
+
+  // Main message priority — premium, calm, elegant Turkish guidance
+  let mainMessage = 'Mükemmel, tam böyle kalın'
+  if (distance === 'too_far') mainMessage = 'Kameraya biraz daha yaklaşın'
+  else if (distance === 'too_close') mainMessage = 'Hafifçe geri çekilin'
+  else if (centering === 'off_center') mainMessage = 'Yüzünüzü merkeze hizalayın'
+  else if (angle === 'tilt') mainMessage = tiltCorrectionMessage
   // Angled guidance: "look_right"/"look_left" here refer to the needed physical
   // head movement, but the user sees a mirrored selfie — so screen directions
   // are flipped.  We phrase instructions in terms of showing the cheek.
-  else if (targetAngle === 'left' && angle === 'look_right') mainMessage = 'Hafif sola dönün'
-  else if (targetAngle === 'left' && angle === 'look_left') mainMessage = 'Biraz geri gelin'
-  else if (targetAngle === 'right' && angle === 'look_right') mainMessage = 'Hafif sağa dönün'
-  else if (targetAngle === 'right' && angle === 'look_left') mainMessage = 'Biraz geri gelin'
-  else if (angle === 'look_left' || angle === 'look_right') mainMessage = 'Doğrudan kameraya bakın'
-  else if (angle === 'look_up') mainMessage = 'Başınızı hafifçe indirin'
+  else if (targetAngle === 'left' && angle === 'look_right') mainMessage = 'Sol yanağınızı hafifçe gösterin'
+  else if (targetAngle === 'left' && angle === 'look_left') mainMessage = 'Biraz geri dönün, fazla döndünüz'
+  else if (targetAngle === 'right' && angle === 'look_right') mainMessage = 'Sağ yanağınızı hafifçe gösterin'
+  else if (targetAngle === 'right' && angle === 'look_left') mainMessage = 'Biraz geri dönün, fazla döndünüz'
+  else if (angle === 'look_left' || angle === 'look_right') mainMessage = 'Kameraya doğrudan bakın'
+  else if (angle === 'look_up') mainMessage = 'Çenenizi hafifçe indirin'
   else if (angle === 'look_down') mainMessage = 'Başınızı hafifçe kaldırın'
+  else if (!chinVisible && chinRequired) mainMessage = 'Çeneniz görünür olsun'
   else if (!foreheadVisible) mainMessage = 'Alnınız görünür olsun'
   else if (!eyesVisible) mainMessage = 'Gözleriniz açık ve görünür olmalı'
-  else if (lighting === 'too_dark') mainMessage = 'Daha aydınlık bir ortam tercih edin'
-  else if (lighting === 'too_bright') mainMessage = 'Işık çok güçlü, hafifçe ayarlayın'
-  else if (lighting === 'shadow') mainMessage = 'Yüzünüze eşit ışık düşmeli'
+  else if (lighting === 'too_dark') mainMessage = 'Ortamı biraz aydınlatın'
+  else if (lighting === 'too_bright') mainMessage = 'Işık çok yoğun, yumuşatın'
+  else if (lighting === 'shadow') mainMessage = 'Yüzünüze dengeli ışık düşmeli'
 
   // ── Continuous quality sub-scores (0–1) ──
 
@@ -609,11 +768,11 @@ export function evaluateFaceGuide(
     yawScore = Math.max(0, 1 - Math.abs(noseOffset) / YAW_THRESHOLD)
   } else {
     // Both left and right targets use magnitude — direction already validated above
-    // Generous scoring: anywhere in the valid range scores ≥0.6
-    if (absNoseOffset >= ANGLED_MIN && absNoseOffset <= ANGLED_MAX) {
-      yawScore = Math.max(0.6, 1 - Math.abs(absNoseOffset - ANGLED_IDEAL) / (ANGLED_IDEAL * 1.5))
+    const effectiveAngledMin = sideEvidenceStrong ? SIDE_NEAR_MIN : ANGLED_MIN
+    if (absNoseOffset >= effectiveAngledMin && absNoseOffset <= ANGLED_MAX) {
+      yawScore = Math.max(0.68, 1 - Math.abs(absNoseOffset - ANGLED_IDEAL) / (ANGLED_IDEAL * 1.45))
     } else {
-      yawScore = Math.max(0, 0.3 - Math.abs(absNoseOffset - ANGLED_IDEAL) * 0.4)
+      yawScore = Math.max(0, 0.24 - Math.abs(absNoseOffset - ANGLED_IDEAL) * 0.4)
     }
   }
   const pitchScore = Math.max(0, 1 - Math.abs(pitchOffset) / PITCH_THRESHOLD)
@@ -626,9 +785,7 @@ export function evaluateFaceGuide(
     : tiltScore * 0.15 + yawScore * 0.45 + pitchScore * 0.20 + eyeScore * 0.15 + fhScore * 0.05
 
   // ── Centering score (position only) — independent from angle ──
-  // Divisor 0.34: green (≥0.60) reachable when combined offset < 0.136,
-  // matching the enlarged 82%-width oval. Generous but not loose.
-  const centerScore = Math.max(0, 1 - (offsetX + offsetY) / 0.34)
+  const centerScore = Math.max(0, 1 - (offsetX + offsetY) / 0.30)
 
   // Lighting score: ideal brightness 90–180 + shadow uniformity
   let lightingScore = 0
@@ -653,13 +810,17 @@ export function evaluateFaceGuide(
   const sharpnessScore = lastSharpness
 
   // Weighted composite quality score — angle + centering replace old alignment
-  const qualityScore =
-    distanceScore * 0.25 +
-    angleScore * 0.20 +
-    centerScore * 0.10 +
-    lightingScore * 0.15 +
-    sharpnessScore * 0.15 +
-    stabilityScore * 0.15
+  const captureAcceptance =
+    (
+      angleScore * 0.25 +
+      landmarkCompleteness * 0.20 +
+      sharpnessScore * 0.15 +
+      lightingScore * 0.15 +
+      centerScore * 0.10 +
+      stabilityScore * 0.10 +
+      occlusionScore * 0.05
+    ) * (0.8 + distanceScore * 0.2)
+  const qualityScore = Math.max(0, Math.min(1, captureAcceptance))
 
   const qualityBreakdown = {
     distance: distanceScore,
@@ -676,7 +837,11 @@ export function evaluateFaceGuide(
     if (distance !== 'ok') rejectionReason = `distance:${distance}`
     else if (centering !== 'ok') rejectionReason = 'off_center'
     else if (angle !== 'ok') rejectionReason = `angle:${angle}`
+    else if (!sideTruthful && targetAngle !== 'front') rejectionReason = 'wrong_view'
+    else if (landmarkCompleteness < 0.55) rejectionReason = 'critical_roi_missing'
+    else if (occlusionScore < 0.55) rejectionReason = 'occluded'
     else if (!foreheadVisible) rejectionReason = 'forehead_hidden'
+    else if (!chinVisible && chinRequired) rejectionReason = 'chin_hidden'
     else if (!eyesVisible) rejectionReason = 'eyes_hidden'
     else if (lighting !== 'ok') rejectionReason = `lighting:${lighting}`
   } else if (qualityScore < 0.85) {
@@ -687,7 +852,7 @@ export function evaluateFaceGuide(
     faceSizePct: Math.round(faceHeightRatio * 100),
     centerOffsetX: Math.round(offsetX * 1000) / 1000,
     centerOffsetY: Math.round(offsetY * 1000) / 1000,
-    tiltDeg: Math.round(Math.atan(tiltRatio) * (180 / Math.PI) * 10) / 10,
+    tiltDeg: Math.round(Math.atan(tiltRatioSigned) * (180 / Math.PI) * 10) / 10,
     yawDeg: Math.round(Math.atan(noseOffset) * (180 / Math.PI) * 10) / 10,
     pitchDeg: Math.round(Math.atan(pitchOffset) * (180 / Math.PI) * 10) / 10,
     noseOffset: Math.round(noseOffset * 1000) / 1000,
@@ -702,27 +867,14 @@ export function evaluateFaceGuide(
   // ── Crow's feet visibility (for side-capture readiness) ──
   // Check how many of the crow's feet landmarks fall within the visible frame.
   // Left view → left crow's feet, Right view → right crow's feet.
-  const CROW_FEET_LEFT_LM = [33, 130, 226, 247, 30, 29, 27, 28]
-  const CROW_FEET_RIGHT_LM = [263, 359, 446, 467, 260, 259, 257, 258]
-  const crowLandmarks = targetAngle === 'left' ? CROW_FEET_LEFT_LM
-    : targetAngle === 'right' ? CROW_FEET_RIGHT_LM : []
-
-  let crowFeetScore = targetAngle === 'front' ? 1 : 0
-  if (crowLandmarks.length > 0) {
-    let visible = 0
-    for (const idx of crowLandmarks) {
-      const lm = landmarks[idx]
-      if (lm && lm.x > 0.03 && lm.x < 0.97 && lm.y > 0.03 && lm.y < 0.97) visible++
-    }
-    crowFeetScore = visible / crowLandmarks.length
-  }
-
   return {
     lighting, angle, distance, centering, eyesVisible, foreheadVisible,
+    chinVisible,
     faceDetected: true, allOk, mainMessage, validCount,
-    qualityScore, qualityBreakdown, faceHeightRatio,
+    qualityScore, captureAcceptance, qualityBreakdown, landmarkCompleteness, occlusionScore, regionVisibility, shadowUniformity: shadowScore, faceHeightRatio,
     faceLocked,
     crowFeetScore,
+    symmetryScore,
     debug,
   }
 }

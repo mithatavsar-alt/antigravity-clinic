@@ -26,7 +26,47 @@ export interface ColorRegion {
 }
 
 /**
+ * Build a polygon mask from landmark indices within crop coordinate system.
+ * Returns a Uint8Array: 1 = inside polygon, 0 = outside.
+ */
+function buildPolygonMask(
+  landmarks: Landmark[],
+  indices: number[],
+  imgW: number,
+  imgH: number,
+  cropX: number,
+  cropY: number,
+  cropW: number,
+  cropH: number,
+): Uint8Array {
+  const mask = new Uint8Array(cropW * cropH)
+  const poly: Array<{ x: number; y: number }> = []
+  for (const idx of indices) {
+    const lm = landmarks[idx]
+    if (!lm) continue
+    poly.push({ x: lm.x * imgW - cropX, y: lm.y * imgH - cropY })
+  }
+  if (poly.length < 3) { mask.fill(1); return mask }
+
+  for (let y = 0; y < cropH; y++) {
+    for (let x = 0; x < cropW; x++) {
+      let inside = false
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const yi = poly[i].y, yj = poly[j].y
+        const xi = poly[i].x, xj = poly[j].x
+        if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+          inside = !inside
+        }
+      }
+      if (inside) mask[y * cropW + x] = 1
+    }
+  }
+  return mask
+}
+
+/**
  * Extract a grayscale region from the source using landmark polygon bounds.
+ * Applies polygon masking to zero out pixels outside the landmark polygon.
  */
 export function extractGrayscaleRegion(
   source: HTMLCanvasElement | HTMLImageElement,
@@ -73,11 +113,18 @@ export function extractGrayscaleRegion(
     gray[i] = Math.round(0.299 * r + 0.587 * g + 0.114 * b)
   }
 
+  // Apply polygon mask to exclude out-of-region pixels
+  const mask = buildPolygonMask(landmarks, indices, w, h, minX, minY, rw, rh)
+  for (let i = 0; i < gray.length; i++) {
+    if (!mask[i]) gray[i] = 0
+  }
+
   return { data: gray, width: rw, height: rh }
 }
 
 /**
  * Extract RGB color channels from a landmark region.
+ * Applies polygon masking to zero out pixels outside the landmark polygon.
  */
 export function extractColorRegion(
   source: HTMLCanvasElement | HTMLImageElement,
@@ -123,6 +170,12 @@ export function extractColorRegion(
     r[i] = imageData.data[i * 4]
     g[i] = imageData.data[i * 4 + 1]
     b[i] = imageData.data[i * 4 + 2]
+  }
+
+  // Apply polygon mask
+  const mask = buildPolygonMask(landmarks, indices, w, h, minX, minY, rw, rh)
+  for (let i = 0; i < n; i++) {
+    if (!mask[i]) { r[i] = 0; g[i] = 0; b[i] = 0 }
   }
 
   return { r, g, b, width: rw, height: rh }
@@ -199,19 +252,24 @@ export function sobelLateralBias(gray: Uint8ClampedArray, w: number, h: number):
 
 // ─── Edge Density Calculation ──────────────────────────────
 
-/** Calculate edge density (fraction of pixels above adaptive threshold) */
+/** Calculate edge density (fraction of non-zero pixels above adaptive threshold).
+ *  Ignores zero pixels from polygon masking to avoid diluting the metric. */
 export function edgeDensity(edges: Uint8ClampedArray, w: number, h: number): number {
   const n = w * h
   if (n === 0) return 0
-  let sum = 0
-  for (let i = 0; i < n; i++) sum += edges[i]
-  const mean = sum / n
+  // Count only non-zero (unmasked) pixels for accurate density
+  let sum = 0, nonZero = 0
+  for (let i = 0; i < n; i++) {
+    if (edges[i] > 0) { sum += edges[i]; nonZero++ }
+  }
+  if (nonZero === 0) return 0
+  const mean = sum / nonZero
   const threshold = Math.max(20, mean * 0.6 + 10)
   let count = 0
   for (let i = 0; i < n; i++) {
     if (edges[i] > threshold) count++
   }
-  return count / n
+  return count / nonZero
 }
 
 // ─── Texture Metrics ───────────────────────────────────────

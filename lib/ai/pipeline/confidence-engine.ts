@@ -24,9 +24,13 @@ import type {
   PipelineConfig,
   YoungFaceProfile,
   QualityGateResult,
+  MultiViewContext,
+  ReliabilityRegion,
 } from './types'
 import { toConfidenceBand, toDecision } from './types'
 import { detectBrowRaise, detectMouthOpen } from './quality-gate'
+import { WRINKLE_TO_RELIABILITY, FOCUS_TO_RELIABILITY, isProfileDependent } from './view-roles'
+import { getBestRegionConfidence } from './region-reliability'
 import { clamp } from '../utils'
 
 // ─── Young Face Guard ──────────────────────────────────────
@@ -111,6 +115,7 @@ export function validateWrinkleRegion(
   qualityGate: QualityGateResult,
   youngProfile: YoungFaceProfile,
   config: PipelineConfig,
+  multiViewContext?: MultiViewContext,
 ): ValidatedMetric<WrinkleRegionResult> {
   const passed: ValidationLayer[] = []
   const failed: ValidationLayer[] = []
@@ -166,6 +171,32 @@ export function validateWrinkleRegion(
   // ── Compute confidence ──
   let confidence = computeWrinkleConfidence(region, passed, failed, qualityGate)
 
+  // ── View-aware reliability adjustment ──
+  if (multiViewContext) {
+    const reliabilityRegions = WRINKLE_TO_RELIABILITY[region.region] ?? []
+    if (reliabilityRegions.length > 0) {
+      const regionConf = getBestRegionConfidence(
+        multiViewContext.regionReliabilities,
+        reliabilityRegions,
+      )
+      // Blend: 60% original confidence + 40% view-based region reliability
+      confidence = confidence * 0.6 + regionConf * 100 * 0.4
+
+      // Profile-dependent regions with single frontal view: cap confidence
+      for (const rr of reliabilityRegions) {
+        if (isProfileDependent(rr) && !multiViewContext.isMultiView) {
+          confidence = Math.min(confidence, 35)
+        }
+      }
+
+      // Multi-view agreement bonus
+      const fusedFinding = multiViewContext.fusedFindings.find(f => f.region === region.region)
+      if (fusedFinding?.multiViewAgreement) {
+        confidence = Math.min(100, confidence + 10)
+      }
+    }
+  }
+
   // ── Apply young face guard ──
   if (youngProfile.active) {
     // Young face: need higher score AND confidence
@@ -220,6 +251,7 @@ export function validateFocusArea(
   qualityGate: QualityGateResult,
   youngProfile: YoungFaceProfile,
   config: PipelineConfig,
+  multiViewContext?: MultiViewContext,
 ): ValidatedMetric<FocusArea> {
   const passed: ValidationLayer[] = []
   const failed: ValidationLayer[] = []
@@ -259,6 +291,33 @@ export function validateFocusArea(
 
   if (youngProfile.active && isAgeSensitive) {
     confidence *= 0.7 // Reduce confidence for age-sensitive areas in young faces
+  }
+
+  // ── View-aware reliability adjustment ──
+  if (multiViewContext) {
+    const reliabilityRegions: ReliabilityRegion[] = FOCUS_TO_RELIABILITY[area.region] ?? []
+    if (reliabilityRegions.length > 0) {
+      const regionConf = getBestRegionConfidence(
+        multiViewContext.regionReliabilities,
+        reliabilityRegions,
+      )
+      // Blend: 70% original + 30% view-based region reliability
+      confidence = confidence * 0.7 + regionConf * 100 * 0.3
+
+      // Profile-dependent focus areas with no side views: cap
+      for (const rr of reliabilityRegions) {
+        if (isProfileDependent(rr) && !multiViewContext.isMultiView) {
+          confidence = Math.min(confidence, 40)
+        }
+      }
+    }
+  }
+
+  // ── Missing wrinkle cross-validation penalty ──
+  // FIX: absence of corroborating wrinkle evidence should REDUCE confidence,
+  // not be neutral. A geometry-only focus area with no texture backing is weaker.
+  if (!matchingWrinkle && wrinkleResults.length > 0) {
+    confidence *= 0.85 // 15% penalty for no cross-validation
   }
 
   confidence = clamp(Math.round(confidence), 0, 100)

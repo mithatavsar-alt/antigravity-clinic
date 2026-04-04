@@ -24,7 +24,7 @@ export function CTASection() {
       </div>
 
       {/* ─── Full-bleed editorial card ────────────────────── */}
-      <div className="container-main py-14 sm:py-20 px-6 sm:px-10">
+      <div className="container-main py-8 sm:py-12 px-6 sm:px-10">
         <motion.div
           whileInView={{ opacity: 1, y: 0 }}
           initial={{ opacity: 0, y: 28 }}
@@ -58,16 +58,16 @@ export function CTASection() {
           />
 
           {/* ─── Grid: Image + Content ──────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] items-stretch min-h-[280px] sm:min-h-[320px] lg:min-h-[380px]">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] items-stretch min-h-[168px] sm:min-h-[192px] lg:min-h-[228px]">
 
             {/* Left — Portrait */}
             <div className="relative overflow-hidden lg:order-1">
               {/* The portrait */}
-              <div className="relative h-[240px] sm:h-[280px] lg:h-full w-full">
+              <div className="relative h-[144px] sm:h-[168px] lg:h-full w-full">
                 <ImageWithFallback
-                  src="/images/AIAnaliz/AIAnaliz3.jpg"
+                  src="/images/AIAnaliz/AIAnalizer4.jpg"
                   alt="AI yüz analizi — kişiselleştirilmiş değerlendirme"
-                  className="object-cover object-[center_22%] lg:object-[center_20%]"
+                  className="object-cover object-center"
                   sizes="(max-width: 1024px) 100vw, 50vw"
                   fallbackIcon="face"
                 />
@@ -111,14 +111,14 @@ export function CTASection() {
             </div>
 
             {/* Right — Content */}
-            <div className="relative z-10 flex flex-col justify-center px-8 sm:px-12 lg:px-16 xl:px-20 py-8 sm:py-10 lg:py-12 lg:order-2">
+            <div className="relative z-10 flex flex-col justify-center px-8 sm:px-12 lg:px-16 xl:px-20 py-5 sm:py-6 lg:py-7 lg:order-2">
               {/* Section label */}
               <motion.p
                 whileInView={{ opacity: 1, y: 0 }}
                 initial={{ opacity: 0, y: 10 }}
                 transition={{ duration: 0.5, delay: 0.1, ease }}
                 viewport={{ once: true }}
-                className="font-body text-[11px] font-medium tracking-[0.20em] uppercase mb-4 sm:mb-5"
+                className="font-body text-[11px] font-medium tracking-[0.20em] uppercase mb-2 sm:mb-3"
                 style={{ color: 'var(--color-gold)' }}
               >
                 Kişiselleştirilmiş Analiz
@@ -143,7 +143,7 @@ export function CTASection() {
                 initial={{ opacity: 0, y: 12 }}
                 transition={{ duration: 0.6, delay: 0.25, ease }}
                 viewport={{ once: true }}
-                className="mt-4 sm:mt-5 font-body text-[15px] sm:text-[16px] max-w-md leading-[1.75]"
+                className="mt-2.5 sm:mt-3 font-body text-[15px] sm:text-[16px] max-w-md leading-[1.75]"
                 style={{ color: 'var(--color-text-secondary)' }}
               >
                 Yüz geometriniz, cilt dokunuz ve bölgesel yapınız üç farklı açıdan analiz
@@ -156,7 +156,7 @@ export function CTASection() {
                 initial={{ opacity: 0, y: 10 }}
                 transition={{ duration: 0.5, delay: 0.35, ease }}
                 viewport={{ once: true }}
-                className="mt-5 sm:mt-6 flex flex-col gap-2"
+                className="mt-3 sm:mt-3.5 flex flex-col gap-1.5"
               >
                 {[
                   'Çoklu açı yüz taraması',
@@ -184,7 +184,7 @@ export function CTASection() {
                 initial={{ opacity: 0, scaleX: 0 }}
                 transition={{ duration: 0.6, delay: 0.4, ease }}
                 viewport={{ once: true }}
-                className="mt-6 sm:mt-7 w-16 h-px origin-left"
+                className="mt-3.5 sm:mt-4 w-16 h-px origin-left"
                 style={{ background: 'linear-gradient(90deg, rgba(196,163,90,0.20), transparent)' }}
               />
 
@@ -194,7 +194,7 @@ export function CTASection() {
                 initial={{ opacity: 0, y: 14 }}
                 transition={{ duration: 0.6, delay: 0.45, ease }}
                 viewport={{ once: true }}
-                className="mt-6 sm:mt-7 flex flex-wrap gap-4"
+                className="mt-3.5 sm:mt-4 flex flex-wrap gap-4"
               >
                 <Link href="/analysis">
                   <PremiumButton variant="primary" size="lg">Ön Değerlendirmeye Başla</PremiumButton>

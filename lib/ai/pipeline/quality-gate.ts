@@ -51,8 +51,10 @@ export function runQualityGate(
       score: 0,
       blockers: ['no_face'],
       warnings: [],
-      blockMessage: 'Analiz tamamlandı. Bazı alanlarda doğruluk sınırlı olabilir.',
+      blockMessage: 'Yüz tespit edilemedi — analiz güvenilir şekilde yapılamamıştır. Yeniden çekim önerilir.',
       rawAssessment: null,
+      recaptureRecommended: true,
+      recaptureReason: 'Yüz tespit edilemedi',
     }
   }
 
@@ -120,9 +122,17 @@ export function runQualityGate(
   let verdict: QualityGateVerdict
 
   const hasHardBlock = blockers.includes('no_face')
+  const hasCriticalBlocker = blockers.some(blocker =>
+    blocker === 'partial_face' ||
+    blocker === 'extreme_angle' ||
+    blocker === 'too_dark' ||
+    blocker === 'too_bright' ||
+    blocker === 'too_blurry' ||
+    blocker === 'heavy_filter'
+  )
   const hasCriticalBlockers = blockers.length >= 2
 
-  if (hasHardBlock || hasCriticalBlockers) {
+  if (hasHardBlock || hasCriticalBlocker || hasCriticalBlockers) {
     verdict = 'block'
   } else if (blockers.length > 0 || warnings.length >= 3 || iq.overallScore < config.minQualityScore) {
     // Single blockers (e.g. only partial_face, only too_dark) → degrade, don't block
@@ -142,6 +152,13 @@ export function runQualityGate(
     ? buildDegradeMessage(warnings, blockers)
     : undefined
 
+  // Recapture is recommended for blocks and severe degrades
+  const recaptureRecommended = verdict === 'block' ||
+    (verdict === 'degrade' && (blockers.length > 0 || warnings.length >= 3))
+  const recaptureReason = recaptureRecommended
+    ? buildRecaptureReason(blockers, warnings)
+    : undefined
+
   return {
     verdict,
     score: iq.overallScore,
@@ -150,6 +167,8 @@ export function runQualityGate(
     blockMessage,
     degradeMessage,
     rawAssessment: iq,
+    recaptureRecommended,
+    recaptureReason,
   }
 }
 
@@ -215,44 +234,65 @@ export function detectMouthOpen(landmarks: Landmark[]): number {
 // ─── Message builders ──────────────────────────────────────
 
 function buildBlockMessage(blockers: QualityBlocker[]): string {
-  // Post-capture safety: block messages are always soft — never "Analiz yapılamadı".
-  // The pre-capture gate already filters unusable frames.
+  // Block messages must be honest — if analysis is unreliable, say so clearly.
   const reasons: string[] = []
 
   for (const b of blockers) {
     switch (b) {
       case 'no_face':
-        reasons.push('sınırlı yüz tespiti')
+        reasons.push('yüz tespit edilemedi')
         break
       case 'partial_face':
-        reasons.push('kısmi yüz görünümü')
+        reasons.push('yüz kısmen görünür')
         break
       case 'extreme_angle':
         reasons.push('belirgin açı farkı')
         break
       case 'too_dark':
-        reasons.push('düşük aydınlatma')
+        reasons.push('yetersiz aydınlatma')
         break
       case 'too_bright':
-        reasons.push('yoğun parlaklık')
+        reasons.push('aşırı parlaklık')
         break
       case 'too_blurry':
-        reasons.push('bulanıklık')
+        reasons.push('bulanık görüntü')
         break
       case 'too_low_resolution':
         reasons.push('düşük çözünürlük')
         break
       case 'heavy_filter':
-        reasons.push('olası görüntü düzeltme')
+        reasons.push('yazılımsal görüntü düzeltme')
         break
     }
   }
 
   if (reasons.length === 0) {
-    return 'Analiz tamamlandı. Sonuçlar mevcut görüntü koşullarına göre oluşturulmuştur.'
+    return 'Görüntü koşulları analiz için yeterli değildir. Daha iyi sonuçlar için yeniden çekim önerilir.'
   }
 
-  return `Analiz tamamlandı. Görüntü koşulları (${reasons.join(', ')}) dikkate alınarak sonuçlar oluşturulmuştur.`
+  return `Görüntü koşulları (${reasons.join(', ')}) nedeniyle analiz güvenilirliği sınırlıdır. Daha doğru sonuçlar için yeniden çekim önerilir.`
+}
+
+function buildRecaptureReason(blockers: QualityBlocker[], warnings: QualityWarning[]): string {
+  const issues: string[] = []
+  for (const b of blockers) {
+    switch (b) {
+      case 'no_face': issues.push('yüz tespit edilemedi'); break
+      case 'partial_face': issues.push('yüz tam görünmüyor'); break
+      case 'extreme_angle': issues.push('kameraya düz bakılmamış'); break
+      case 'too_dark': issues.push('ortam çok karanlık'); break
+      case 'too_bright': issues.push('ortam çok parlak'); break
+      case 'too_blurry': issues.push('görüntü bulanık'); break
+      case 'too_low_resolution': issues.push('çözünürlük düşük'); break
+      case 'heavy_filter': issues.push('görüntü filtresi algılandı'); break
+    }
+  }
+  if (issues.length === 0 && warnings.length >= 3) {
+    issues.push('birden fazla kalite sorunu tespit edildi')
+  }
+  return issues.length > 0
+    ? `Yeniden çekim önerisi: ${issues.join(', ')}.`
+    : 'Daha güvenilir sonuçlar için yeniden çekim önerilir.'
 }
 
 function buildDegradeMessage(warnings: QualityWarning[], blockers: QualityBlocker[] = []): string {

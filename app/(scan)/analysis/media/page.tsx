@@ -4,6 +4,7 @@ import { useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useClinicStore } from '@/lib/store'
 import { FaceGuideCapture, type CaptureMetadata, type MultiCaptureResult } from '@/components/analysis/FaceGuideCapture'
+import { saveCaptureManifest, saveCapturedFramesByView } from '@/lib/photo-bridge'
 import { buildPatientSummary } from '@/lib/lead-helpers'
 import { deriveConsultationReadiness } from '@/lib/ai/derive-doctor-analysis'
 import { generateLeadId } from '@/lib/utils'
@@ -23,8 +24,21 @@ export default function AnalysisMediaPage() {
     }
   }, [currentLead, router])
 
+  /** Persist the real capture manifest produced by FaceGuideCapture */
+  const persistManifest = useCallback((leadId: string, meta?: CaptureMetadata) => {
+    if (meta?.captureManifest) {
+      saveCaptureManifest(leadId, {
+        ...meta.captureManifest,
+        session_id: leadId,
+      })
+    }
+    if (meta?.viewFrames) {
+      saveCapturedFramesByView(leadId, meta.viewFrames)
+    }
+  }, [])
+
   /** Shared logic: create lead and navigate to processing (used by auto-advance and consent) */
-  const createLeadAndProcess = useCallback((photoUrl: string, confidence: 'high' | 'medium' | 'low') => {
+  const createLeadAndProcess = useCallback((photoUrl: string, confidence: 'high' | 'medium' | 'low', meta?: CaptureMetadata) => {
     if (navigatingRef.current) return
     navigatingRef.current = true
 
@@ -53,21 +67,54 @@ export default function AnalysisMediaPage() {
       created_at: now,
       updated_at: now,
       patient_photo_url: photoUrl,
-      doctor_frontal_photos: [photoUrl],
-      doctor_mimic_photos: [],
+      captured_frames: meta?.capturedFrames ?? cl.captured_frames,
+      doctor_frontal_photos: cl.doctor_frontal_photos && cl.doctor_frontal_photos.length > 0
+        ? cl.doctor_frontal_photos
+        : [photoUrl],
+      doctor_mimic_photos: cl.doctor_mimic_photos ?? [],
       optional_video_url: undefined,
       before_media: [],
       after_media: [],
       capture_confidence: confidence,
+      capture_quality_score: meta?.captureQualityScore,
+      recapture_recommended: meta?.recaptureRecommended,
+      recapture_views: meta?.recaptureViews,
+      capture_manifest: meta?.captureManifest,
+      liveness_status: meta?.livenessStatus,
+      liveness_confidence: meta?.livenessConfidence,
+      liveness_required: meta?.livenessRequired,
+      liveness_passed: meta?.livenessPassed,
+      liveness_signals: meta?.livenessSignals,
       patient_summary: buildPatientSummary({ concern_area: cl.concern_area, patient_photo_url: photoUrl }),
       consultation_readiness: deriveConsultationReadiness(cl),
     }
 
     addLead(lead)
+    persistManifest(id, meta)
     logAuditEvent('form_completed', { lead_id: id })
     logAuditEvent('consent_granted', { lead_id: id, version: consentVersion.version })
+    logAuditEvent('capture_completed', {
+      lead_id: id,
+      capture_quality_score: meta?.captureQualityScore,
+      recapture_recommended: meta?.recaptureRecommended ?? false,
+      liveness_status: meta?.livenessStatus,
+      liveness_confidence: meta?.livenessConfidence,
+      liveness_passed: meta?.livenessPassed ?? false,
+      capture_views: meta?.captureManifest?.views.map(view => ({
+        view: view.view,
+        accepted: view.captured,
+        acceptance_score: Math.round(view.acceptance_score * 100),
+        recapture_required: view.recapture_required,
+      })),
+    })
+    if (meta?.recaptureRecommended) {
+      logAuditEvent('capture_recapture_recommended', {
+        lead_id: id,
+        views: meta.recaptureViews ?? [],
+      })
+    }
     router.push(`/analysis/processing?id=${id}`)
-  }, [addLead, router])
+  }, [addLead, persistManifest, router])
 
   /** Multi-angle capture: front + left + right */
   const handleMultiCapture = useCallback((photos: MultiCaptureResult, meta?: CaptureMetadata) => {
@@ -75,12 +122,15 @@ export default function AnalysisMediaPage() {
 
     setCurrentLead({
       patient_photo_url: photos.front,
+      captured_frames: meta?.capturedFrames,
       doctor_frontal_photos: [photos.front, photos.left, photos.right],
       doctor_mimic_photos: [],
       capture_confidence: confidence,
+      liveness_status: meta?.livenessStatus,
+      liveness_confidence: meta?.livenessConfidence,
     })
 
-    createLeadAndProcess(photos.front, confidence)
+    createLeadAndProcess(photos.front, confidence, meta)
   }, [setCurrentLead, createLeadAndProcess])
 
   /** Fallback single capture (e.g. if multi fails or for legacy compat) */
@@ -91,11 +141,14 @@ export default function AnalysisMediaPage() {
 
     setCurrentLead({
       patient_photo_url: dataUrl,
+      captured_frames: meta?.capturedFrames,
       doctor_frontal_photos: [dataUrl],
       capture_confidence: confidence,
+      liveness_status: meta?.livenessStatus,
+      liveness_confidence: meta?.livenessConfidence,
     })
 
-    createLeadAndProcess(dataUrl, confidence)
+    createLeadAndProcess(dataUrl, confidence, meta)
   }, [setCurrentLead, createLeadAndProcess])
 
   const handleBack = useCallback(() => {

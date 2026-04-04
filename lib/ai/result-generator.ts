@@ -117,45 +117,67 @@ function buildCandidates(result: EnhancedAnalysisResult): Finding[] {
       })
     }
 
+    // Bilateral regions: report asymmetry when significant, otherwise summarize
     const crowL = wrinkleAnalysis.regions.find((r) => r.region === 'crow_feet_left')
     const crowR = wrinkleAnalysis.regions.find((r) => r.region === 'crow_feet_right')
-    const bestCrow = [crowL, crowR].filter(Boolean).sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0))[0]
-    const crowMax = bestCrow?.score ?? 0
-    if (crowMax >= 20 && bestCrow && isReliable(bestCrow)) {
-      const intensity = getIntensity(crowMax, bestCrow.evidenceStrength)
-      candidates.push({
-        text: `Göz kenarında ${intensity} mimik çizgileri gözlenmektedir.`,
-        priority: crowMax,
-        region: 'crow_feet',
-      })
+    const crowScores = [crowL, crowR].filter(Boolean).filter(r => isReliable(r!))
+    if (crowScores.length > 0) {
+      const crowMax = Math.max(...crowScores.map(r => r!.score))
+      if (crowMax >= 20) {
+        const delta = crowL && crowR ? Math.abs(crowL.score - crowR.score) : 0
+        const bestCrow = crowScores.sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0))[0]!
+        const intensity = getIntensity(crowMax, bestCrow.evidenceStrength)
+        const asymNote = delta > 15 && crowL && crowR
+          ? ` ${crowL.score > crowR.score ? 'Sol' : 'Sağ'} tarafta daha belirgin.`
+          : ''
+        candidates.push({
+          text: `Göz kenarında ${intensity} mimik çizgileri gözlenmektedir.${asymNote}`,
+          priority: crowMax,
+          region: 'crow_feet',
+        })
+      }
     }
 
     const ueL = wrinkleAnalysis.regions.find((r) => r.region === 'under_eye_left')
     const ueR = wrinkleAnalysis.regions.find((r) => r.region === 'under_eye_right')
-    const bestUe = [ueL, ueR].filter(Boolean).sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0))[0]
-    const ueMax = bestUe?.score ?? 0
-    if (ueMax >= 25 && bestUe && isReliable(bestUe)) {
-      const intensity = getIntensity(ueMax, bestUe.evidenceStrength)
-      const detail = ueMax >= 45 ? ' Klinik değerlendirme ile netleştirilebilir.' : ''
-      candidates.push({
-        text: `Göz altı bölgesinde ${intensity} doku farklılığı gözlenmektedir.${detail}`,
-        priority: ueMax,
-        region: 'under_eye',
-      })
+    const ueScores = [ueL, ueR].filter(Boolean).filter(r => isReliable(r!))
+    if (ueScores.length > 0) {
+      const ueMax = Math.max(...ueScores.map(r => r!.score))
+      if (ueMax >= 25) {
+        const bestUe = ueScores.sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0))[0]!
+        const intensity = getIntensity(ueMax, bestUe.evidenceStrength)
+        const detail = ueMax >= 45 ? ' Klinik değerlendirme ile netleştirilebilir.' : ''
+        const delta = ueL && ueR ? Math.abs(ueL.score - ueR.score) : 0
+        const asymNote = delta > 15 && ueL && ueR
+          ? ` ${ueL.score > ueR.score ? 'Sol' : 'Sağ'} tarafta daha belirgin.`
+          : ''
+        candidates.push({
+          text: `Göz altı bölgesinde ${intensity} doku farklılığı gözlenmektedir.${asymNote}${detail}`,
+          priority: ueMax,
+          region: 'under_eye',
+        })
+      }
     }
 
     const nlL = wrinkleAnalysis.regions.find((r) => r.region === 'nasolabial_left')
     const nlR = wrinkleAnalysis.regions.find((r) => r.region === 'nasolabial_right')
-    const bestNl = [nlL, nlR].filter(Boolean).sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0))[0]
-    const nlMax = bestNl?.score ?? 0
-    if (nlMax >= 25 && bestNl && isReliable(bestNl)) {
-      const intensity = getIntensity(nlMax, bestNl.evidenceStrength)
-      const detail = nlMax >= 45 ? ' Minimal dokunuşlarla desteklenebilir.' : ''
-      candidates.push({
-        text: `Nazolabial bölgede ${intensity} kıvrım derinliği gözlenmektedir.${detail}`,
-        priority: nlMax,
-        region: 'nasolabial',
-      })
+    const nlScores = [nlL, nlR].filter(Boolean).filter(r => isReliable(r!))
+    if (nlScores.length > 0) {
+      const nlMax = Math.max(...nlScores.map(r => r!.score))
+      if (nlMax >= 25) {
+        const bestNl = nlScores.sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0))[0]!
+        const intensity = getIntensity(nlMax, bestNl.evidenceStrength)
+        const detail = nlMax >= 45 ? ' Minimal dokunuşlarla desteklenebilir.' : ''
+        const delta = nlL && nlR ? Math.abs(nlL.score - nlR.score) : 0
+        const asymNote = delta > 15 && nlL && nlR
+          ? ` ${nlL.score > nlR.score ? 'Sol' : 'Sağ'} tarafta daha belirgin.`
+          : ''
+        candidates.push({
+          text: `Nazolabial bölgede ${intensity} kıvrım derinliği gözlenmektedir.${asymNote}${detail}`,
+          priority: nlMax,
+          region: 'nasolabial',
+        })
+      }
     }
 
     const jawline = wrinkleAnalysis.regions.find((r) => r.region === 'jawline')
@@ -272,6 +294,9 @@ export function generateSuggestions(
  * Generate suggestions from structured observations.
  * Picks the most impactful non-positive findings + 1 positive strength.
  * Each suggestion text is unique because observations are area-specific.
+ *
+ * RELIABILITY: Observations with limited visibility or low confidence
+ * get softer language. View attribution is appended when available.
  */
 function generateSuggestionsFromObservations(
   observations: StructuredObservation[],
@@ -295,7 +320,18 @@ function generateSuggestionsFromObservations(
     if (o.isPositive) continue
     if (usedAreas.has(o.area)) continue
     if (o.confidence < 25 || o.visibility === 'limited') continue
-    suggestions.push(o.observation)
+
+    let text = o.observation
+
+    // Append evidence summary if available (from multi-view fusion)
+    if (o.evidenceSummary && o.contributingViews && o.contributingViews.length > 0) {
+      // Only append for multi-view supported findings
+      if (o.contributingViews.length >= 2) {
+        text = text.replace(/\.$/, '') + ' — çoklu açıdan desteklenmektedir.'
+      }
+    }
+
+    suggestions.push(text)
     usedAreas.add(o.area)
   }
 

@@ -1,3 +1,6 @@
+import type { CaptureManifest } from '@/types/capture'
+import type { CanonicalAnalysisPayload, OverallReliabilityBand } from '@/types/analysis'
+
 export type LeadStatus =
   | 'new'
   | 'consented'
@@ -154,6 +157,8 @@ export interface Lead {
   updated_at: string
 
   patient_photo_url?: string
+  /** Multi-frame capture: top N temporally-distinct frames from capture buffer */
+  captured_frames?: string[]
   doctor_frontal_photos: string[]
   doctor_mimic_photos: string[]
   optional_video_url?: string
@@ -233,8 +238,48 @@ export interface Lead {
   /** Capture quality from camera validation (high = all checks, medium = 1 missing) */
   capture_confidence?: 'high' | 'medium' | 'low'
 
-  /** Overall quality score 0-100 */
+  /** Overall quality score 0-100 (legacy — prefer capture_quality_score + report_confidence) */
   quality_score?: number
+
+  // ─── Separated quality semantics ────────────────────────────
+  // These replace the single conflated quality_score.
+
+  /** How good the live capture was at acceptance time (0-100) — from face guide */
+  capture_quality_score?: number
+
+  /** How suitable the selected images are for downstream analysis (0-100) — from image-quality */
+  analysis_input_quality_score?: number
+
+  /** Final user-facing trust after suppression + evidence checks (0-100) */
+  report_confidence?: number
+
+  /** Whether analysis recommends the user retake photos */
+  recapture_recommended?: boolean
+
+  /** Which specific views need retaking (empty = all ok) */
+  recapture_views?: string[]
+
+  /** Human-readable reason for recapture recommendation (Turkish) */
+  recapture_reason?: string
+
+  /** Per-view capture manifest — structured metadata about each captured view */
+  capture_manifest?: CaptureManifest
+
+  /** Lightweight liveness / anti-spoof outcome */
+  liveness_status?: CaptureManifest['liveness_status']
+  liveness_confidence?: number
+  liveness_required?: boolean
+  liveness_passed?: boolean
+  liveness_signals?: CaptureManifest['liveness_signals']
+
+  /** Honest trust roll-up for UI + backend-ready migration */
+  overall_reliability_band?: OverallReliabilityBand
+  evidence_coverage_score?: number
+  suppression_count?: number
+  limited_regions_count?: number
+
+  /** Stable canonical payload for future backend reruns / audit */
+  canonical_analysis?: CanonicalAnalysisPayload
 
   /** Tracks where the analysis data came from */
   analysis_source?: {
@@ -287,6 +332,10 @@ export interface Lead {
   trust_pipeline?: {
     overall_confidence: number
     quality_gate_verdict: 'pass' | 'degrade' | 'block'
+    liveness_status?: CaptureManifest['liveness_status']
+    liveness_confidence?: number
+    evidence_coverage_score?: number
+    overall_reliability_band?: OverallReliabilityBand
     quality_gate_score: number
     quality_level: 'high' | 'medium' | 'low'
     young_face_active: boolean
@@ -313,6 +362,8 @@ export interface Lead {
       isPositive: boolean
       score: number
       limitation?: string
+      contributingViews?: string[]
+      evidenceSummary?: string
     }>
     region_confidences?: Array<{
       region: string
@@ -321,6 +372,17 @@ export interface Lead {
       evaluable: boolean
       limitation: string | null
     }>
+    /** Multi-view reliability metadata */
+    multi_view_reliability?: {
+      capturedViews: string[]
+      viewQualities: Array<{
+        view: string
+        quality: number
+        band: string
+        usable: boolean
+      }>
+      fusedFindingsCount: number
+    }
   }
 
   /** Specialist module analysis — 5 region-specific assessments */

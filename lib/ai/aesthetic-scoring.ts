@@ -167,16 +167,18 @@ export function computeFocusAreas(input: AestheticInput): FocusArea[] {
   const rightOrbitalWidth = distance3D(safe(landmarks, L.RIGHT_EYE_INNER), rightEyeOuter)
   const orbitalAsymmetry = Math.abs(leftOrbitalWidth - rightOrbitalWidth) / (Math.max(leftOrbitalWidth, rightOrbitalWidth) || 0.01)
 
-  // Crow's feet: age is the dominant factor here
+  // Crow's feet: geometry-based proxy — age is a secondary signal.
+  // Texture-based scoring in wrinkle-analysis.ts is the primary source;
+  // this geometry score serves as a structural baseline only.
   const crowScore = clamp(
     Math.round(
-      (ageFactor * 38) +
-      (crowAsymmetry * 22) +
-      (orbitalAsymmetry * 18) +
+      (ageFactor * 20) +
+      (crowAsymmetry * 30) +
+      (orbitalAsymmetry * 24) +
       symPenalty * 0.2 +
       5
     ),
-    8, 88
+    8, 78
   )
 
   areas.push({

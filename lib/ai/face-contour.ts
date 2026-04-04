@@ -30,17 +30,33 @@ interface ExpansionConfig {
   right: number    // right cheek
 }
 
-const DEFAULT_EXPANSION: ExpansionConfig = {
-  top: 0.18,       // generous forehead coverage
-  bottom: 0.10,    // moderate chin
-  left: 0.10,      // balanced cheeks
-  right: 0.10,
+export type FaceContourTargetAngle = 'front' | 'left' | 'right'
+
+const FRONT_EXPANSION: ExpansionConfig = {
+  top: 0.095,
+  bottom: 0.055,
+  left: 0.045,
+  right: 0.045,
+}
+
+const LEFT_EXPANSION: ExpansionConfig = {
+  top: 0.085,
+  bottom: 0.05,
+  left: 0.055,
+  right: 0.022,
+}
+
+const RIGHT_EXPANSION: ExpansionConfig = {
+  top: 0.085,
+  bottom: 0.05,
+  left: 0.022,
+  right: 0.055,
 }
 
 // ─── Smoothing state ────────────────────────────────────────
 // Per-frame smoothed contour points to prevent jitter.
 let smoothedContour: { x: number; y: number }[] = []
-const SMOOTH_FACTOR = 0.25  // 0 = frozen, 1 = raw (no smoothing)
+const SMOOTH_FACTOR = 0.18  // 0 = frozen, 1 = raw (reduced for less jitter)
 
 export function resetContourSmoothing(): void {
   smoothedContour = []
@@ -58,6 +74,64 @@ export interface FaceContourResult {
   valid: boolean
 }
 
+export interface FaceProjectionOptions {
+  mirror?: boolean
+  sourceWidth?: number
+  sourceHeight?: number
+}
+
+export interface FaceContourOptions extends FaceProjectionOptions {
+  targetAngle?: FaceContourTargetAngle
+  expansion?: ExpansionConfig
+}
+
+function getExpansionForAngle(targetAngle: FaceContourTargetAngle): ExpansionConfig {
+  if (targetAngle === 'left') return LEFT_EXPANSION
+  if (targetAngle === 'right') return RIGHT_EXPANSION
+  return FRONT_EXPANSION
+}
+
+export function projectLandmarkToCanvas(
+  landmark: Landmark,
+  canvasW: number,
+  canvasH: number,
+  options: FaceProjectionOptions = {},
+): { x: number; y: number } {
+  const { mirror = true, sourceWidth, sourceHeight } = options
+  const normalizedX = mirror ? 1 - landmark.x : landmark.x
+  const normalizedY = landmark.y
+
+  if (!sourceWidth || !sourceHeight || sourceWidth <= 0 || sourceHeight <= 0) {
+    return {
+      x: normalizedX * canvasW,
+      y: normalizedY * canvasH,
+    }
+  }
+
+  const sourceAspect = sourceWidth / sourceHeight
+  const targetAspect = canvasW / canvasH
+
+  let drawW = canvasW
+  let drawH = canvasH
+  let offsetX = 0
+  let offsetY = 0
+
+  if (sourceAspect > targetAspect) {
+    drawH = canvasH
+    drawW = canvasH * sourceAspect
+    offsetX = (canvasW - drawW) / 2
+  } else {
+    drawW = canvasW
+    drawH = canvasW / sourceAspect
+    offsetY = (canvasH - drawH) / 2
+  }
+
+  return {
+    x: offsetX + normalizedX * drawW,
+    y: offsetY + normalizedY * drawH,
+  }
+}
+
 /**
  * Compute the dynamic face contour from FaceMesh landmarks.
  *
@@ -71,18 +145,22 @@ export function computeFaceContour(
   landmarks: Landmark[],
   canvasW: number,
   canvasH: number,
-  mirror = true,
-  expansion: ExpansionConfig = DEFAULT_EXPANSION,
+  options: FaceContourOptions = {},
 ): FaceContourResult {
-  const toX = (lm: Landmark) => mirror ? (1 - lm.x) * canvasW : lm.x * canvasW
-  const toY = (lm: Landmark) => lm.y * canvasH
+  const {
+    mirror = true,
+    sourceWidth,
+    sourceHeight,
+    targetAngle = 'front',
+    expansion = getExpansionForAngle(targetAngle),
+  } = options
 
   // 1) Extract raw boundary points
   const rawPoints: { x: number; y: number }[] = []
   for (const idx of FACE_BOUNDARY_INDICES) {
     const lm = landmarks[idx]
     if (!lm) continue
-    rawPoints.push({ x: toX(lm), y: toY(lm) })
+    rawPoints.push(projectLandmarkToCanvas(lm, canvasW, canvasH, { mirror, sourceWidth, sourceHeight }))
   }
 
   if (rawPoints.length < 20) {
@@ -120,11 +198,7 @@ export function computeFaceContour(
       expandY = expansion.bottom
     }
 
-    if (dx < 0) {
-      expandX = mirror ? expansion.right : expansion.left
-    } else {
-      expandX = mirror ? expansion.left : expansion.right
-    }
+    expandX = dx < 0 ? expansion.left : expansion.right
 
     return {
       x: p.x + dx * expandX,
@@ -173,20 +247,44 @@ export function drawFaceContour(
   const baseAlpha = 0.25 + qualityScore * 0.50  // range 0.25–0.75
 
   // Breathing animation — subtle scale pulse
-  const breathe = 1 + Math.sin(Date.now() / 2500) * 0.008
+  const breathe = 1 + Math.sin(Date.now() / 2500) * 0.006
 
-  // ── Single clean contour line — refined wireframe boundary ──
+  // ── Layer 1: Soft outer glow (wide, low opacity) ──
   ctx.save()
-  ctx.shadowColor = `rgba(${accentRgb},${(baseAlpha * 0.15).toFixed(3)})`
-  ctx.shadowBlur = 6
-  ctx.lineWidth = 1.2
-  ctx.strokeStyle = `rgba(${accentRgb},${(baseAlpha * 0.45).toFixed(3)})`
+  ctx.shadowColor = `rgba(${accentRgb},${(baseAlpha * 0.12).toFixed(3)})`
+  ctx.shadowBlur = 18
+  ctx.lineWidth = 2.5
+  ctx.strokeStyle = `rgba(${accentRgb},${(baseAlpha * 0.08).toFixed(3)})`
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
   drawSmoothCurve(ctx, points, contour.center, breathe)
   ctx.stroke()
   ctx.shadowColor = 'transparent'
   ctx.shadowBlur = 0
+  ctx.restore()
+
+  // ── Layer 2: Main contour line ──
+  ctx.save()
+  ctx.shadowColor = `rgba(${accentRgb},${(baseAlpha * 0.18).toFixed(3)})`
+  ctx.shadowBlur = 8
+  ctx.lineWidth = 1.2
+  ctx.strokeStyle = `rgba(${accentRgb},${(baseAlpha * 0.50).toFixed(3)})`
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  drawSmoothCurve(ctx, points, contour.center, breathe)
+  ctx.stroke()
+  ctx.shadowColor = 'transparent'
+  ctx.shadowBlur = 0
+  ctx.restore()
+
+  // ── Layer 3: Inner highlight (thin, bright core) ──
+  ctx.save()
+  ctx.lineWidth = 0.5
+  ctx.strokeStyle = `rgba(255,255,255,${(baseAlpha * 0.15).toFixed(3)})`
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  drawSmoothCurve(ctx, points, contour.center, breathe)
+  ctx.stroke()
   ctx.restore()
 }
 
@@ -213,10 +311,11 @@ export function drawDynamicVignette(
 
   const grad = ctx.createRadialGradient(cx, cy, clearRadius, cx, cy, outerRadius)
   grad.addColorStop(0, 'rgba(3,3,5,0)')
-  grad.addColorStop(0.40, 'rgba(3,3,5,0)')
-  grad.addColorStop(0.60, `rgba(3,3,5,${(0.12 * intensity).toFixed(3)})`)
-  grad.addColorStop(0.80, `rgba(3,3,5,${(0.35 * intensity).toFixed(3)})`)
-  grad.addColorStop(1.0, `rgba(3,3,5,${(0.60 * intensity).toFixed(3)})`)
+  grad.addColorStop(0.35, 'rgba(3,3,5,0)')
+  grad.addColorStop(0.55, `rgba(3,3,5,${(0.10 * intensity).toFixed(3)})`)
+  grad.addColorStop(0.70, `rgba(3,3,5,${(0.28 * intensity).toFixed(3)})`)
+  grad.addColorStop(0.85, `rgba(3,3,5,${(0.50 * intensity).toFixed(3)})`)
+  grad.addColorStop(1.0, `rgba(3,3,5,${(0.70 * intensity).toFixed(3)})`)
 
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, canvasW, canvasH)
@@ -275,6 +374,11 @@ function drawSmoothCurve(
  * of the face contour. These provide spatial orientation cues
  * without a fixed oval.
  */
+/**
+ * Draw premium corner bracket accents at the four corners of the face
+ * bounding area. These provide a "scanner frame" aesthetic that feels
+ * precise and high-tech without being distracting.
+ */
 export function drawContourAccents(
   ctx: CanvasRenderingContext2D,
   contour: FaceContourResult,
@@ -283,41 +387,45 @@ export function drawContourAccents(
 ): void {
   if (!contour.valid) return
 
-  const alpha = (0.15 + qualityScore * 0.20).toFixed(3)
-  const b = contour.bounds
+  const alpha = (0.12 + qualityScore * 0.22).toFixed(3)
   const cx = contour.center.x
   const cy = contour.center.y
-  const halfW = b.w * 0.60
-  const halfH = b.h * 0.60
-  const len = Math.min(b.w, b.h) * 0.06  // slightly shorter crosshairs
+  const halfW = contour.bounds.w * 0.58
+  const halfH = contour.bounds.h * 0.58
+  const arm = Math.min(contour.bounds.w, contour.bounds.h) * 0.08  // bracket arm length
 
   ctx.save()
   ctx.strokeStyle = `rgba(${accentRgb},${alpha})`
   ctx.lineWidth = 1.0
   ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
 
-  // Top
+  // Top-left corner bracket
   ctx.beginPath()
-  ctx.moveTo(cx - len, cy - halfH)
-  ctx.lineTo(cx + len, cy - halfH)
+  ctx.moveTo(cx - halfW, cy - halfH + arm)
+  ctx.lineTo(cx - halfW, cy - halfH)
+  ctx.lineTo(cx - halfW + arm, cy - halfH)
   ctx.stroke()
 
-  // Bottom
+  // Top-right corner bracket
   ctx.beginPath()
-  ctx.moveTo(cx - len, cy + halfH)
-  ctx.lineTo(cx + len, cy + halfH)
+  ctx.moveTo(cx + halfW - arm, cy - halfH)
+  ctx.lineTo(cx + halfW, cy - halfH)
+  ctx.lineTo(cx + halfW, cy - halfH + arm)
   ctx.stroke()
 
-  // Left
+  // Bottom-left corner bracket
   ctx.beginPath()
-  ctx.moveTo(cx - halfW, cy - len)
-  ctx.lineTo(cx - halfW, cy + len)
+  ctx.moveTo(cx - halfW, cy + halfH - arm)
+  ctx.lineTo(cx - halfW, cy + halfH)
+  ctx.lineTo(cx - halfW + arm, cy + halfH)
   ctx.stroke()
 
-  // Right
+  // Bottom-right corner bracket
   ctx.beginPath()
-  ctx.moveTo(cx + halfW, cy - len)
-  ctx.lineTo(cx + halfW, cy + len)
+  ctx.moveTo(cx + halfW - arm, cy + halfH)
+  ctx.lineTo(cx + halfW, cy + halfH)
+  ctx.lineTo(cx + halfW, cy + halfH - arm)
   ctx.stroke()
 
   ctx.restore()

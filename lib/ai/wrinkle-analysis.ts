@@ -282,6 +282,60 @@ function unsharpMask(
  * Returns grayscale pixel data for the region.
  * When boost=true, upscales the region and applies contrast + edge enhancement.
  */
+/**
+ * Build a polygon mask from landmark indices within the crop coordinate system.
+ * Returns a Uint8Array where 1 = inside polygon, 0 = outside.
+ * Uses scanline fill (even-odd rule) for accuracy.
+ */
+function buildPolygonMask(
+  landmarks: Landmark[],
+  regionIndices: number[],
+  imgWidth: number,
+  imgHeight: number,
+  cropX: number,
+  cropY: number,
+  cropW: number,
+  cropH: number,
+  scale = 1,
+): Uint8Array {
+  const mask = new Uint8Array(cropW * cropH)
+
+  // Build polygon vertices in crop-local coordinates
+  const poly: Array<{ x: number; y: number }> = []
+  for (const idx of regionIndices) {
+    const lm = landmarks[idx]
+    if (!lm) continue
+    poly.push({
+      x: (lm.x * imgWidth - cropX) * scale,
+      y: (lm.y * imgHeight - cropY) * scale,
+    })
+  }
+  if (poly.length < 3) { mask.fill(1); return mask } // fallback: no mask
+
+  // Scanline fill using ray-casting (even-odd rule)
+  for (let y = 0; y < cropH; y++) {
+    for (let x = 0; x < cropW; x++) {
+      let inside = false
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const yi = poly[i].y, yj = poly[j].y
+        const xi = poly[i].x, xj = poly[j].x
+        if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+          inside = !inside
+        }
+      }
+      if (inside) mask[y * cropW + x] = 1
+    }
+  }
+  return mask
+}
+
+/** Apply polygon mask to grayscale data: zero out pixels outside the polygon */
+function applyPolygonMask(gray: Uint8ClampedArray, mask: Uint8Array): void {
+  for (let i = 0; i < gray.length; i++) {
+    if (!mask[i]) gray[i] = 0
+  }
+}
+
 function extractRegionGrayscale(
   sourceCanvas: HTMLCanvasElement,
   landmarks: Landmark[],
@@ -341,9 +395,16 @@ function extractRegionGrayscale(
       rawGray[i] = Math.round(0.299 * r + 0.587 * g + 0.114 * b)
     }
 
+    // Apply polygon mask before CLAHE to exclude out-of-region pixels
+    const mask = buildPolygonMask(landmarks, regionIndices, imgWidth, imgHeight, minX, minY, bw, bh, BOOST_SCALE)
+    applyPolygonMask(rawGray, mask)
+
     // Apply CLAHE contrast enhancement + unsharp mask
     const enhanced = applyCLAHE(rawGray, bw, bh)
     const sharpened = unsharpMask(enhanced, bw, bh, 1.5)
+
+    // Re-apply mask after CLAHE/unsharp (they can bleed into masked areas)
+    applyPolygonMask(sharpened, mask)
 
     return { data: sharpened, width: bw, height: bh }
   }
@@ -358,6 +419,10 @@ function extractRegionGrayscale(
     const b = imageData.data[i * 4 + 2]
     gray[i] = Math.round(0.299 * r + 0.587 * g + 0.114 * b)
   }
+
+  // Apply polygon mask to exclude non-region pixels from edge detection
+  const mask = buildPolygonMask(landmarks, regionIndices, imgWidth, imgHeight, minX, minY, rw, rh)
+  applyPolygonMask(gray, mask)
 
   return { data: gray, width: rw, height: rh }
 }
@@ -445,6 +510,7 @@ function sobelHorizontalBias(
 /**
  * Calculate wrinkle density from edge-detected image.
  * Uses adaptive thresholding to count significant edge pixels.
+ * Ignores zero pixels from polygon masking to avoid diluting the metric.
  */
 function calculateWrinkleDensity(
   edges: Uint8ClampedArray,
@@ -454,12 +520,13 @@ function calculateWrinkleDensity(
   const totalPixels = width * height
   if (totalPixels === 0) return 0
 
-  // Calculate mean edge intensity
-  let sum = 0
+  // Count non-zero (unmasked) pixels for accurate density
+  let sum = 0, nonZero = 0
   for (let i = 0; i < totalPixels; i++) {
-    sum += edges[i]
+    if (edges[i] > 0) { sum += edges[i]; nonZero++ }
   }
-  const mean = sum / totalPixels
+  if (nonZero === 0) return 0
+  const mean = sum / nonZero
 
   // Adaptive threshold: lower floor catches subtle wrinkle edges that CLAHE reveals
   const threshold = Math.max(20, mean * 0.6 + 10)
@@ -468,7 +535,7 @@ function calculateWrinkleDensity(
     if (edges[i] > threshold) edgePixels++
   }
 
-  return edgePixels / totalPixels
+  return edgePixels / nonZero
 }
 
 /**
@@ -783,6 +850,58 @@ function deriveEvidenceStrength(
 }
 
 // ─── Oriented line patterns (crow's feet, nasolabial) ───────
+
+/**
+ * Texture roughness: variance of grayscale values normalized to 0–1.
+ * High roughness = irregular surface = likely wrinkle texture.
+ */
+function computeTextureRoughness(gray: Uint8ClampedArray): number {
+  let sum = 0, nonZero = 0
+  for (let i = 0; i < gray.length; i++) {
+    if (gray[i] > 0) { sum += gray[i]; nonZero++ }
+  }
+  if (nonZero === 0) return 0
+  const mean = sum / nonZero
+  let variance = 0
+  for (let i = 0; i < gray.length; i++) {
+    if (gray[i] > 0) variance += (gray[i] - mean) ** 2
+  }
+  variance /= nonZero
+  return Math.min(1, Math.sqrt(variance) / 55)
+}
+
+/**
+ * Local contrast: mean absolute deviation of 5x5 patches.
+ * Captures fine wrinkle lines that produce local intensity variations.
+ */
+function computeLocalContrast(gray: Uint8ClampedArray, w: number, h: number): number {
+  if (w < 10 || h < 10) return 0
+  let totalDeviation = 0, patches = 0
+
+  for (let y = 2; y < h - 2; y += 3) {
+    for (let x = 2; x < w - 2; x += 3) {
+      let sum = 0, count = 0, hasNonZero = false
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const v = gray[(y + dy) * w + (x + dx)]
+          if (v > 0) hasNonZero = true
+          sum += v; count++
+        }
+      }
+      if (!hasNonZero) continue // skip masked patches
+      const mean = sum / count
+      let dev = 0
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          dev += Math.abs(gray[(y + dy) * w + (x + dx)] - mean)
+        }
+      }
+      totalDeviation += dev / count
+      patches++
+    }
+  }
+  return patches > 0 ? Math.min(1, (totalDeviation / patches) / 40) : 0
+}
 
 /**
  * Sobel with lateral (mostly horizontal + slight diagonal) bias.
@@ -1185,9 +1304,33 @@ export function analyzeWrinkles(
         : sobelEdgeDetection(grayRegion.data, grayRegion.width, grayRegion.height)
     const rawDensity = calculateWrinkleDensity(edges, grayRegion.width, grayRegion.height)
 
-    // Scale density to a 0–100 score using region-specific sensitivity
-    const adjustedDensity = rawDensity * ageFactor
-    let score = clamp(Math.round(adjustedDensity * useSensitivity), 0, 100)
+    let score: number
+    if (isCrowFeet) {
+      // ── Texture-first crow's feet scoring ──
+      // Reduce age influence (50% of normal) — real wrinkle texture should dominate.
+      // Add texture roughness and local contrast as supplementary signals.
+      const crowAgeFactor = clamp(0.8 + (ageFactor - 0.6) * 0.5, 0.8, 1.15)
+      const edgeScore = clamp(rawDensity * crowAgeFactor * useSensitivity, 0, 100)
+
+      // Texture roughness: variance-based measure of surface irregularity
+      const roughness = computeTextureRoughness(grayRegion.data)
+      const roughnessScore = clamp(roughness * 130, 0, 100) // scale to 0-100
+
+      // Local contrast: 5x5 patch deviation — captures fine wrinkle lines
+      const localCon = computeLocalContrast(grayRegion.data, grayRegion.width, grayRegion.height)
+      const contrastScore = clamp(localCon * 120, 0, 100) // scale to 0-100
+
+      // Weighted combination: edge density 55%, texture roughness 25%, local contrast 20%
+      score = clamp(Math.round(edgeScore * 0.55 + roughnessScore * 0.25 + contrastScore * 0.20), 0, 100)
+
+      // Noise guard: if edge density is very low but score is high from texture alone,
+      // cap the score to prevent texture noise from inflating results
+      if (rawDensity < 0.015 && score > 20) score = 20
+    } else {
+      // Standard scoring for all other regions
+      const adjustedDensity = rawDensity * ageFactor
+      score = clamp(Math.round(adjustedDensity * useSensitivity), 0, 100)
+    }
 
     // Derive evidence strength BEFORE any suppression
     const evidenceStrength = deriveEvidenceStrength(confidence, score, smoothing)
@@ -1243,58 +1386,76 @@ export function analyzeWrinklesMultiFrame(
   landmarks: Landmark[],
   estimatedAge: number | null,
   frameCount = 3,
+  /** Real captured frames from distinct time points. If provided, these are
+   *  analyzed directly instead of using synthetic augmentations. */
+  realFrames?: HTMLImageElement[],
 ): WrinkleAnalysisResult | null {
   if (landmarks.length < 400) return null
 
-  // Generate augmented frames: slight brightness/contrast jitter
-  const augmentations = [
-    { brightness: 0, contrast: 0 },       // Original
-    { brightness: 8, contrast: 0.06 },     // Slightly brighter + more contrast
-    { brightness: -8, contrast: -0.04 },   // Slightly darker + less contrast
-    { brightness: 0, contrast: 0.10 },     // More contrast only
-    { brightness: -5, contrast: 0.08 },    // Darker + more contrast
-  ].slice(0, Math.max(1, frameCount))
-
-  let imgW: number, imgH: number
-  if (image instanceof HTMLImageElement) {
-    imgW = image.naturalWidth || image.width
-    imgH = image.naturalHeight || image.height
-  } else {
-    imgW = image.width
-    imgH = image.height
-  }
-
-  if (imgW < 50 || imgH < 50) return null
-
   const allResults: WrinkleAnalysisResult[] = []
 
-  for (const aug of augmentations) {
-    let frameImage: HTMLImageElement | HTMLCanvasElement = image
+  if (realFrames && realFrames.length >= 2) {
+    // ── True multi-frame path: analyze each real captured frame ──
+    // All frames share the same landmarks (from best/primary frame detection).
+    // This is acceptable because the face position is stable during the hold phase.
+    for (const frame of realFrames) {
+      const result = analyzeWrinkles(frame, landmarks, estimatedAge)
+      if (result) allResults.push(result)
+    }
+    // Also analyze the primary image if it's not already in realFrames
+    if (realFrames.length < frameCount) {
+      const primaryResult = analyzeWrinkles(image, landmarks, estimatedAge)
+      if (primaryResult) allResults.push(primaryResult)
+    }
+  } else {
+    // ── Fallback: synthetic augmentations of the same image ──
+    const augmentations = [
+      { brightness: 0, contrast: 0 },       // Original
+      { brightness: 8, contrast: 0.06 },     // Slightly brighter + more contrast
+      { brightness: -8, contrast: -0.04 },   // Slightly darker + less contrast
+      { brightness: 0, contrast: 0.10 },     // More contrast only
+      { brightness: -5, contrast: 0.08 },    // Darker + more contrast
+    ].slice(0, Math.max(1, frameCount))
 
-    // Apply augmentation if non-zero
-    if (aug.brightness !== 0 || aug.contrast !== 0) {
-      const augCanvas = document.createElement('canvas')
-      augCanvas.width = imgW
-      augCanvas.height = imgH
-      const augCtx = augCanvas.getContext('2d', { willReadFrequently: true })
-      if (!augCtx) continue
-
-      augCtx.drawImage(image, 0, 0, imgW, imgH)
-      const imgData = augCtx.getImageData(0, 0, imgW, imgH)
-      const px = imgData.data
-      const contrastFactor = 1 + aug.contrast
-
-      for (let i = 0; i < px.length; i += 4) {
-        px[i]     = clamp(Math.round((px[i]     - 128) * contrastFactor + 128 + aug.brightness), 0, 255)
-        px[i + 1] = clamp(Math.round((px[i + 1] - 128) * contrastFactor + 128 + aug.brightness), 0, 255)
-        px[i + 2] = clamp(Math.round((px[i + 2] - 128) * contrastFactor + 128 + aug.brightness), 0, 255)
-      }
-      augCtx.putImageData(imgData, 0, 0)
-      frameImage = augCanvas
+    let imgW: number, imgH: number
+    if (image instanceof HTMLImageElement) {
+      imgW = image.naturalWidth || image.width
+      imgH = image.naturalHeight || image.height
+    } else {
+      imgW = image.width
+      imgH = image.height
     }
 
-    const result = analyzeWrinkles(frameImage, landmarks, estimatedAge)
-    if (result) allResults.push(result)
+    if (imgW < 50 || imgH < 50) return null
+
+    for (const aug of augmentations) {
+      let frameImage: HTMLImageElement | HTMLCanvasElement = image
+
+      // Apply augmentation if non-zero
+      if (aug.brightness !== 0 || aug.contrast !== 0) {
+        const augCanvas = document.createElement('canvas')
+        augCanvas.width = imgW
+        augCanvas.height = imgH
+        const augCtx = augCanvas.getContext('2d', { willReadFrequently: true })
+        if (!augCtx) continue
+
+        augCtx.drawImage(image, 0, 0, imgW, imgH)
+        const imgData = augCtx.getImageData(0, 0, imgW, imgH)
+        const px = imgData.data
+        const contrastFactor = 1 + aug.contrast
+
+        for (let i = 0; i < px.length; i += 4) {
+          px[i]     = clamp(Math.round((px[i]     - 128) * contrastFactor + 128 + aug.brightness), 0, 255)
+          px[i + 1] = clamp(Math.round((px[i + 1] - 128) * contrastFactor + 128 + aug.brightness), 0, 255)
+          px[i + 2] = clamp(Math.round((px[i + 2] - 128) * contrastFactor + 128 + aug.brightness), 0, 255)
+        }
+        augCtx.putImageData(imgData, 0, 0)
+        frameImage = augCanvas
+      }
+
+      const result = analyzeWrinkles(frameImage, landmarks, estimatedAge)
+      if (result) allResults.push(result)
+    }
   }
 
   if (allResults.length === 0) return null
@@ -1406,5 +1567,190 @@ export function deriveSkinTexture(
     smoothness,
     roughness: clamp(avgDensity, 0, 1),
     confidence: clamp(avgConfidence, 0.1, 1),
+  }
+}
+
+// ─── View-Specific Wrinkle Analysis ──────────────────────────
+
+/**
+ * Regions that benefit from side-view analysis.
+ * Maps view → regions where that view provides primary/better observation.
+ */
+const VIEW_PRIORITY_REGIONS: Record<'left' | 'right', WrinkleRegion[]> = {
+  left: ['crow_feet_left', 'under_eye_left', 'nasolabial_left', 'marionette_left', 'cheek_left'],
+  right: ['crow_feet_right', 'under_eye_right', 'nasolabial_right', 'marionette_right', 'cheek_right'],
+}
+
+/** Regions visible from all views (front is primary, sides are supporting) */
+const SHARED_REGIONS: WrinkleRegion[] = ['forehead', 'glabella', 'jawline']
+
+interface ViewWrinkleInput {
+  view: 'front' | 'left' | 'right'
+  image: HTMLImageElement | HTMLCanvasElement
+  landmarks: Landmark[]
+}
+
+/**
+ * Run full wrinkle analysis on each view and fuse results with view-authority weighting.
+ *
+ * For side-specific regions (crow_feet_left, under_eye_left, etc.):
+ *   - The matching side view gets 70% weight, front gets 30%
+ * For shared regions (forehead, glabella, jawline):
+ *   - Front gets 60% weight, each side view gets 20%
+ * Regions are only fused when both views produce valid results.
+ */
+export function analyzeWrinklesMultiView(
+  viewInputs: ViewWrinkleInput[],
+  estimatedAge: number | null,
+  frontWrinkles: WrinkleAnalysisResult | null,
+): WrinkleAnalysisResult | null {
+  if (!frontWrinkles) return null
+
+  // Run wrinkle analysis on each side view
+  const viewResults = new Map<string, WrinkleAnalysisResult>()
+  viewResults.set('front', frontWrinkles)
+
+  for (const input of viewInputs) {
+    if (input.view === 'front') continue
+    if (input.landmarks.length < 400) continue
+    try {
+      const result = analyzeWrinkles(input.image, input.landmarks, estimatedAge)
+      if (result) viewResults.set(input.view, result)
+    } catch {
+      // Side view analysis failed — non-fatal
+    }
+  }
+
+  // If no side views produced results, return front-only
+  if (viewResults.size <= 1) return frontWrinkles
+
+  // Build fused results
+  const frontRegionMap = new Map<WrinkleRegion, WrinkleRegionResult>()
+  for (const r of frontWrinkles.regions) frontRegionMap.set(r.region, r)
+
+  const fusedRegions: WrinkleRegionResult[] = []
+
+  for (const [regionKey, config] of Object.entries(REGIONS)) {
+    const region = regionKey as WrinkleRegion
+    const frontResult = frontRegionMap.get(region)
+
+    // Determine which side view is primary for this region
+    let primarySideView: 'left' | 'right' | null = null
+    let sideWeight = 0
+    let frontWeight = 1
+
+    if (VIEW_PRIORITY_REGIONS.left.includes(region)) {
+      primarySideView = 'left'
+      sideWeight = 0.7; frontWeight = 0.3
+    } else if (VIEW_PRIORITY_REGIONS.right.includes(region)) {
+      primarySideView = 'right'
+      sideWeight = 0.7; frontWeight = 0.3
+    } else if (SHARED_REGIONS.includes(region)) {
+      // For shared regions, both side views contribute
+      const leftResult = viewResults.get('left')?.regions.find(r => r.region === region)
+      const rightResult = viewResults.get('right')?.regions.find(r => r.region === region)
+
+      if (frontResult && (leftResult || rightResult)) {
+        const contributors: Array<{ result: WrinkleRegionResult; weight: number }> = [
+          { result: frontResult, weight: 0.6 },
+        ]
+        if (leftResult) contributors.push({ result: leftResult, weight: 0.2 })
+        if (rightResult) contributors.push({ result: rightResult, weight: 0.2 })
+
+        fusedRegions.push(fuseRegionResults(region, config.label, contributors))
+        continue
+      }
+    }
+
+    // Side-specific region: fuse side + front
+    if (primarySideView) {
+      const sideResult = viewResults.get(primarySideView)?.regions.find(r => r.region === region)
+      if (sideResult && frontResult) {
+        fusedRegions.push(fuseRegionResults(region, config.label, [
+          { result: sideResult, weight: sideWeight },
+          { result: frontResult, weight: frontWeight },
+        ]))
+        continue
+      }
+      // Only side view available (no front result for this region)
+      if (sideResult) {
+        fusedRegions.push({ ...sideResult, confidence: sideResult.confidence * 0.85 })
+        continue
+      }
+
+      // No trustworthy side evidence — suppress this region instead of fabricating it from the front view.
+      continue
+    }
+
+    // Fallback: use front result as-is
+    if (frontResult) fusedRegions.push(frontResult)
+  }
+
+  // Overall score
+  let weightedSum = 0, totalWeight = 0
+  for (const r of fusedRegions) {
+    const w = REGIONS[r.region]?.weight ?? 0.05
+    weightedSum += r.score * w
+    totalWeight += w
+  }
+  const overallScore = totalWeight > 0 ? clamp(Math.round(weightedSum / totalWeight), 0, 100) : 0
+
+  return {
+    regions: fusedRegions,
+    overallScore,
+    overallLevel: classifyWrinkleLevel(overallScore),
+  }
+}
+
+/** Fuse multiple view results for a single region using weighted combination */
+function fuseRegionResults(
+  region: WrinkleRegion,
+  label: string,
+  contributors: Array<{ result: WrinkleRegionResult; weight: number }>,
+): WrinkleRegionResult {
+  let totalWeight = 0
+  let weightedScore = 0, weightedDensity = 0, weightedConf = 0
+  for (const c of contributors) {
+    weightedScore += c.result.score * c.weight
+    weightedDensity += c.result.density * c.weight
+    weightedConf += c.result.confidence * c.weight
+    totalWeight += c.weight
+  }
+
+  const score = clamp(Math.round(weightedScore / totalWeight), 0, 100)
+  const density = weightedDensity / totalWeight
+  const confidence = clamp(weightedConf / totalWeight, 0.1, 1.0)
+
+  // Multi-view agreement bonus: if views agree (delta ≤ 15), boost confidence
+  if (contributors.length >= 2) {
+    const scores = contributors.map(c => c.result.score)
+    const delta = Math.max(...scores) - Math.min(...scores)
+    if (delta <= 15) {
+      const bonus = 1 + (0.1 * (1 - delta / 15))
+      return {
+        region, label, density, score,
+        level: classifyWrinkleLevel(score),
+        insight: getInsight(region, classifyWrinkleLevel(score), clamp(confidence * bonus, 0.1, 1.0)),
+        confidence: clamp(confidence * bonus, 0.1, 1.0),
+        detected: score >= 12 && confidence >= 0.3,
+        evidenceStrength: confidence * bonus >= 0.65 ? 'strong' : confidence * bonus >= 0.4 ? 'moderate' : 'weak',
+      }
+    }
+  }
+
+  const level = classifyWrinkleLevel(score)
+  const bestStrength = contributors
+    .map(c => c.result.evidenceStrength)
+    .sort((a, b) => {
+      const rank = { strong: 3, moderate: 2, weak: 1, insufficient: 0 }
+      return rank[b] - rank[a]
+    })[0]
+
+  return {
+    region, label, density, score, level,
+    insight: getInsight(region, level, confidence),
+    confidence,
+    detected: score >= 12 && confidence >= 0.3,
+    evidenceStrength: bestStrength,
   }
 }

@@ -56,7 +56,7 @@ const variants = {
 const sizes = {
   sm: 'px-5 py-2.5 text-[10px] rounded-sm min-h-[36px]',
   md: 'px-7 py-3.5 text-[11px] rounded min-h-[44px]',
-  lg: 'px-10 py-4.5 text-[12px] rounded-lg min-h-[52px]',
+  lg: 'px-11 py-5 text-[13px] rounded-lg min-h-[56px]',
 }
 
 export function PremiumButton({

@@ -254,37 +254,43 @@ export function deriveRadarAnalysis(
   }
 
   // ── Derive raw scores (higher = better) ─────────────────────
+  // RELIABILITY: When wrinkle region is null, score is null (not a fake default).
+  // Null scores get low confidence and display as "değerlendirilmedi" (not evaluated).
+  // This prevents pleasant-looking charts from hiding analysis failures.
 
   const foreheadR = getRegion(wrinkleAnalysis, 'forehead')
-  const foreheadRaw = foreheadR ? 100 - foreheadR.score : 70
+  const foreheadRaw = foreheadR ? 100 - foreheadR.score : null
 
   const glabellaR = getRegion(wrinkleAnalysis, 'glabella')
-  const glabellaRaw = glabellaR ? 100 - glabellaR.score : 72
+  const glabellaRaw = glabellaR ? 100 - glabellaR.score : null
 
   const crowR = avgPair(wrinkleAnalysis, 'crow_feet_left', 'crow_feet_right')
-  const crowRaw = crowR ? 100 - crowR.score : 70
+  const crowRaw = crowR ? 100 - crowR.score : null
 
   const underEyeR = avgPair(wrinkleAnalysis, 'under_eye_left', 'under_eye_right')
-  const underEyeRaw = underEyeR ? 100 - underEyeR.score : 72
+  const underEyeRaw = underEyeR ? 100 - underEyeR.score : null
 
   const nasolabialR = avgPair(wrinkleAnalysis, 'nasolabial_left', 'nasolabial_right')
-  const nasolabialRaw = nasolabialR ? 100 - nasolabialR.score : 68
+  const nasolabialRaw = nasolabialR ? 100 - nasolabialR.score : null
 
   const perioralR = avgPair(wrinkleAnalysis, 'marionette_left', 'marionette_right')
-  const perioralRaw = perioralR ? 100 - perioralR.score : 74
+  const perioralRaw = perioralR ? 100 - perioralR.score : null
 
   const jawR = getRegion(wrinkleAnalysis, 'jawline')
   const jawSym = symmetryAnalysis?.jawSymmetry ?? geometry.metrics.symmetryRatio
   const lowerFaceRaw = jawR
     ? (100 - jawR.score) * 0.6 + jawSym * 100 * 0.4
-    : jawSym * 100 * 0.7 + 30 * 0.3
+    : null
 
   const symRaw = symmetryAnalysis?.overallScore ?? geometry.scores.symmetry
 
   const smooth = skinTexture?.smoothness ?? 50
   const uniform = skinTexture?.uniformity ?? 50
-  const jawInv = jawR ? 100 - jawR.score : 60
-  const firmnessRaw = smooth * 0.4 + uniform * 0.3 + jawInv * 0.3
+  const jawInv = jawR ? 100 - jawR.score : null
+  // Firmness: if jawline data is missing, rely only on skin texture (reduced confidence)
+  const firmnessRaw = jawInv != null
+    ? smooth * 0.4 + uniform * 0.3 + jawInv * 0.3
+    : smooth * 0.55 + uniform * 0.45
 
   const wrinkleOvr = wrinkleAnalysis?.overallScore ?? 30
   const ageAppRaw = (100 - wrinkleOvr) * 0.55 + smooth * 0.25 + uniform * 0.2
@@ -292,26 +298,39 @@ export function deriveRadarAnalysis(
   const goldenRaw = geometry.scores.proportion
 
   // ── Quality-adjust all scores ───────────────────────────────
+  // When a region has no evidence (null raw), use score 0 with very low confidence.
+  // This prevents fake center-clustered scores on the radar chart.
 
   const adj = (raw: number) => qualityAdjust(raw, iqFactor)
 
+  /** Score for a region: real evidence → adjusted, no evidence → 0 with suppressed confidence */
+  const regionScore = (raw: number | null) => raw != null ? adj(raw) : 0
+  /** Confidence for a region: real evidence → computed, no evidence → 0.05 (near-zero) */
+  const regionConf = (raw: number | null, regionConfidence: number | null) =>
+    raw != null ? catConf(regionConfidence) : 0.05
+
   const scores: RadarScore[] = [
-    { key: 'forehead_lines', label: 'Alın Çizgileri', score: adj(foreheadRaw), confidence: catConf(foreheadR?.confidence ?? null), category: 'botox', insight: '' },
-    { key: 'glabella', label: 'Kaş Arası (Glabella)', score: adj(glabellaRaw), confidence: catConf(glabellaR?.confidence ?? null), category: 'botox', insight: '' },
-    { key: 'crow_feet', label: 'Kaz Ayağı', score: adj(crowRaw), confidence: catConf(crowR?.confidence ?? null), category: 'botox', insight: '' },
-    { key: 'under_eye', label: 'Göz Altı', score: adj(underEyeRaw), confidence: catConf(underEyeR?.confidence ?? null), category: 'filler', insight: '' },
-    { key: 'nasolabial', label: 'Nazolabial Hat', score: adj(nasolabialRaw), confidence: catConf(nasolabialR?.confidence ?? null), category: 'filler', insight: '' },
-    { key: 'perioral', label: 'Dudak Çevresi', score: adj(perioralRaw), confidence: catConf(perioralR?.confidence ?? null), category: 'filler', insight: '' },
-    { key: 'lower_face', label: 'Alt Yüz Hattı', score: adj(lowerFaceRaw), confidence: catConf(jawR?.confidence ?? null), category: 'filler', insight: '' },
+    { key: 'forehead_lines', label: 'Alın Çizgileri', score: regionScore(foreheadRaw), confidence: regionConf(foreheadRaw, foreheadR?.confidence ?? null), category: 'botox', insight: '' },
+    { key: 'glabella', label: 'Kaş Arası (Glabella)', score: regionScore(glabellaRaw), confidence: regionConf(glabellaRaw, glabellaR?.confidence ?? null), category: 'botox', insight: '' },
+    { key: 'crow_feet', label: 'Kaz Ayağı', score: regionScore(crowRaw), confidence: regionConf(crowRaw, crowR?.confidence ?? null), category: 'botox', insight: '' },
+    { key: 'under_eye', label: 'Göz Altı', score: regionScore(underEyeRaw), confidence: regionConf(underEyeRaw, underEyeR?.confidence ?? null), category: 'filler', insight: '' },
+    { key: 'nasolabial', label: 'Nazolabial Hat', score: regionScore(nasolabialRaw), confidence: regionConf(nasolabialRaw, nasolabialR?.confidence ?? null), category: 'filler', insight: '' },
+    { key: 'perioral', label: 'Dudak Çevresi', score: regionScore(perioralRaw), confidence: regionConf(perioralRaw, perioralR?.confidence ?? null), category: 'filler', insight: '' },
+    { key: 'lower_face', label: 'Alt Yüz Hattı', score: regionScore(lowerFaceRaw), confidence: regionConf(lowerFaceRaw, jawR?.confidence ?? null), category: 'filler', insight: '' },
     { key: 'symmetry', label: 'Yüz Simetrisi', score: adj(symRaw), confidence: catConf(symmetryAnalysis ? 0.8 : 0.5), category: 'structure', insight: '' },
     { key: 'firmness', label: 'Cilt Sıkılığı', score: adj(firmnessRaw), confidence: catConf(skinTexture?.confidence ?? null), category: 'structure', insight: '' },
     { key: 'age_appearance', label: 'Yaş Görünümü', score: adj(ageAppRaw), confidence: catConf(ageEstimation?.confidenceScore ?? null), category: 'overall', insight: '' },
     { key: 'golden_ratio', label: 'Altın Oran Uyumu', score: adj(goldenRaw), confidence: catConf(0.7), category: 'overall', insight: '' },
   ]
 
-  // Fill insights based on final adjusted scores
+  // Fill insights based on final adjusted scores.
+  // Low-confidence regions (< 0.15) get an honest "not evaluated" message.
   for (const s of scores) {
-    s.insight = INSIGHTS[s.key](s.score)
+    if (s.confidence < 0.15) {
+      s.insight = 'Bu bölge mevcut görüntü koşullarında yeterli güvenilirlikle değerlendirilememiştir.'
+    } else {
+      s.insight = INSIGHTS[s.key](s.score)
+    }
   }
 
   // ── Derive insights ─────────────────────────────────────────
