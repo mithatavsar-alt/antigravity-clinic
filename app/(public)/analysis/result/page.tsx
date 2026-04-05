@@ -537,7 +537,7 @@ function MultiViewSynthesisSummary({ multiView }: { multiView: NonNullable<Lead[
                     {lvlLabel}
                   </span>
                 </div>
-                <div className="flex items-center gap-3 mb-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 mb-2">
                   <div className="flex items-center gap-1.5 flex-1">
                     <span className="font-mono text-[11px] text-[rgba(248,246,242,0.55)] w-6">Sol</span>
                     <div className="flex-1 h-[4px] rounded-full bg-white/[0.06] overflow-hidden">

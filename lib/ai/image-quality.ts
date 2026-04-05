@@ -38,7 +38,7 @@ export interface ROIQualityMap {
 
 // ─── Landmark index sets per reliability region ────────────
 // These map each ReliabilityRegion to the landmark indices that define
-// its ROI bounding box. Shared with roi-extraction.ts where possible.
+// its ROI bounding box.
 
 const ROI_LANDMARK_INDICES: Partial<Record<ReliabilityRegion, number[]>> = {
   forehead: [10, 338, 297, 332, 284, 251, 21, 54, 103, 67, 109],

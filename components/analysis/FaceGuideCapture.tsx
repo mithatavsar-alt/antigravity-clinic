@@ -1628,7 +1628,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
       time: timestamp,
     }
     return frame
-  }, [])
+  }, [landmarksRef])
 
   const finalizeViewManifest = useCallback((view: CaptureViewKey): CaptureViewManifest => {
     const runtime = viewRuntimeRef.current[view]
@@ -1712,7 +1712,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     runtime.selectedKeyframeId = representative?.frameId
     viewManifestsRef.current[view] = manifest
     return manifest
-  }, [computeLivenessSignals, finalizeHoldTracking, mode])
+  }, [finalizeHoldTracking, mode])
 
   const resetViewRuntime = useCallback((view: CaptureViewKey) => {
     const existingFrameIds = new Set(viewRuntimeRef.current[view].sampledFrames.map(frame => frame.frameId))
@@ -2204,13 +2204,14 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
       liveness_steps: liveness.steps,
       frames: captureFramesRef.current
         .filter(frame => relevantViews.includes(frame.view))
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         .map(({ dataUrl, ...frame }) => frame)
         .sort((a, b) => a.timestamp - b.timestamp),
       views: manifests,
       selected_keyframes: selectedKeyframes,
       acceptance_history: acceptanceHistoryRef.current.filter(event => relevantViews.includes(event.view)),
     }
-  }, [computeLivenessSignals, finalizeViewManifest, mode])
+  }, [finalizeViewManifest, mode])
 
   const buildMeta = useCallback((): CaptureMetadata => {
     const manifest = buildCaptureManifest()
