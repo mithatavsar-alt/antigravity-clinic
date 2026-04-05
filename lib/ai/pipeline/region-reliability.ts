@@ -1,17 +1,26 @@
 /**
- * Region-Level Reliability Map
+ * Region-Level Reliability Map — Evidence-Based (Phase 4)
  *
- * Computes per-region visibility and confidence from captured views.
+ * Computes per-region confidence from ROI-local evidence:
  *
- * PRINCIPLE: Each region's reliability depends on:
- * 1. Which views were captured
- * 2. Quality of each captured view
- * 3. View authority for that region (from view-roles.ts)
- * 4. Whether the primary view(s) for that region exist and are usable
+ *   region_confidence = primary_view_authority
+ *                     × roi_completeness
+ *                     × local_sharpness
+ *                     × local_exposure
+ *                     × pose_fit
+ *                     × temporal_stability
+ *                     × occlusion_factor
  *
- * A region with only a weak supporting view should have LOW confidence.
- * A region whose primary view is missing should have LIMITED confidence.
- * A region with a high-quality primary view has HIGH confidence.
+ * No factor is faked. If data is missing, the factor defaults to a
+ * conservative value (not 1.0) so the absence of evidence lowers confidence.
+ *
+ * Special regional rules enforce additional constraints:
+ * - Forehead: requires high sharpness (wrinkle-critical)
+ * - Eye area: requires both eyes measurable for bilateral claims
+ * - Nasolabial: requires side view authority for depth claims
+ * - Jawline: pose-sensitive, requires low yaw variance
+ * - Lips: expression-sensitive, requires temporal stability
+ * - Symmetry: requires both sides at comparable quality
  */
 
 import type {
@@ -21,6 +30,8 @@ import type {
   RegionViewReliability,
   ReliabilityRegion,
   ConfidenceBand,
+  RegionEvidenceFactors,
+  ROILocalQualitySummary,
 } from './types'
 import { toConfidenceBand } from './types'
 import {
@@ -52,8 +63,268 @@ const REGION_LABELS: Record<ReliabilityRegion, string> = {
   profile_right: 'Sağ Profil',
 }
 
+// ─── Conservative defaults when evidence is missing ────────
+// These are NOT 1.0 — missing data = lower confidence
+
+const DEFAULT_ROI_COMPLETENESS = 0.5
+const DEFAULT_LOCAL_SHARPNESS = 0.4
+const DEFAULT_LOCAL_EXPOSURE = 0.5
+const DEFAULT_TEMPORAL_STABILITY = 0.35 // single-frame penalty
+const DEFAULT_OCCLUSION_FACTOR = 0.7    // assume some risk
+
+// ─── Regional rule thresholds ──────────────────────────────
+
+/** Forehead: wrinkle analysis needs crisp texture */
+const FOREHEAD_MIN_SHARPNESS = 0.25
+
+/** Eye area: bilateral claims need both sides measurable */
+const EYE_BILATERAL_MAX_DIFF = 0.30
+
+/** Nasolabial: depth claims need side view or high frontal quality */
+const NASOLABIAL_FRONTAL_CAP = 0.55
+
+/** Jawline: pose-sensitive — high yaw variance kills confidence */
+const JAWLINE_POSEFIT_MIN = 0.35
+
+/** Lips: expression-sensitive — needs temporal stability */
+const LIPS_TEMPORAL_MIN = 0.30
+
+/**
+ * Find the ROI quality for a region from a view's ROI measurements.
+ */
+function findROIQuality(
+  vq: ViewQualityProfile,
+  region: ReliabilityRegion,
+): ROILocalQualitySummary | undefined {
+  return vq.roiQualities?.find(r => r.region === region)
+}
+
+/**
+ * Get temporal stability for a region from a view.
+ * Maps reliability regions to temporal stability keys.
+ */
+function getTemporalStability(
+  vq: ViewQualityProfile,
+  region: ReliabilityRegion,
+): number {
+  const stab = vq.temporalRegionStability
+  if (!stab) return DEFAULT_TEMPORAL_STABILITY
+
+  // Map reliability regions to temporal aggregation region keys
+  const mapping: Partial<Record<ReliabilityRegion, string>> = {
+    forehead: 'forehead',
+    glabella: 'forehead',
+    periocular_left: 'periocular',
+    periocular_right: 'periocular',
+    under_eye_left: 'periocular',
+    under_eye_right: 'periocular',
+    cheek_left: 'nasolabial',
+    cheek_right: 'nasolabial',
+    nasolabial_left: 'nasolabial',
+    nasolabial_right: 'nasolabial',
+    lips: 'lips',
+    chin: 'jawline',
+    jawline_left: 'jawline',
+    jawline_right: 'jawline',
+    profile_left: 'jawline',
+    profile_right: 'jawline',
+  }
+
+  const key = mapping[region]
+  if (!key || stab[key] == null) return DEFAULT_TEMPORAL_STABILITY
+  return stab[key]
+}
+
+/**
+ * Estimate occlusion factor from landmark completeness and quality flags.
+ * Lower completeness = higher occlusion risk.
+ */
+function estimateOcclusionFactor(
+  roiQ: ROILocalQualitySummary | undefined,
+  _vq: ViewQualityProfile,
+): number {
+  if (!roiQ || !roiQ.measurable) return DEFAULT_OCCLUSION_FACTOR
+
+  // Completeness directly maps: all landmarks visible = low occlusion
+  const completenessContrib = clamp(roiQ.completeness, 0, 1)
+
+  // Very low sharpness in a measurable ROI can indicate partial occlusion (hair, hand)
+  const sharpnessHint = roiQ.sharpness < 0.10 ? 0.7 : 1.0
+
+  return clamp(completenessContrib * sharpnessHint, 0, 1)
+}
+
+/**
+ * Compute evidence-based confidence for a single region from a single view.
+ */
+function computeViewRegionConfidence(
+  region: ReliabilityRegion,
+  vq: ViewQualityProfile,
+): { confidence: number; factors: RegionEvidenceFactors } {
+  const authority = getViewAuthority(region, vq.view)
+  const authorityWeight = VIEW_AUTHORITY_WEIGHT[authority]
+
+  if (authorityWeight === 0 || !vq.usable) {
+    return {
+      confidence: 0,
+      factors: {
+        viewAuthority: authorityWeight,
+        roiCompleteness: 0,
+        localSharpness: 0,
+        localExposure: 0,
+        poseFit: 0,
+        temporalStability: 0,
+        occlusionFactor: 0,
+        cappedByRule: null,
+      },
+    }
+  }
+
+  const roiQ = findROIQuality(vq, region)
+
+  // Extract evidence factors — use measured values when available, else conservative defaults
+  const roiCompleteness = roiQ?.measurable ? roiQ.completeness : DEFAULT_ROI_COMPLETENESS
+  const localSharpness = roiQ?.measurable ? roiQ.sharpness : DEFAULT_LOCAL_SHARPNESS
+  const localExposure = roiQ?.measurable ? roiQ.exposure : DEFAULT_LOCAL_EXPOSURE
+  const poseFit = vq.factors.posefit
+  const temporalStability = getTemporalStability(vq, region)
+  const occlusionFactor = estimateOcclusionFactor(roiQ, vq)
+
+  // Core formula: multiplicative — each weak factor pulls down the whole
+  const rawConfidence = authorityWeight
+    * clamp(roiCompleteness, 0.1, 1)
+    * clamp(localSharpness * 1.5, 0.15, 1)  // sharpness is critical, boost range
+    * clamp(localExposure, 0.2, 1)
+    * clamp(poseFit, 0.15, 1)
+    * clamp(temporalStability * 0.6 + 0.4, 0.4, 1) // temporal: 40% floor (single-frame shouldn't be zero)
+    * clamp(occlusionFactor, 0.2, 1)
+
+  return {
+    confidence: clamp(rawConfidence, 0, 1),
+    factors: {
+      viewAuthority: authorityWeight,
+      roiCompleteness,
+      localSharpness,
+      localExposure,
+      poseFit,
+      temporalStability,
+      occlusionFactor,
+      cappedByRule: null,
+    },
+  }
+}
+
+// ─── Regional rules ────────────────────────────────────────
+
+type RegionalRule = (
+  region: ReliabilityRegion,
+  confidence: number,
+  factors: RegionEvidenceFactors,
+  allReliabilities: Map<ReliabilityRegion, { confidence: number; factors: RegionEvidenceFactors }>,
+) => { confidence: number; cappedByRule: string | null }
+
+/**
+ * Forehead: wrinkle-critical region, needs high local sharpness.
+ * Without crisp texture, wrinkle analysis is unreliable.
+ */
+const foreheadRule: RegionalRule = (_region, confidence, factors) => {
+  if (factors.localSharpness < FOREHEAD_MIN_SHARPNESS) {
+    const penalty = factors.localSharpness / FOREHEAD_MIN_SHARPNESS
+    return {
+      confidence: confidence * penalty,
+      cappedByRule: 'forehead_low_sharpness',
+    }
+  }
+  return { confidence, cappedByRule: null }
+}
+
+/**
+ * Eye area: bilateral claims require both sides to be measurable.
+ * A large quality gap between left and right caps the weaker side.
+ */
+const eyeBilateralRule: RegionalRule = (region, confidence, _factors, all) => {
+  const otherSide = region.includes('left')
+    ? region.replace('left', 'right') as ReliabilityRegion
+    : region.replace('right', 'left') as ReliabilityRegion
+
+  const other = all.get(otherSide)
+  if (!other) return { confidence, cappedByRule: null }
+
+  const diff = Math.abs(confidence - other.confidence)
+  if (diff > EYE_BILATERAL_MAX_DIFF) {
+    // Cap the stronger side to reduce misleading asymmetry claims
+    const cappedConf = Math.min(confidence, other.confidence + EYE_BILATERAL_MAX_DIFF)
+    if (cappedConf < confidence) {
+      return { confidence: cappedConf, cappedByRule: 'bilateral_quality_gap' }
+    }
+  }
+  return { confidence, cappedByRule: null }
+}
+
+/**
+ * Nasolabial: depth claims need side view or very high frontal quality.
+ * Front view alone caps confidence since nasolabial fold depth is profile-dependent.
+ */
+const nasolabialRule: RegionalRule = (region, confidence, factors) => {
+  // If primary view authority < 0.5 (frontal-only), cap confidence
+  if (factors.viewAuthority < 0.6) {
+    const capped = Math.min(confidence, NASOLABIAL_FRONTAL_CAP)
+    if (capped < confidence) {
+      return { confidence: capped, cappedByRule: 'nasolabial_no_profile' }
+    }
+  }
+  return { confidence, cappedByRule: null }
+}
+
+/**
+ * Jawline: pose-sensitive — yaw variance kills confidence.
+ * Head rotation makes jawline contour unreliable.
+ */
+const jawlineRule: RegionalRule = (_region, confidence, factors) => {
+  if (factors.poseFit < JAWLINE_POSEFIT_MIN) {
+    const penalty = factors.poseFit / JAWLINE_POSEFIT_MIN
+    return {
+      confidence: confidence * clamp(penalty, 0.3, 1),
+      cappedByRule: 'jawline_pose_unstable',
+    }
+  }
+  return { confidence, cappedByRule: null }
+}
+
+/**
+ * Lips: expression-sensitive — moving lips produce unreliable analysis.
+ */
+const lipsRule: RegionalRule = (_region, confidence, factors) => {
+  if (factors.temporalStability < LIPS_TEMPORAL_MIN) {
+    const penalty = factors.temporalStability / LIPS_TEMPORAL_MIN
+    return {
+      confidence: confidence * clamp(penalty, 0.3, 1),
+      cappedByRule: 'lips_expression_movement',
+    }
+  }
+  return { confidence, cappedByRule: null }
+}
+
+/** Map regions to their applicable rules */
+const REGIONAL_RULES: Partial<Record<ReliabilityRegion, RegionalRule[]>> = {
+  forehead: [foreheadRule],
+  glabella: [foreheadRule], // glabella is part of forehead zone
+  periocular_left: [eyeBilateralRule],
+  periocular_right: [eyeBilateralRule],
+  under_eye_left: [eyeBilateralRule],
+  under_eye_right: [eyeBilateralRule],
+  nasolabial_left: [nasolabialRule],
+  nasolabial_right: [nasolabialRule],
+  jawline_left: [jawlineRule],
+  jawline_right: [jawlineRule],
+  lips: [lipsRule],
+}
+
 /**
  * Compute reliability for all regions given captured view qualities.
+ *
+ * Phase 4 upgrade: uses ROI-local quality factors and regional rules
+ * instead of shallow global view quality.
  */
 export function computeRegionReliabilities(
   viewQualities: ViewQualityProfile[],
@@ -63,24 +334,25 @@ export function computeRegionReliabilities(
     viewMap.set(vq.view, vq)
   }
 
-  return VIEW_ROLES.map(role => {
+  // First pass: compute raw confidence per region (best across views)
+  const rawResults = new Map<ReliabilityRegion, { confidence: number; factors: RegionEvidenceFactors; breakdown: RegionViewReliability[]; views: CaptureView[] }>()
+
+  for (const role of VIEW_ROLES) {
     const region = role.region
     const viewBreakdown: RegionViewReliability[] = []
-    let totalWeightedVisibility = 0
-    let totalWeightedConfidence = 0
-    let totalWeight = 0
+    let bestConfidence = 0
+    let bestFactors: RegionEvidenceFactors | null = null
     const contributingViews: CaptureView[] = []
 
     for (const view of ['front', 'left', 'right'] as CaptureView[]) {
       const authority = getViewAuthority(region, view)
       const authorityWeight = VIEW_AUTHORITY_WEIGHT[authority]
 
-      if (authorityWeight === 0) continue // This view can't see this region
+      if (authorityWeight === 0) continue
 
       const vq = viewMap.get(view)
 
       if (!vq || !vq.usable) {
-        // View not captured or rejected — zero contribution
         viewBreakdown.push({
           region,
           view,
@@ -91,48 +363,81 @@ export function computeRegionReliabilities(
         continue
       }
 
-      // Visibility: how well can this view see this region
-      // = view quality × authority weight
-      const visibility = vq.quality * authorityWeight
-
-      // Confidence: how much we trust the analysis of this region from this view
-      // Factor in sharpness (texture-critical) and posefit (geometry-critical)
-      const textureFactor = clamp(vq.factors.sharpness * 1.5, 0, 1)
-      const confidence = visibility * 0.5 + textureFactor * 0.3 + vq.factors.landmarkConf * 0.2
+      const { confidence, factors } = computeViewRegionConfidence(region, vq)
 
       viewBreakdown.push({
         region,
         view,
-        visibility,
+        visibility: confidence,
         confidence,
         isAuthoritative: authority === 'primary',
       })
 
-      if (visibility > 0.05) {
+      if (confidence > 0.05) {
         contributingViews.push(view)
-        totalWeightedVisibility += visibility * authorityWeight
-        totalWeightedConfidence += confidence * authorityWeight
-        totalWeight += authorityWeight
+      }
+
+      // Keep the best view's confidence as the primary signal
+      if (confidence > bestConfidence) {
+        bestConfidence = confidence
+        bestFactors = factors
       }
     }
 
-    // Fused region visibility and confidence
-    const visibility = totalWeight > 0 ? clamp(totalWeightedVisibility / totalWeight, 0, 1) : 0
-    const confidence = totalWeight > 0 ? clamp(totalWeightedConfidence / totalWeight, 0, 1) : 0
+    rawResults.set(region, {
+      confidence: bestConfidence,
+      factors: bestFactors ?? {
+        viewAuthority: 0,
+        roiCompleteness: 0,
+        localSharpness: 0,
+        localExposure: 0,
+        poseFit: 0,
+        temporalStability: 0,
+        occlusionFactor: 0,
+        cappedByRule: null,
+      },
+      breakdown: viewBreakdown,
+      views: contributingViews,
+    })
+  }
 
-    // Check if primary views are available
+  // Second pass: apply regional rules (may reference other regions)
+  const results: RegionReliability[] = []
+
+  for (const role of VIEW_ROLES) {
+    const region = role.region
+    const raw = rawResults.get(region)!
+    let finalConfidence = raw.confidence
+    const finalFactors = { ...raw.factors }
+    let appliedRule: string | null = null
+
+    const rules = REGIONAL_RULES[region]
+    if (rules) {
+      for (const rule of rules) {
+        const result = rule(region, finalConfidence, finalFactors, rawResults)
+        if (result.cappedByRule) {
+          finalConfidence = result.confidence
+          appliedRule = result.cappedByRule
+          finalFactors.cappedByRule = appliedRule
+        }
+      }
+    }
+
+    // Profile-dependent regions lose significant confidence without side views
     const primaryViews = getPrimaryViews(region)
     const hasPrimaryView = primaryViews.some(pv => {
       const vq = viewMap.get(pv)
       return vq != null && vq.usable
     })
-
-    // Profile-dependent regions lose significant confidence without side views
     const profilePenalized = isProfileDependent(region) && !hasPrimaryView
 
-    const finalConfidence = profilePenalized
-      ? Math.min(confidence, 0.30) // Cap at 30% for profile regions without side views
-      : confidence
+    if (profilePenalized) {
+      finalConfidence = Math.min(finalConfidence, 0.30)
+      if (!appliedRule) {
+        appliedRule = 'profile_view_missing'
+        finalFactors.cappedByRule = appliedRule
+      }
+    }
 
     const band: ConfidenceBand = toConfidenceBand(Math.round(finalConfidence * 100))
     const sufficient = finalConfidence >= 0.20
@@ -140,27 +445,36 @@ export function computeRegionReliabilities(
     // Build insufficiency reason
     let insufficientReason: string | undefined
     if (!sufficient) {
-      if (contributingViews.length === 0) {
+      if (raw.views.length === 0) {
         insufficientReason = `${REGION_LABELS[region]} için uygun görüntü mevcut değil`
       } else if (profilePenalized) {
         insufficientReason = `${REGION_LABELS[region]} profil görüntüsü olmadan güvenilir değerlendirilemez`
+      } else if (appliedRule === 'forehead_low_sharpness') {
+        insufficientReason = `${REGION_LABELS[region]} bölgesinde görüntü netliği yetersiz`
+      } else if (appliedRule === 'jawline_pose_unstable') {
+        insufficientReason = `${REGION_LABELS[region]} baş açısı nedeniyle güvenilir değerlendirilemedi`
+      } else if (appliedRule === 'lips_expression_movement') {
+        insufficientReason = `${REGION_LABELS[region]} ifade hareketi nedeniyle güvenilir değerlendirilemedi`
       } else {
         insufficientReason = `${REGION_LABELS[region]} için görüntü kalitesi yetersiz`
       }
     }
 
-    return {
+    results.push({
       region,
       label: REGION_LABELS[region],
-      visibility,
+      visibility: finalConfidence,
       confidence: finalConfidence,
       band,
-      contributingViews,
-      viewBreakdown,
+      contributingViews: raw.views,
+      viewBreakdown: raw.breakdown,
       sufficient,
       insufficientReason,
-    }
-  })
+      evidenceFactors: finalFactors,
+    })
+  }
+
+  return results
 }
 
 /**

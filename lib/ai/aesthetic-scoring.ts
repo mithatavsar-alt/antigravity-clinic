@@ -401,9 +401,15 @@ export function computeFocusAreas(input: AestheticInput): FocusArea[] {
 }
 
 /**
- * Compute overall quality score from detection confidence and image characteristics.
+ * Legacy detection quality heuristic — NOT a real image/capture quality measure.
+ * Uses only detection confidence + landmark count + resolution.
+ * Stored as `quality_score` for backward compatibility; prefer
+ * `capture_quality_score` (from face guide) and `analysis_input_quality_score`
+ * (from trust pipeline) for user-facing display.
+ *
+ * @deprecated Use capture_quality_score / analysis_input_quality_score instead.
  */
-export function computeQualityScore(
+export function computeDetectionQualityScore(
   confidence: number,
   landmarkCount: number,
   imageWidth: number,
@@ -445,7 +451,12 @@ export function getSuggestedZones(
  * Compute detailed symmetry analysis from landmarks.
  * Compares left/right pairs for eyes, cheeks, jaw, and nose deviation.
  */
-export function computeSymmetryAnalysis(landmarks: Landmark[]): SymmetryAnalysis {
+export function computeSymmetryAnalysis(
+  landmarks: Landmark[],
+  /** Expression neutrality 0-1 from temporal aggregate. When face was moving,
+   *  symmetry measurements are less reliable — overall score is compressed. */
+  expressionNeutrality?: number,
+): SymmetryAnalysis {
   // Eye symmetry: compare eye openings
   const leftEyeOpen = Math.abs(safe(landmarks, L.LEFT_EYE_TOP).y - safe(landmarks, L.LEFT_EYE_BOTTOM).y)
   const rightEyeOpen = Math.abs(safe(landmarks, L.RIGHT_EYE_TOP).y - safe(landmarks, L.RIGHT_EYE_BOTTOM).y)
@@ -476,9 +487,13 @@ export function computeSymmetryAnalysis(landmarks: Landmark[]): SymmetryAnalysis
     : 0
 
   // Overall: weighted combination
-  const overallScore = clamp(Math.round(
-    (eyeSymmetry * 0.3 + cheekSymmetry * 0.25 + jawSymmetry * 0.25 + (1 - noseDeviation * 2) * 0.2) * 100
-  ), 0, 100)
+  const rawScore = (eyeSymmetry * 0.3 + cheekSymmetry * 0.25 + jawSymmetry * 0.25 + (1 - noseDeviation * 2) * 0.2) * 100
+  // When expression neutrality is available and low, compress score toward center (50)
+  // to avoid false asymmetry readings caused by facial expressions during capture
+  const neutrality = expressionNeutrality ?? 1.0
+  const expressionPenalty = 0.7 + neutrality * 0.3 // 1.0→1.0, 0.5→0.85, 0.0→0.70
+  const penalizedScore = 50 + (rawScore - 50) * expressionPenalty
+  const overallScore = clamp(Math.round(penalizedScore), 0, 100)
 
   return {
     overallScore,
@@ -500,7 +515,13 @@ export function computeSymmetryAnalysis(landmarks: Landmark[]): SymmetryAnalysis
  * STRICT: Never assume thin or full lips without clear visual evidence.
  * If measurements are ambiguous → mark as 'unclear'.
  */
-export function computeLipAnalysis(landmarks: Landmark[], detectionConfidence: number): LipAnalysis {
+export function computeLipAnalysis(
+  landmarks: Landmark[],
+  detectionConfidence: number,
+  /** Temporal lip region stability 0-1. Low values mean lips were moving across
+   *  frames (talking/smiling) — measurements become unreliable. */
+  lipRegionStability?: number,
+): LipAnalysis {
   const mouthLeft = safe(landmarks, L.MOUTH_LEFT)
   const mouthRight = safe(landmarks, L.MOUTH_RIGHT)
   const upperLipTop = safe(landmarks, L.UPPER_LIP_TOP)
@@ -597,6 +618,10 @@ export function computeLipAnalysis(landmarks: Landmark[], detectionConfidence: n
   if (mouthWidth / faceWidth > 0.2 && mouthWidth / faceWidth < 0.7) confidence += 0.15
   // Lip height ratio plausibility
   if (lipToFaceRatio > 0.03 && lipToFaceRatio < 0.15) confidence += 0.15
+  // Temporal lip stability: if lips were moving across frames, penalize confidence
+  if (lipRegionStability != null && lipRegionStability < 0.7) {
+    confidence *= (0.6 + lipRegionStability * 0.4) // stability 0.0 → 0.6x, 0.7+ → ~0.88x+
+  }
   confidence = clamp(confidence, 0, 1)
 
   // If confidence is too low, mark as not evaluable

@@ -13,8 +13,8 @@
  */
 
 import type { Landmark, ImageQualityAssessment } from '../types'
-import type { CaptureView, ViewQualityProfile } from './types'
-import { assessImageQuality } from '../image-quality'
+import type { CaptureView, ViewQualityProfile, ROILocalQualitySummary } from './types'
+import { assessImageQuality, assessROIQuality } from '../image-quality'
 import { clamp } from '../utils'
 
 /** Quality band thresholds */
@@ -37,6 +37,7 @@ function toBand(score: number): ViewQualityProfile['band'] {
  * @param confidence - Detection confidence 0–1
  * @param image - The captured image element
  * @param captureQuality - Optional capture-time quality score 0–1 (from face-guide)
+ * @param temporalRegionStability - Optional per-region temporal stability from aggregation
  */
 export function assessViewQuality(
   view: CaptureView,
@@ -44,6 +45,7 @@ export function assessViewQuality(
   confidence: number,
   image: HTMLImageElement | HTMLCanvasElement,
   captureQuality?: number,
+  temporalRegionStability?: Record<string, number>,
 ): ViewQualityProfile {
   // Run image quality assessment
   let iq: ImageQualityAssessment | null = null
@@ -69,6 +71,21 @@ export function assessViewQuality(
       factors: { framing: 0, sharpness: 0, exposure: 0, posefit: 0, landmarkConf: 0, stability: 0 },
       rejectReason: landmarks.length < 200 ? 'Yetersiz yüz algılama' : 'Kalite değerlendirmesi başarısız',
     }
+  }
+
+  // Compute ROI-local quality for this view
+  let roiQualities: ROILocalQualitySummary[] | undefined
+  try {
+    const roiMap = assessROIQuality(landmarks, image)
+    roiQualities = roiMap.regions.map(r => ({
+      region: r.region,
+      sharpness: r.sharpness,
+      exposure: r.exposure,
+      completeness: r.completeness,
+      measurable: r.measurable,
+    }))
+  } catch {
+    // Non-fatal: ROI quality is supplementary
   }
 
   // ── Compute individual factors ──
@@ -135,6 +152,8 @@ export function assessViewQuality(
     band,
     usable,
     factors: { framing, sharpness, exposure, posefit, landmarkConf, stability },
+    roiQualities,
+    temporalRegionStability,
     rejectReason,
   }
 }
@@ -194,7 +213,7 @@ function computePoseFit(
  * Convenience function for the pipeline orchestrator.
  */
 export function assessAllViewQualities(
-  views: { view: CaptureView; landmarks: Landmark[]; confidence: number; image: HTMLImageElement | HTMLCanvasElement; captureQuality?: number }[],
+  views: { view: CaptureView; landmarks: Landmark[]; confidence: number; image: HTMLImageElement | HTMLCanvasElement; captureQuality?: number; temporalRegionStability?: Record<string, number> }[],
 ): ViewQualityProfile[] {
-  return views.map(v => assessViewQuality(v.view, v.landmarks, v.confidence, v.image, v.captureQuality))
+  return views.map(v => assessViewQuality(v.view, v.landmarks, v.confidence, v.image, v.captureQuality, v.temporalRegionStability))
 }

@@ -15,6 +15,16 @@ export interface TemporalDetectionSample {
   metrics?: Pick<CaptureFrameMetrics, 'brightness' | 'sharpness' | 'stability' | 'centering' | 'pose'>
 }
 
+/** Per-region temporal stability — how consistent each facial region is across frames */
+export interface RegionTemporalStability {
+  forehead: number
+  periocular: number
+  nasolabial: number
+  jawline: number
+  lips: number
+  nose: number
+}
+
 export interface TemporalViewAggregate {
   view: CaptureViewKey
   frameCount: number
@@ -28,6 +38,10 @@ export interface TemporalViewAggregate {
   sharpness: CaptureMetricSummary
   stability: CaptureMetricSummary
   temporalConfidence: number
+  /** Per-region landmark jitter — lower = more stable across frames */
+  regionStability: RegionTemporalStability
+  /** Expression neutrality: 0 = large expression movement, 1 = neutral/still face */
+  expressionNeutrality: number
 }
 
 function median(values: number[]): number {
@@ -53,6 +67,55 @@ function summarize(values: number[]): CaptureMetricSummary {
     max: Math.max(...values),
     variance: variance(values),
   }
+}
+
+// ─── Landmark index groups for per-region stability ──────────
+const REGION_LANDMARKS = {
+  forehead: [10, 338, 297, 332, 284, 251, 21, 54, 103, 67, 109],
+  periocular: [33, 133, 159, 145, 362, 263, 386, 374, 70, 63, 300, 293],
+  nasolabial: [92, 165, 167, 206, 205, 36, 142],
+  jawline: [234, 127, 162, 21, 54, 152, 389, 356, 454],
+  lips: [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 146, 91, 181, 84, 17, 314, 405, 321, 375],
+  nose: [1, 4, 5, 6, 19, 94, 2, 168, 197, 195],
+} as const
+
+// Expression landmarks: mouth + eyebrows — these move most during expressions
+const EXPRESSION_LANDMARKS = [
+  61, 291, 0, 17, // mouth corners + top/bottom
+  70, 63, 105, 66, 300, 293, 334, 296, // eyebrows
+  159, 145, 386, 374, // eyelids
+]
+
+function regionJitter(
+  samples: TemporalDetectionSample[],
+  medianLandmarks: Landmark[],
+  indices: readonly number[],
+): number {
+  if (samples.length < 2 || medianLandmarks.length === 0) return 0
+  const distances: number[] = []
+  for (const sample of samples) {
+    let total = 0
+    let count = 0
+    for (const idx of indices) {
+      const a = sample.landmarks[idx]
+      const b = medianLandmarks[idx]
+      if (!a || !b) continue
+      total += Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2)
+      count++
+    }
+    if (count > 0) distances.push(total / count)
+  }
+  return distances.length > 0 ? median(distances) : 0
+}
+
+function computeExpressionNeutrality(
+  samples: TemporalDetectionSample[],
+  medianLandmarks: Landmark[],
+): number {
+  // Measure how much expression-sensitive landmarks move across frames
+  const jitter = regionJitter(samples, medianLandmarks, EXPRESSION_LANDMARKS)
+  // jitter < 0.004 = very neutral, > 0.015 = significant expression movement
+  return clamp01(1 - (jitter - 0.004) / 0.011)
 }
 
 function aggregateLandmarks(samples: TemporalDetectionSample[]): Landmark[] {
@@ -150,6 +213,19 @@ export function buildTemporalViewAggregate(
     centeringScore * 0.10,
   )
 
+  // Per-region stability: how much each region's landmarks jitter across frames
+  const JITTER_CEILING = 0.015 // above this = unstable
+  const regionStability: RegionTemporalStability = {
+    forehead: clamp01(1 - regionJitter(samples, landmarks, REGION_LANDMARKS.forehead) / JITTER_CEILING),
+    periocular: clamp01(1 - regionJitter(samples, landmarks, REGION_LANDMARKS.periocular) / JITTER_CEILING),
+    nasolabial: clamp01(1 - regionJitter(samples, landmarks, REGION_LANDMARKS.nasolabial) / JITTER_CEILING),
+    jawline: clamp01(1 - regionJitter(samples, landmarks, REGION_LANDMARKS.jawline) / JITTER_CEILING),
+    lips: clamp01(1 - regionJitter(samples, landmarks, REGION_LANDMARKS.lips) / JITTER_CEILING),
+    nose: clamp01(1 - regionJitter(samples, landmarks, REGION_LANDMARKS.nose) / JITTER_CEILING),
+  }
+
+  const expressionNeutrality = computeExpressionNeutrality(samples, landmarks)
+
   return {
     view,
     frameCount: samples.length,
@@ -163,5 +239,7 @@ export function buildTemporalViewAggregate(
     sharpness,
     stability,
     temporalConfidence,
+    regionStability,
+    expressionNeutrality,
   }
 }

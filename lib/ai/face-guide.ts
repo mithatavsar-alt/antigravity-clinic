@@ -566,10 +566,10 @@ export function evaluateFaceGuide(
   // Angle evaluation — target-aware for multi-angle capture.
   // Require a visibly side-oriented pose so left/right steps do not
   // still look almost frontal.
-  const ANGLED_MIN = 0.115
+  const ANGLED_MIN = 0.14
   const ANGLED_MAX = 0.44
-  const ANGLED_IDEAL = 0.20
-  const SIDE_NEAR_MIN = ANGLED_MIN * 0.82
+  const ANGLED_IDEAL = 0.22
+  const SIDE_NEAR_MIN = ANGLED_MIN * 0.90
 
   // Angle evaluation — target-aware for multi-angle capture.
   //
@@ -647,7 +647,7 @@ export function evaluateFaceGuide(
   const crowFeetScore = crowLandmarks.length > 0 ? visibilityRatio(landmarks, crowLandmarks) : 1
   const sideEvidenceStrong = targetAngle === 'front'
     ? false
-    : crowFeetScore >= 0.42 && regionVisibility.nasolabial >= 0.48 && regionVisibility.jawline >= 0.52
+    : crowFeetScore >= 0.48 && regionVisibility.nasolabial >= 0.52 && regionVisibility.jawline >= 0.55
   const nearSidePoseAccepted = targetAngle === 'left'
     ? noseOffset <= -SIDE_NEAR_MIN && noseOffset > -ANGLED_MIN
     : targetAngle === 'right'
@@ -709,7 +709,7 @@ export function evaluateFaceGuide(
   const chinRequired = targetAngle === 'front'
   const sideTruthful = targetAngle === 'front'
     ? true
-    : crowFeetScore >= 0.45 && regionVisibility.nasolabial >= 0.50 && regionVisibility.jawline >= 0.55
+    : crowFeetScore >= 0.50 && regionVisibility.nasolabial >= 0.55 && regionVisibility.jawline >= 0.58
   const allOk =
     centering === 'ok' &&
     distanceOk &&

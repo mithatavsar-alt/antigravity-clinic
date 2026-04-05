@@ -76,6 +76,12 @@ export interface EnhancedAnalysisResult {
   symmetryAnalysis: SymmetryAnalysis | null
   /** Lip structure analysis (null if not computed) */
   lipAnalysis: LipAnalysis | null
+  /** Whether primary landmarks came from temporal aggregate or single frame */
+  landmarkSourceMode: 'temporal_aggregate' | 'single_frame'
+  /** Number of frames used for temporal aggregation (1 = single frame) */
+  temporalFrameCount: number
+  /** Temporal confidence 0-1 (0 = no temporal data, 1 = strong multi-frame support) */
+  temporalConfidence: number
 }
 
 // ─── Wrinkle / skin-line analysis types ─────────────────────

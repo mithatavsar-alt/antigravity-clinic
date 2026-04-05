@@ -4,7 +4,7 @@ import { useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useClinicStore } from '@/lib/store'
 import { FaceGuideCapture, type CaptureMetadata, type MultiCaptureResult } from '@/components/analysis/FaceGuideCapture'
-import { saveCaptureManifest, saveCapturedFramesByView } from '@/lib/photo-bridge'
+import { saveCaptureManifest, saveCapturedFramesByView, clearBridgeForLead } from '@/lib/photo-bridge'
 import { buildPatientSummary } from '@/lib/lead-helpers'
 import { deriveConsultationReadiness } from '@/lib/ai/derive-doctor-analysis'
 import { generateLeadId } from '@/lib/utils'
@@ -21,6 +21,19 @@ export default function AnalysisMediaPage() {
   useEffect(() => {
     if (!currentLead?.full_name) {
       router.replace('/analysis')
+      return
+    }
+    // ── Workflow: entering capture phase ──
+    // If re-entering for recapture, transition from result→recapture→capture.
+    // Otherwise start fresh capture.
+    const { scanWorkflow, transitionWorkflow, resetWorkflow } = useClinicStore.getState()
+    if (scanWorkflow.phase === 'result') {
+      transitionWorkflow('start_recapture')
+      transitionWorkflow('start_capture')
+    } else if (scanWorkflow.phase !== 'capture') {
+      // Fresh scan — reset any stale state
+      resetWorkflow()
+      transitionWorkflow('start_capture')
     }
   }, [currentLead, router])
 
@@ -91,6 +104,11 @@ export default function AnalysisMediaPage() {
 
     addLead(lead)
     persistManifest(id, meta)
+
+    // ── Workflow: capture complete ──
+    const { transitionWorkflow } = useClinicStore.getState()
+    transitionWorkflow('capture_complete', { leadId: id })
+
     logAuditEvent('form_completed', { lead_id: id })
     logAuditEvent('consent_granted', { lead_id: id, version: consentVersion.version })
     logAuditEvent('capture_completed', {

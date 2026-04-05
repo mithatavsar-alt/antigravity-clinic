@@ -11,9 +11,9 @@ import {
   detectFaceMultiFrame,
   destroy as destroyHumanEngine,
 } from '@/lib/ai/human-engine'
-import { savePhoto, saveViewPhotos, saveCapturedFrames, getCapturedFrames, getCaptureManifest, getCapturedFramesByView } from '@/lib/photo-bridge'
+import { savePhoto, saveViewPhotos, saveCapturedFrames, getCapturedFrames, getCaptureManifest, getCapturedFramesByView, validateBridgeIntegrity } from '@/lib/photo-bridge'
 import { run as runGeometryAnalysis } from '@/lib/ai/analysis'
-import { computeFocusAreas, computeQualityScore, getSuggestedZones, computeLipAnalysis } from '@/lib/ai/aesthetic-scoring'
+import { computeFocusAreas, computeDetectionQualityScore, getSuggestedZones, computeLipAnalysis } from '@/lib/ai/aesthetic-scoring'
 import { generateSuggestions, generateFocusAreaLabels, mapFocusAreasToRegionScores } from '@/lib/ai/result-generator'
 import { deriveRadarAnalysis } from '@/lib/ai/radar-scores'
 import { deriveDoctorAnalysis, deriveConsultationReadiness } from '@/lib/ai/derive-doctor-analysis'
@@ -41,11 +41,18 @@ import { getViewWeight } from '@/lib/ai/pipeline/view-roles'
 import { runSpecialistAnalysis, buildCalibrationContext } from '@/lib/ai/specialists'
 import { runMultiViewPipeline, type MultiViewInput, type ViewKey } from '@/lib/ai/multi-view-pipeline'
 import { buildTemporalViewAggregate, type TemporalDetectionSample, type TemporalViewAggregate } from '@/lib/ai/temporal-aggregation'
-import { buildCanonicalAnalysisPayload, deriveOverallReliabilityBand } from '@/lib/ai/canonical-analysis'
+import { buildCanonicalAnalysisPayload, deriveOverallReliabilityBand, generateAnalysisRunId } from '@/lib/ai/canonical-analysis'
 import { logAuditEvent } from '@/lib/audit'
 import type { CaptureViewManifest, CaptureViewKey } from '@/types/capture'
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Dev-only logging ───────────────────────────────────────
+// In production, pipeline debug noise is suppressed. Audit events (via logAuditEvent)
+// are always written regardless of environment.
+const __DEV__ = process.env.NODE_ENV === 'development'
+const devLog = __DEV__ ? console.log.bind(console) : (() => {}) as (...args: unknown[]) => void
+const devWarn = __DEV__ ? console.warn.bind(console) : (() => {}) as (...args: unknown[]) => void
+
+// ─── Types ──────────────────────────────────────────────────
 
 type VisualStage = 0 | 1 | 2 | 3 | 4
 
@@ -54,52 +61,52 @@ type PipelineState =
   | { phase: 'error'; message: string }
   | { phase: 'done' }
 
-// â”€â”€â”€ Stage definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Stage definitions ──────────────────────────────────────
 
 const STAGES = [
   {
-    label: 'YÃ¼z Tespiti',
-    icon: 'â—Ž',
+    label: 'Yüz Tespiti',
+    icon: '◎',
     messages: [
-      'YÃ¼z noktalarÄ± tespit ediliyorâ€¦',
-      'Landmark modeli yÃ¼kleniyorâ€¦',
-      'YÃ¼z Ã§erÃ§evesi belirleniyorâ€¦',
+      'Yüz noktaları tespit ediliyor…',
+      'Landmark modeli yükleniyor…',
+      'Yüz çerçevesi belirleniyor…',
     ],
   },
   {
     label: 'Landmark Haritalama',
-    icon: 'â¬¡',
+    icon: '⬡',
     messages: [
-      '468 nokta haritalanÄ±yorâ€¦',
-      'DoÄŸruluk artÄ±rÄ±lÄ±yorâ€¦',
-      'En iyi frame seÃ§ildi',
+      '468 nokta haritalanıyor…',
+      'Doğruluk artırılıyor…',
+      'En iyi frame seçildi',
     ],
   },
   {
     label: 'Geometri Analizi',
-    icon: 'â–³',
+    icon: '△',
     messages: [
-      'Simetri hesaplanÄ±yorâ€¦',
-      'Oranlar analiz ediliyorâ€¦',
-      'AltÄ±n oran karÅŸÄ±laÅŸtÄ±rmasÄ±â€¦',
+      'Simetri hesaplanıyor…',
+      'Oranlar analiz ediliyor…',
+      'Altın oran karşılaştırması…',
     ],
   },
   {
     label: 'Cilt & Doku Tarama',
-    icon: 'â—ˆ',
+    icon: '◈',
     messages: [
-      'Cilt Ã§izgileri taranÄ±yorâ€¦',
-      'Doku analizi yapÄ±lÄ±yorâ€¦',
-      'KÄ±rÄ±ÅŸÄ±klÄ±k haritasÄ± oluÅŸturuluyorâ€¦',
+      'Cilt çizgileri taranıyor…',
+      'Doku analizi yapılıyor…',
+      'Kırışıklık haritası oluşturuluyor…',
     ],
   },
   {
     label: 'AI Tahmin',
-    icon: 'âœ¦',
+    icon: '✦',
     messages: [
-      'Model confidence optimize ediliyorâ€¦',
-      'SonuÃ§lar derleniyorâ€¦',
-      'Rapor oluÅŸturuluyorâ€¦',
+      'Model confidence optimize ediliyor…',
+      'Sonuçlar derleniyor…',
+      'Rapor oluşturuluyor…',
     ],
   },
 ] as const
@@ -108,15 +115,15 @@ const MIN_STAGE_MS = 1500
 const PIPELINE_TIMEOUT_MS = 25_000
 
 // Navigation is now handled via Next.js router (client-side) to preserve
-// in-memory Zustand state â€” avoids data loss from localStorage hydration race.
+// in-memory Zustand state — avoids data loss from localStorage hydration race.
 
-// â”€â”€â”€ Timeout utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Timeout utility ────────────────────────────────────────
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} zaman aÅŸÄ±mÄ±na uÄŸradÄ± (${ms / 1000}s)`)), ms)
+      setTimeout(() => reject(new Error(`${label} zaman aşımına uğradı (${ms / 1000}s)`)), ms)
     ),
   ])
 }
@@ -319,14 +326,14 @@ async function buildTemporalSupportForView(
   }
 }
 
-// â”€â”€â”€ Canvas drawing utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Canvas drawing utilities ───────────────────────────────
 
 const GOLD = '#D6B98C'
 const EMERALD = '#3D9B7A'
 const NEON_GREEN = '#4AE3A7'
 const BRIGHT_GOLD = '#E8C97A'
 
-/** Compute face bounding box from landmarks (normalized 0â€“1) */
+/** Compute face bounding box from landmarks (normalized 0–1) */
 function getFaceBounds(landmarks: Landmark[]) {
   let minX = 1, minY = 1, maxX = 0, maxY = 0
   for (const idx of FACE_OVAL) {
@@ -610,7 +617,7 @@ function drawUnderEyeHighlight(
   ctx.restore()
 }
 
-// â”€â”€â”€ Analysis pipeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Analysis pipeline ──────────────────────────────────────
 
 async function runLocalAnalysisPipeline(
   photoUrl: string,
@@ -618,7 +625,7 @@ async function runLocalAnalysisPipeline(
   onLandmarks: (landmarks: Landmark[]) => void,
   capturedFrameUrls?: string[],
 ): Promise<EnhancedAnalysisResult> {
-  // â”€â”€ Stage 0: Face Detection â”€â”€
+  // ── Stage 0: Face Detection ──
   onStage(0)
 
   const stage0Result = await withMinDelay(async () => {
@@ -629,19 +636,19 @@ async function runLocalAnalysisPipeline(
     await withTimeout(
       new Promise<void>((resolve, reject) => {
         image.onload = () => resolve()
-        image.onerror = () => reject(new Error('FotoÄŸraf yÃ¼klenemedi'))
+        image.onerror = () => reject(new Error('Fotoğraf yüklenemedi'))
         image.src = photoUrl
       }),
       5000,
-      'FotoÄŸraf yÃ¼kleme'
+      'Fotoğraf yükleme'
     )
     if (image.naturalWidth < 100 || image.naturalHeight < 100) {
-      throw new Error('YÃ¼z algÄ±lanamadÄ±. LÃ¼tfen tekrar deneyin.')
+      throw new Error('Yüz algılanamadı. Lütfen tekrar deneyin.')
     }
 
-    const det = await withTimeout(detectFace(image), 8000, 'YÃ¼z algÄ±lama')
+    const det = await withTimeout(detectFace(image), 8000, 'Yüz algılama')
     if (!det || det.landmarks.length < 200) {
-      throw new Error('YÃ¼z algÄ±lanamadÄ±. LÃ¼tfen tekrar deneyin.')
+      throw new Error('Yüz algılanamadı. Lütfen tekrar deneyin.')
     }
 
     onLandmarks(det.landmarks)
@@ -651,7 +658,7 @@ async function runLocalAnalysisPipeline(
   const detection = stage0Result.det
   const imgEl = stage0Result.image
 
-  // â”€â”€ Stage 1: Landmark Mapping + multi-frame age â”€â”€
+  // ── Stage 1: Landmark Mapping + multi-frame age ──
   onStage(1)
 
   const stage1Result = await withMinDelay(async () => {
@@ -660,6 +667,7 @@ async function runLocalAnalysisPipeline(
     let genderConf = detection.genderConfidence
     let coreLandmarks = detection.landmarks
     let coreConfidence = detection.confidence
+    let frontTemporalAggregate: TemporalViewAggregate | null = null
 
     // True multi-frame: use distinct captured frames if available
     let loadedFrames: HTMLImageElement[] = []
@@ -676,9 +684,9 @@ async function runLocalAnalysisPipeline(
           })
           loadedFrames.push(img)
         }
-        console.log(`[Pipeline] Multi-frame: loaded ${loadedFrames.length} distinct captured frames`)
+        devLog(`[Pipeline] Multi-frame: loaded ${loadedFrames.length} distinct captured frames`)
       } else {
-        // Fallback: single image (no duplication â€” just one frame)
+        // Fallback: single image (no duplication — just one frame)
         const copy = new Image()
         copy.crossOrigin = 'anonymous'
         await new Promise<void>((resolve, reject) => {
@@ -687,7 +695,7 @@ async function runLocalAnalysisPipeline(
           copy.src = photoUrl
         })
         loadedFrames.push(copy)
-        console.log('[Pipeline] Multi-frame: single frame only (no captured frames available)')
+        devLog('[Pipeline] Multi-frame: single frame only (no captured frames available)')
       }
 
       const multiResult = await detectFaceMultiFrame(loadedFrames, 0.5)
@@ -712,21 +720,36 @@ async function runLocalAnalysisPipeline(
           .filter((item): item is NonNullable<typeof item> => !!item && item.landmarks.length >= 468 && item.confidence >= 0.45)
 
         if (validTemporalDetections.length >= 3) {
-          coreLandmarks = aggregateTemporalLandmarks(validTemporalDetections.map(item => item.landmarks))
+          // Build formal TemporalViewAggregate for the front view — this provides
+          // per-region stability, expression neutrality, and other metrics that
+          // downstream modules (wrinkle, symmetry, lip) use to weight confidence.
+          const temporalSamples: TemporalDetectionSample[] = validTemporalDetections.map((det, i) => ({
+            frameId: `front-stage1-${i}`,
+            timestamp: Date.now() + i,
+            landmarks: det.landmarks,
+            confidence: det.confidence,
+          }))
+          frontTemporalAggregate = buildTemporalViewAggregate('front', temporalSamples)
+
+          if (frontTemporalAggregate && frontTemporalAggregate.landmarks.length >= 468) {
+            coreLandmarks = frontTemporalAggregate.landmarks
+          } else {
+            coreLandmarks = aggregateTemporalLandmarks(validTemporalDetections.map(item => item.landmarks))
+          }
           coreConfidence = medianNumber(validTemporalDetections.map(item => item.confidence))
           onLandmarks(coreLandmarks)
-          console.log(`[Pipeline] Temporal landmark aggregation active with ${validTemporalDetections.length} frames`)
+          devLog(`[Pipeline] Temporal landmark aggregation active with ${validTemporalDetections.length} frames (aggregate: ${frontTemporalAggregate ? 'yes' : 'no'})`)
         }
       }
     } catch (err) {
-      console.warn('[Pipeline] Multi-frame age estimation failed (non-fatal):', err)
+      devWarn('[Pipeline] Multi-frame age estimation failed (non-fatal):', err)
       loadedFrames = []
     }
 
     const geo = runGeometryAnalysis(coreLandmarks)
-    if (!geo) throw new Error('YÃ¼z geometrisi hesaplanamadÄ±. LÃ¼tfen tekrar deneyin.')
+    if (!geo) throw new Error('Yüz geometrisi hesaplanamadı. Lütfen tekrar deneyin.')
 
-    return { geo, age, gender, genderConf, loadedFrames, coreLandmarks, coreConfidence }
+    return { geo, age, gender, genderConf, loadedFrames, coreLandmarks, coreConfidence, frontTemporalAggregate }
   }, MIN_STAGE_MS)
   const geometry = stage1Result.geo
   const finalAge = stage1Result.age
@@ -735,8 +758,9 @@ async function runLocalAnalysisPipeline(
   const realFrameImages = stage1Result.loadedFrames
   const coreLandmarks = stage1Result.coreLandmarks
   const coreConfidence = stage1Result.coreConfidence
+  const frontTemporal = stage1Result.frontTemporalAggregate
 
-  // â”€â”€ Stage 2: Geometry / Aesthetic Scoring â”€â”€
+  // ── Stage 2: Geometry / Aesthetic Scoring ──
   onStage(2)
 
   const stage2Result = await withMinDelay(async () => {
@@ -745,7 +769,7 @@ async function runLocalAnalysisPipeline(
       metrics: geometry.metrics,
       estimatedAge: finalAge,
     })
-    const qs = computeQualityScore(
+    const qs = computeDetectionQualityScore(
       coreConfidence,
       coreLandmarks.length,
       imgEl.naturalWidth,
@@ -758,7 +782,7 @@ async function runLocalAnalysisPipeline(
   const qualityScore = stage2Result.qs
   const suggestedZones = stage2Result.sz
 
-  // â”€â”€ Stage 3: Skin / Wrinkle Analysis + Image Quality + Symmetry â”€â”€
+  // ── Stage 3: Skin / Wrinkle Analysis + Image Quality + Symmetry ──
   onStage(3)
 
   const stage3Result = await withMinDelay(async () => {
@@ -767,22 +791,35 @@ async function runLocalAnalysisPipeline(
     try {
       iq = assessImageQuality(coreLandmarks, coreConfidence, imgEl)
     } catch (err) {
-      console.warn('[Pipeline] Image quality assessment failed (non-fatal):', err)
+      devWarn('[Pipeline] Image quality assessment failed (non-fatal):', err)
     }
 
-    // Wrinkle analysis (13 regions) â€” multi-frame for stability
+    // Wrinkle analysis (13 regions) — multi-frame for stability
     // Pass real captured frames when available for true multi-frame analysis
     let wa = null
     try {
       const hasRealFrames = realFrameImages.length >= 2
+      // Pass temporal region stability when available — wrinkle analysis uses it
+      // to weight per-region confidence by how stable the landmarks were across frames
+      const temporalRegionStab = frontTemporal?.regionStability
+        ? {
+            forehead: frontTemporal.regionStability.forehead,
+            periocular: frontTemporal.regionStability.periocular,
+            nasolabial: frontTemporal.regionStability.nasolabial,
+            jawline: frontTemporal.regionStability.jawline,
+            lips: frontTemporal.regionStability.lips,
+            nose: frontTemporal.regionStability.nose,
+          }
+        : undefined
       wa = analyzeWrinklesMultiFrame(
         imgEl, coreLandmarks, finalAge,
         hasRealFrames ? realFrameImages.length : 3,
         hasRealFrames ? realFrameImages : undefined,
+        temporalRegionStab,
       )
       if (!wa) wa = analyzeWrinkles(imgEl, coreLandmarks, finalAge)
     } catch (err) {
-      console.warn('[Pipeline] Wrinkle analysis failed (non-fatal):', err)
+      devWarn('[Pipeline] Wrinkle analysis failed (non-fatal):', err)
     }
 
     // Skin texture profile
@@ -791,24 +828,24 @@ async function runLocalAnalysisPipeline(
       try {
         st = deriveSkinTexture(wa)
       } catch (err) {
-        console.warn('[Pipeline] Skin texture derivation failed (non-fatal):', err)
+        devWarn('[Pipeline] Skin texture derivation failed (non-fatal):', err)
       }
     }
 
     // Symmetry analysis
     let sym = null
     try {
-      sym = computeSymmetryAnalysis(coreLandmarks)
+      sym = computeSymmetryAnalysis(coreLandmarks, frontTemporal?.expressionNeutrality)
     } catch (err) {
-      console.warn('[Pipeline] Symmetry analysis failed (non-fatal):', err)
+      devWarn('[Pipeline] Symmetry analysis failed (non-fatal):', err)
     }
 
     // Lip analysis
     let lip = null
     try {
-      lip = computeLipAnalysis(coreLandmarks, coreConfidence)
+      lip = computeLipAnalysis(coreLandmarks, coreConfidence, frontTemporal?.regionStability?.lips)
     } catch (err) {
-      console.warn('[Pipeline] Lip analysis failed (non-fatal):', err)
+      devWarn('[Pipeline] Lip analysis failed (non-fatal):', err)
     }
 
     return { iq, wa, st, sym, lip }
@@ -820,7 +857,7 @@ async function runLocalAnalysisPipeline(
   const symmetryAnalysis = stage3Result.sym
   const lipAnalysis = stage3Result.lip
 
-  // â”€â”€ Stage 4: AI Prediction / Age Estimation / Build result â”€â”€
+  // ── Stage 4: AI Prediction / Age Estimation / Build result ──
   onStage(4)
 
   const enhanced = await withMinDelay(async () => {
@@ -836,7 +873,7 @@ async function runLocalAnalysisPipeline(
         detectionConfidence: coreConfidence,
       })
     } catch (err) {
-      console.warn('[Pipeline] Age estimation failed (non-fatal):', err)
+      devWarn('[Pipeline] Age estimation failed (non-fatal):', err)
     }
 
     const result: EnhancedAnalysisResult = {
@@ -855,6 +892,9 @@ async function runLocalAnalysisPipeline(
       skinTexture,
       symmetryAnalysis,
       lipAnalysis,
+      landmarkSourceMode: frontTemporal ? 'temporal_aggregate' : 'single_frame',
+      temporalFrameCount: frontTemporal?.frameCount ?? 1,
+      temporalConfidence: frontTemporal?.temporalConfidence ?? 0,
     }
     return result
   }, MIN_STAGE_MS)
@@ -862,7 +902,7 @@ async function runLocalAnalysisPipeline(
   return enhanced
 }
 
-// â”€â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Main component ─────────────────────────────────────────
 
 function ProcessingContent() {
   const searchParams = useSearchParams()
@@ -872,10 +912,11 @@ function ProcessingContent() {
   const id = searchParams.get('id')
   const ran = useRef(false)
   const abortRef = useRef(false)
+  const pipelineSequenceRef = useRef(0)
 
   const [pipelineState, setPipelineState] = useState<PipelineState>({ phase: 'running' })
   const [currentStage, setCurrentStage] = useState<VisualStage>(0)
-  const [stageProgress, setStageProgress] = useState(0) // 0â€“1 within current stage
+  const [stageProgress, setStageProgress] = useState(0) // 0–1 within current stage
   const [microMessage, setMicroMessage] = useState<string>(STAGES[0].messages[0])
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [landmarks, setLandmarks] = useState<Landmark[] | null>(null)
@@ -888,7 +929,7 @@ function ProcessingContent() {
   const microIndexRef = useRef(0)
   const microTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // â”€â”€ Micro-message cycling â”€â”€
+  // ── Micro-message cycling ──
   useEffect(() => {
     if (pipelineState.phase !== 'running') {
       if (microTimerRef.current) clearInterval(microTimerRef.current)
@@ -908,7 +949,7 @@ function ProcessingContent() {
     }
   }, [currentStage, pipelineState.phase])
 
-  // â”€â”€ Canvas overlay animation â”€â”€
+  // ── Canvas overlay animation ──
   useEffect(() => {
     if (!landmarks || !canvasRef.current || !photoUrl) return
     if (pipelineState.phase !== 'running' && !freeze) return
@@ -924,7 +965,7 @@ function ProcessingContent() {
     const bounds = getFaceBounds(landmarks)
     const { cx, cy, fw, minY: fMinY, maxY: fMaxY } = bounds
 
-    // Dynamic scaling: expand overlay 15â€“20% beyond mesh boundary
+    // Dynamic scaling: expand overlay 15–20% beyond mesh boundary
     // Extra vertical expansion for forehead (+25% top)
     const baseScaleX = 1.15
     const baseScaleY = 1.25
@@ -959,9 +1000,9 @@ function ProcessingContent() {
         const lineAlpha = currentStage === 1 ? 0.5 + 0.5 * progress : 0.7
         ctx.globalAlpha = lineAlpha
 
-        // Outer contour â€” neon glow
+        // Outer contour — neon glow
         drawConnections(ctx, landmarks, FACE_OVAL, w, h, cx, cy, scaleX, scaleY, lineProgress, EMERALD, 1.5, true)
-        // Jawline â€” full chin-to-ear
+        // Jawline — full chin-to-ear
         drawConnections(ctx, landmarks, JAWLINE, w, h, cx, cy, scaleX, scaleY, lineProgress, EMERALD, 1.2, true)
         // Forehead contour
         drawConnections(ctx, landmarks, FOREHEAD_ZONE, w, h, cx, cy, scaleX, scaleY * 1.1, lineProgress, NEON_GREEN, 1, true)
@@ -1015,7 +1056,7 @@ function ProcessingContent() {
     }
   }, [landmarks, currentStage, pipelineState.phase, freeze, photoUrl])
 
-  // â”€â”€ Main pipeline â”€â”€
+  // ── Main pipeline ──
   useEffect(() => {
     if (!id) {
       routerRef.current.replace('/analysis')
@@ -1025,21 +1066,25 @@ function ProcessingContent() {
     if (ran.current) return
     ran.current = true
 
+    // Monotonic sequence — if another run somehow starts, the stale one
+    // detects its sequence is outdated and aborts
+    const mySequence = ++pipelineSequenceRef.current
+
     const leadId = id
 
     const safetyTimer = setTimeout(() => {
-      console.warn(`[Pipeline] Safety timeout reached (${PIPELINE_TIMEOUT_MS / 1000}s)`)
+      devWarn(`[Pipeline] Safety timeout reached (${PIPELINE_TIMEOUT_MS / 1000}s)`)
       abortRef.current = true
       setPipelineState({
         phase: 'error',
-        message: 'Analiz zaman aÅŸÄ±mÄ±na uÄŸradÄ±. LÃ¼tfen tekrar deneyin.',
+        message: 'Analiz zaman aşımına uğradı. Lütfen tekrar deneyin.',
       })
       destroyHumanEngine()
     }, PIPELINE_TIMEOUT_MS)
 
     async function runPipeline() {
       try {
-        await withTimeout(waitForHydration(), 3000, 'Store yÃ¼kleme')
+        await withTimeout(waitForHydration(), 3000, 'Store yükleme')
 
         if (abortRef.current) return
 
@@ -1047,13 +1092,29 @@ function ProcessingContent() {
         const lead = leads.find((l) => l.id === leadId)
 
         if (!lead) {
-          console.error('[Pipeline] Lead not found:', leadId)
+          devWarn('[Pipeline] Lead not found:', leadId)
           setPipelineState({
             phase: 'error',
-            message: 'Analiz verisi bulunamadÄ±. LÃ¼tfen formu tekrar doldurun.',
+            message: 'Analiz verisi bulunamadı. Lütfen formu tekrar doldurun.',
           })
           return
         }
+
+        // ── Duplicate run guard ──
+        // If this lead already has a completed analysis from a real provider,
+        // skip re-processing and go directly to results.
+        const existingSource = lead.analysis_source
+        if (existingSource && existingSource.provider !== 'mock' && existingSource.source !== 'fallback' && lead.status === 'analysis_ready') {
+          clearTimeout(safetyTimer)
+          setPipelineState({ phase: 'done' })
+          await delay(200)
+          routerRef.current.replace(`/analysis/result?id=${leadId}`)
+          return
+        }
+
+        // ── Workflow transition: start_processing ──
+        const { transitionWorkflow } = useClinicStore.getState()
+        transitionWorkflow('start_processing', { analysisRunId: leadId })
 
         clearCurrentLead()
 
@@ -1083,11 +1144,38 @@ function ProcessingContent() {
           return
         }
 
+        // ── Bridge integrity check ──
+        const bridgeCheck = validateBridgeIntegrity(leadId)
+        if (!bridgeCheck.hasPhoto) {
+          logAuditEvent('analysis_started', {
+            lead_id: leadId,
+            bridge_issues: bridgeCheck.issues,
+            bridge_valid: false,
+          })
+        }
+        if (bridgeCheck.issues.length > 0 && process.env.NODE_ENV === 'development') {
+          console.warn('[Pipeline] Bridge integrity issues:', bridgeCheck.issues)
+        }
+
         // Retrieve capture manifest (per-view quality from capture time)
         const captureManifest = getCaptureManifest(leadId)
         const capturedFramesByView = getCapturedFramesByView(leadId)
 
-        // â”€â”€ Run local analysis pipeline â”€â”€
+        // ── Analysis run ID — links capture, canonical payload, and audit trail ──
+        const analysisRunId = generateAnalysisRunId()
+        if (captureManifest) {
+          captureManifest.analysis_run_id = analysisRunId
+        }
+        logAuditEvent('analysis_started', {
+          lead_id: leadId,
+          analysis_run_id: analysisRunId,
+          bridge_valid: bridgeCheck.valid,
+          bridge_has_manifest: bridgeCheck.hasManifest,
+          bridge_has_view_photos: bridgeCheck.hasViewPhotos,
+          pipeline_sequence: mySequence,
+        })
+
+        // ── Run local analysis pipeline ──
         // Retrieve real captured frames from session bridge (or from lead)
         const pipelineFrames = capturedFrames.length > 0
           ? capturedFrames
@@ -1111,10 +1199,10 @@ function ProcessingContent() {
           frontPipelineFrames.length > 0 ? frontPipelineFrames : undefined,
         )
 
-        if (abortRef.current) return
+        if (abortRef.current || pipelineSequenceRef.current !== mySequence) return
 
-        // â”€â”€ Trust Pipeline: validate, filter, gate â”€â”€
-        // The image element is needed for quality gate â€” recreate it
+        // ── Trust Pipeline: validate, filter, gate ──
+        // The image element is needed for quality gate — recreate it
         const trustImage = new Image()
         trustImage.crossOrigin = 'anonymous'
         let trustImageLoaded = false
@@ -1152,15 +1240,28 @@ function ProcessingContent() {
           if (!abortRef.current) setLandmarks(pipelineLandmarks)
         }
 
-        // â”€â”€ Build multi-view context for reliability architecture â”€â”€
+        // ── Build multi-view context for reliability architecture ──
         // Assess front view quality first (always available)
         const frontCaptureQuality = captureManifest?.views.find(v => v.view === 'front')?.acceptance_score
+        // Pass temporal region stability so view quality and region reliability
+        // use real per-region evidence instead of global proxies
+        const frontTemporalStab = temporalSupportByView.front?.aggregate?.regionStability
+          ? {
+              forehead: temporalSupportByView.front.aggregate.regionStability.forehead,
+              periocular: temporalSupportByView.front.aggregate.regionStability.periocular,
+              nasolabial: temporalSupportByView.front.aggregate.regionStability.nasolabial,
+              jawline: temporalSupportByView.front.aggregate.regionStability.jawline,
+              lips: temporalSupportByView.front.aggregate.regionStability.lips,
+              nose: temporalSupportByView.front.aggregate.regionStability.nose,
+            }
+          : undefined
         const frontViewQuality = assessViewQuality(
           'front',
           pipelineLandmarks,
           enhanced.confidence,
           trustImage,
           frontCaptureQuality,
+          frontTemporalStab,
         )
 
         // Multi-view context will be enriched after side-view detection below
@@ -1182,7 +1283,7 @@ function ProcessingContent() {
         // Only soft warnings are shown on the result page.
         const qualityCaveat = getQualityCaveatText(trustResult)
 
-        // â”€â”€ Specialist Module Analysis (5 regions) â”€â”€
+        // ── Specialist Module Analysis (5 regions) ──
         let specialistResult = null
         if (trustImageLoaded && pipelineLandmarks.length >= 468) {
           try {
@@ -1199,11 +1300,11 @@ function ProcessingContent() {
               enhanced.wrinkleAnalysis?.regions,
             )
           } catch (err) {
-            console.warn('[Pipeline] Specialist analysis failed (non-fatal):', err)
+            devWarn('[Pipeline] Specialist analysis failed (non-fatal):', err)
           }
         }
 
-        // â”€â”€ Multi-View Analysis Pipeline (front + left + right) â”€â”€
+        // ── Multi-View Analysis Pipeline (front + left + right) ──
         let multiViewResult = null
         const allPhotos = lead.doctor_frontal_photos ?? []
         if (trustImageLoaded && pipelineLandmarks.length >= 468 && allPhotos.length >= 3) {
@@ -1258,7 +1359,7 @@ function ProcessingContent() {
             if (multiViewInputs.length >= 2) {
               multiViewResult = runMultiViewPipeline(multiViewInputs, calibrationCtx)
 
-              // â”€â”€ View-specific wrinkle re-analysis â”€â”€
+              // ── View-specific wrinkle re-analysis ──
               // Run full wrinkle engine (with CLAHE) on each side view and fuse results
               try {
                 const viewWrinkleInputs = multiViewInputs
@@ -1277,22 +1378,35 @@ function ProcessingContent() {
                   )
                   if (fusedWrinkles) {
                     enhanced.wrinkleAnalysis = fusedWrinkles
-                    console.log(`[Pipeline] View-specific wrinkle fusion: ${viewWrinkleInputs.length} views â†’ ${fusedWrinkles.regions.length} regions`)
+                    devLog(`[Pipeline] View-specific wrinkle fusion: ${viewWrinkleInputs.length} views → ${fusedWrinkles.regions.length} regions`)
                   }
                 }
               } catch (err) {
-                console.warn('[Pipeline] View-specific wrinkle re-analysis failed (non-fatal):', err)
+                devWarn('[Pipeline] View-specific wrinkle re-analysis failed (non-fatal):', err)
               }
 
-              // â”€â”€ Build multi-view quality profiles for reliability architecture â”€â”€
+              // ── Build multi-view quality profiles for reliability architecture ──
+              // Each view gets its own temporal region stability (if temporal aggregate exists)
               const viewQualityProfiles = multiViewInputs.map(input => {
                 const viewCaptureQuality = captureManifest?.views.find(v => v.view === input.view)?.acceptance_score
+                const viewTemporal = temporalSupportByView[input.view as keyof typeof temporalSupportByView]
+                const viewTemporalStab = viewTemporal?.aggregate?.regionStability
+                  ? {
+                      forehead: viewTemporal.aggregate.regionStability.forehead,
+                      periocular: viewTemporal.aggregate.regionStability.periocular,
+                      nasolabial: viewTemporal.aggregate.regionStability.nasolabial,
+                      jawline: viewTemporal.aggregate.regionStability.jawline,
+                      lips: viewTemporal.aggregate.regionStability.lips,
+                      nose: viewTemporal.aggregate.regionStability.nose,
+                    }
+                  : undefined
                 return assessViewQuality(
                   input.view as CaptureView,
                   input.landmarks,
                   input.detectionConfidence,
                   input.image,
                   viewCaptureQuality,
+                  viewTemporalStab,
                 )
               })
 
@@ -1315,11 +1429,11 @@ function ProcessingContent() {
               multiViewCtx = buildMultiViewContext(viewQualityProfiles, viewScoreMap)
             }
           } catch (err) {
-            console.warn('[Pipeline] Multi-view analysis failed (non-fatal):', err)
+            devWarn('[Pipeline] Multi-view analysis failed (non-fatal):', err)
           }
         }
 
-        // â”€â”€ Re-run trust pipeline with full multi-view context if available â”€â”€
+        // ── Re-run trust pipeline with full multi-view context if available ──
         // This upgrades confidence scoring with view-aware reliability data
         let finalTrustResult = trustResult
         if (multiViewCtx && multiViewCtx.isMultiView) {
@@ -1333,10 +1447,10 @@ function ProcessingContent() {
           )
         }
 
-        // â”€â”€ Save results â”€â”€
+        // ── Save results ──
         const { geometry, estimatedAge, focusAreas, suggestedZones, confidence, qualityScore, wrinkleAnalysis, ageEstimation } = enhanced
 
-        // Always show real analysis results â€” post-capture only shows warning banners, never blocks
+        // Always show real analysis results — post-capture only shows warning banners, never blocks
         const suggestions = generateSuggestions(enhanced, finalTrustResult.observations)
         const summaryText = finalTrustResult.patientSummary
         const focusLabels = finalTrustResult.focusLabels.length > 0
@@ -1404,7 +1518,19 @@ function ProcessingContent() {
           temporalCoverageScore * 0.30 +
           observationCoverageScore * 0.35,
         )))
-        const livenessPenalty = livenessRequired && !livenessPassed ? 0.72 : 1
+        // Liveness penalty: graduated by actual confidence, not binary
+        // - Fully passed with strong signals: no penalty
+        // - Passed but with weak confidence: mild penalty
+        // - Required but not passed: significant penalty
+        // - Low temporal continuity: additional mild penalty (possible static photo)
+        const livenessTemporalContinuity = livenessSignals?.temporal_motion_continuity ?? 0
+        const livenessPenalty = livenessRequired && !livenessPassed
+          ? 0.68 // incomplete liveness: 32% penalty
+          : livenessRequired && livenessPassed && livenessConfidence < 60
+            ? 0.88 // weak pass: 12% penalty
+            : livenessTemporalContinuity > 0 && livenessTemporalContinuity < 0.25
+              ? 0.92 // very low motion continuity: 8% penalty (possible static)
+              : 1
         const temporalPenalty = temporalConfidenceValues.length > 0
           ? 0.82 + ((temporalCoverageScore / 100) * 0.18)
           : 1
@@ -1421,15 +1547,41 @@ function ProcessingContent() {
           recaptureRecommended,
         )
         const limitedByLiveness = livenessRequired && !livenessPassed && reportConfidence < 55
-        const blockRichOutputs = blockedByQuality || limitedByLiveness
+        // Degraded mode: analysis ran but evidence is weak. We store all data
+        // (landmark overlay, radar, wrinkle, age) so the result page can render
+        // with appropriate caveats — but we tag it so the UI can adapt tone.
+        // Previously this was a binary block that stripped radar/wrinkle/age,
+        // creating an inconsistent state where some sections showed and others didn't.
+        const outputDegraded = blockedByQuality || limitedByLiveness
+        const livenessIncompleteReason = captureManifest?.liveness_incomplete_reason
         const recaptureReason = finalTrustResult.qualityGate.recaptureReason ??
           ((livenessRequired && !livenessPassed)
-            ? 'Canlilik dogrulamasi tamamlanamadi. Daha guvenilir sonuc icin cekimin yeniden alinmasi onerilir.'
+            ? `Canlılık adımları tamamlanamadı${livenessIncompleteReason ? ` (${livenessIncompleteReason})` : ''}. Daha güvenilir sonuç için çekimin yeniden alınması önerilir.`
             : recaptureViews.length > 0
-              ? `Yeniden cekim onerisi: ${recaptureViews.join(', ')} acilarinda dogruluk sinirli.`
+              ? `Yeniden çekim önerisi: ${recaptureViews.join(', ')} açılarında doğruluk sınırlı.`
               : undefined)
+        // ── Build per-region evidence from multi-view reliability ──
+        const regionEvidence = multiViewCtx?.regionReliabilities?.map(rr => ({
+          region: rr.region,
+          confidence: Math.round(rr.confidence * 100),
+          band: rr.band,
+          contributing_views: rr.contributingViews,
+          sufficient: rr.sufficient,
+          evidence_factors: rr.evidenceFactors ? {
+            view_authority: rr.evidenceFactors.viewAuthority,
+            roi_completeness: rr.evidenceFactors.roiCompleteness,
+            local_sharpness: rr.evidenceFactors.localSharpness,
+            local_exposure: rr.evidenceFactors.localExposure,
+            pose_fit: rr.evidenceFactors.poseFit,
+            temporal_stability: rr.evidenceFactors.temporalStability,
+            occlusion_factor: rr.evidenceFactors.occlusionFactor,
+            capped_by_rule: rr.evidenceFactors.cappedByRule,
+          } : undefined,
+        }))
+
         const canonicalAnalysis = buildCanonicalAnalysisPayload({
           leadId,
+          analysisRunId,
           captureManifest,
           captureQualityScore,
           analysisInputQualityScore,
@@ -1442,10 +1594,21 @@ function ProcessingContent() {
           recaptureRecommended,
           recaptureViews,
           temporalViewSupport,
+          regionEvidence,
+        })
+
+        logAuditEvent('canonical_payload_created', {
+          lead_id: leadId,
+          analysis_run_id: analysisRunId,
+          payload_schema_version: canonicalAnalysis.payload_schema_version,
+          analysis_authority: canonicalAnalysis.analysis_authority,
+          report_confidence: reportConfidence,
+          region_evidence_count: regionEvidence?.length ?? 0,
         })
 
         updateLeadAnalysis(leadId, {
-          doctor_analysis: blockRichOutputs ? undefined : doctorAnalysis,
+          output_degraded: outputDegraded,
+          doctor_analysis: doctorAnalysis,
           patient_summary: {
             status: 'ready',
             photo_quality: analysisInputQualityScore >= 75 ? 'good' : analysisInputQualityScore >= 50 ? 'acceptable' : 'poor',
@@ -1456,23 +1619,23 @@ function ProcessingContent() {
             model_version: 'human-v1',
           },
           consultation_readiness: readiness,
-          ai_scores: blockRichOutputs ? undefined : {
+          ai_scores: {
             symmetry: geometry.scores.symmetry,
             proportion: geometry.scores.proportion,
             suggestions,
             metrics: geometry.metrics,
           },
-          estimated_age: blockRichOutputs ? undefined : estimatedAge,
-          estimated_gender: blockRichOutputs ? undefined : (enhanced.gender ?? null),
-          estimated_gender_confidence: blockRichOutputs ? undefined : (enhanced.genderConfidence > 0 ? enhanced.genderConfidence : undefined),
-          focus_areas: blockRichOutputs ? [] : focusAreas.map((a) => ({
+          estimated_age: estimatedAge,
+          estimated_gender: enhanced.gender ?? null,
+          estimated_gender_confidence: enhanced.genderConfidence > 0 ? enhanced.genderConfidence : undefined,
+          focus_areas: focusAreas.map((a) => ({
             region: a.region,
             label: a.label,
             score: a.score,
             insight: a.insight,
             doctorReviewRecommended: a.doctorReviewRecommended,
           })),
-          wrinkle_scores: !blockRichOutputs && wrinkleAnalysis ? {
+          wrinkle_scores: wrinkleAnalysis ? {
             regions: wrinkleAnalysis.regions.map((r) => ({
               region: r.region,
               label: r.label,
@@ -1487,7 +1650,7 @@ function ProcessingContent() {
             overallScore: wrinkleAnalysis.overallScore,
             overallLevel: wrinkleAnalysis.overallLevel,
           } : undefined,
-          age_estimation: !blockRichOutputs && ageEstimation ? {
+          age_estimation: ageEstimation ? {
             estimatedRange: ageEstimation.estimatedRange,
             pointEstimate: ageEstimation.pointEstimate,
             confidence: ageEstimation.confidence,
@@ -1500,11 +1663,11 @@ function ProcessingContent() {
             })),
             caveat: ageEstimation.caveat,
           } : undefined,
-          radar_analysis: blockRichOutputs ? undefined : radarAnalysis,
-          suggested_zones: blockRichOutputs ? [] : suggestedZones,
-          analysis_confidence: blockRichOutputs ? 0 : confidence,
+          radar_analysis: radarAnalysis,
+          suggested_zones: suggestedZones,
+          analysis_confidence: confidence,
           quality_score: qualityScore,
-          // â”€â”€ Separated quality semantics â”€â”€
+          // ── Separated quality semantics ──
           capture_manifest: captureManifest ?? undefined,
           capture_quality_score: captureQualityScore,
           analysis_input_quality_score: analysisInputQualityScore,
@@ -1530,7 +1693,7 @@ function ProcessingContent() {
             analyzed_at: new Date().toISOString(),
           },
           status: 'analysis_ready',
-          // â”€â”€ Trust pipeline metadata â”€â”€
+          // ── Trust pipeline metadata ──
           trust_pipeline: {
             overall_confidence: reportConfidence,
             quality_gate_verdict: finalTrustResult.qualityGate.verdict,
@@ -1574,7 +1737,7 @@ function ProcessingContent() {
               evaluable: rc.evaluable,
               limitation: rc.limitation,
             })),
-            // â”€â”€ Multi-view reliability metadata â”€â”€
+            // ── Multi-view reliability metadata ──
             multi_view_reliability: multiViewCtx?.isMultiView ? {
               capturedViews: multiViewCtx.capturedViews,
               viewQualities: multiViewCtx.viewQualities.map(v => ({
@@ -1586,7 +1749,7 @@ function ProcessingContent() {
               fusedFindingsCount: finalTrustResult.fusedFindings.length,
             } : undefined,
           },
-          lip_analysis: !blockRichOutputs && finalTrustResult.lipMetric ? {
+          lip_analysis: finalTrustResult.lipMetric ? {
             volume: finalTrustResult.lipMetric.data.volume,
             symmetry: finalTrustResult.lipMetric.data.symmetry,
             contour: finalTrustResult.lipMetric.data.contour,
@@ -1595,7 +1758,7 @@ function ProcessingContent() {
             limitationReason: finalTrustResult.lipMetric.data.limitationReason,
             confidence: finalTrustResult.lipMetric.data.confidence,
           } : undefined,
-          specialist_analysis: !blockRichOutputs && specialistResult ? {
+          specialist_analysis: specialistResult ? {
             assessments: specialistResult.assessments.map(a => ({
               moduleKey: a.moduleKey,
               displayName: a.displayName,
@@ -1621,7 +1784,7 @@ function ProcessingContent() {
             priorityRegions: specialistResult.priorityRegions,
             analyzedAt: specialistResult.analyzedAt,
           } : undefined,
-          multi_view_analysis: !blockRichOutputs && multiViewResult ? {
+          multi_view_analysis: multiViewResult ? {
             globalScore: multiViewResult.globalScore,
             globalConfidence: multiViewResult.globalConfidence,
             recaptureNeeded: multiViewResult.recaptureNeeded,
@@ -1669,9 +1832,10 @@ function ProcessingContent() {
           } : undefined,
         })
 
-        // â”€â”€ Final freeze 0.5s then navigate â”€â”€
+        // ── Final freeze 0.5s then navigate ──
         logAuditEvent('analysis_completed', {
           lead_id: leadId,
+          analysis_run_id: analysisRunId,
           report_confidence: reportConfidence,
           capture_quality_score: captureQualityScore,
           analysis_input_quality_score: analysisInputQualityScore,
@@ -1684,18 +1848,62 @@ function ProcessingContent() {
           overall_reliability_band: overallReliabilityBand,
         })
 
+        // Liveness audit: log completion or incompleteness
+        if (livenessStatus === 'passed') {
+          logAuditEvent('liveness_completed', {
+            lead_id: leadId,
+            analysis_run_id: analysisRunId,
+            liveness_confidence: livenessConfidence,
+            blink_detected: !!livenessSignals?.blink_detected,
+            blink_count: livenessSignals?.blink_count,
+            blink_duration_ms: livenessSignals?.blink_duration_ms,
+            left_turn_observed: !!livenessSignals?.left_turn_observed,
+            right_turn_observed: !!livenessSignals?.right_turn_observed,
+            temporal_motion_continuity: livenessSignals?.temporal_motion_continuity,
+            motion_direction_changes: livenessSignals?.motion_direction_changes,
+          })
+        } else if (livenessRequired && livenessStatus !== 'not_required') {
+          logAuditEvent('liveness_incomplete', {
+            lead_id: leadId,
+            analysis_run_id: analysisRunId,
+            liveness_status: livenessStatus,
+            liveness_confidence: livenessConfidence,
+            incomplete_reason: livenessIncompleteReason,
+            blink_detected: !!livenessSignals?.blink_detected,
+            left_turn_observed: !!livenessSignals?.left_turn_observed,
+            right_turn_observed: !!livenessSignals?.right_turn_observed,
+          })
+        }
+
+        // ── Workflow transition: processing complete → result ──
+        const { transitionWorkflow: twDone } = useClinicStore.getState()
+        twDone('processing_complete')
+        if (recaptureRecommended) {
+          twDone(outputDegraded ? 'require_recapture' : 'recommend_recapture')
+        } else if (outputDegraded) {
+          twDone('result_limited')
+        } else {
+          twDone('result_ready')
+        }
+
         setFreeze(true)
         setPipelineState({ phase: 'done' })
         clearTimeout(safetyTimer)
         await delay(500)
         routerRef.current.replace(`/analysis/result?id=${leadId}`)
       } catch (err) {
-        console.error('[Pipeline] Error:', err)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[Pipeline] Error:', err)
+        }
         clearTimeout(safetyTimer)
 
         const message = err instanceof Error
           ? err.message
-          : 'Analiz sÄ±rasÄ±nda bir hata oluÅŸtu'
+          : 'Analiz sırasında bir hata oluştu'
+
+        // ── Workflow transition: processing failed ──
+        const { transitionWorkflow: twErr } = useClinicStore.getState()
+        twErr('processing_failed')
 
         setPipelineState({ phase: 'error', message })
 
@@ -1735,7 +1943,7 @@ function ProcessingContent() {
     if (id) router.replace(`/analysis/result?id=${id}`)
   }, [id, router])
 
-  // â”€â”€ Render â”€â”€
+  // ── Render ──
 
   const isRunning = pipelineState.phase === 'running'
   const isError = pipelineState.phase === 'error'
@@ -1749,12 +1957,12 @@ function ProcessingContent() {
         background: 'linear-gradient(160deg, #0A0908 0%, #141110 20%, #0F1214 50%, #0A0B0D 100%)',
       }}
     >
-      {/* Ambient depth glows â€” cinematic */}
+      {/* Ambient depth glows — cinematic */}
       <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 60% 50% at 50% 25%, rgba(214,185,140,0.025) 0%, transparent 55%), radial-gradient(ellipse 40% 30% at 50% 75%, rgba(61,155,122,0.015) 0%, transparent 45%)' }} />
 
       <div className="relative w-full max-w-md flex flex-col items-center" style={{ gap: 'clamp(1.5rem, 3vw, 2rem)' }}>
 
-        {/* â”€â”€ Photo with canvas overlay â€” cinematic frame â”€â”€ */}
+        {/* ── Photo with canvas overlay — cinematic frame ── */}
         <div
           className="relative w-full overflow-hidden"
           style={{
@@ -1775,7 +1983,7 @@ function ProcessingContent() {
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={photoUrl}
-              alt="Analiz edilen fotoÄŸraf"
+              alt="Analiz edilen fotoğraf"
               className="absolute inset-0 w-full h-full object-cover"
               style={{ filter: isRunning ? 'brightness(0.7)' : 'brightness(0.85)' }}
             />
@@ -1804,7 +2012,7 @@ function ProcessingContent() {
             />
           )}
 
-          {/* Stage indicator badge â€” premium pill */}
+          {/* Stage indicator badge — premium pill */}
           {isRunning && (
             <div
               className="absolute top-5 left-5 flex items-center gap-2.5 rounded-full px-4 py-2"
@@ -1828,7 +2036,7 @@ function ProcessingContent() {
             </div>
           )}
 
-          {/* Done overlay â€” elegant reveal */}
+          {/* Done overlay — elegant reveal */}
           {isDone && (
             <div
               className="absolute inset-0 flex items-center justify-center"
@@ -1845,14 +2053,14 @@ function ProcessingContent() {
                   </svg>
                 </div>
                 <span className="text-label text-[rgba(248,246,242,0.60)]" style={{ fontSize: '9px' }}>
-                  Analiz TamamlandÄ±
+                  Analiz Tamamlandı
                 </span>
               </div>
             </div>
           )}
         </div>
 
-        {/* â”€â”€ Progress bar â€” refined â”€â”€ */}
+        {/* ── Progress bar — refined ── */}
         <div className="w-full flex flex-col gap-2.5">
           <div className="w-full h-[2.5px] rounded-full bg-[rgba(248,246,242,0.04)] overflow-hidden">
             <div
@@ -1874,13 +2082,13 @@ function ProcessingContent() {
             </span>
             {isRunning && (
               <span className="text-label-sm text-[rgba(248,246,242,0.25)]">
-                AÅŸama {currentStage + 1}/5
+                Aşama {currentStage + 1}/5
               </span>
             )}
           </div>
         </div>
 
-        {/* â”€â”€ Micro-message â€” editorial â”€â”€ */}
+        {/* ── Micro-message — editorial ── */}
         {isRunning && (
           <p
             key={microMessage}
@@ -1891,7 +2099,7 @@ function ProcessingContent() {
           </p>
         )}
 
-        {/* â”€â”€ Stage timeline â€” premium â”€â”€ */}
+        {/* ── Stage timeline — premium ── */}
         <div
           className="w-full relative flex flex-col rounded-xl px-5 py-4"
           style={{ background: 'rgba(14,12,10,0.40)', border: '1px solid rgba(214,185,140,0.05)' }}
@@ -1998,7 +2206,7 @@ function ProcessingContent() {
           })}
         </div>
 
-        {/* â”€â”€ Error state â€” premium â”€â”€ */}
+        {/* ── Error state — premium ── */}
         {isError && (
           <div
             className="w-full flex flex-col gap-5"
@@ -2018,7 +2226,7 @@ function ProcessingContent() {
                 onClick={handleBack}
                 className="flex-1 justify-center"
               >
-                Geri DÃ¶n
+                Geri Dön
               </PremiumButton>
               <PremiumButton
                 type="button"
@@ -2027,7 +2235,7 @@ function ProcessingContent() {
                 onClick={handleSkip}
                 className="flex-1 justify-center"
               >
-                SonuÃ§lara Git
+                Sonuçlara Git
               </PremiumButton>
               <PremiumButton
                 type="button"

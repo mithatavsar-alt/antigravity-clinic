@@ -272,6 +272,9 @@ export interface Lead {
   liveness_passed?: boolean
   liveness_signals?: CaptureManifest['liveness_signals']
 
+  /** True when quality gate blocked or liveness failed — data is stored but UI should show caveats */
+  output_degraded?: boolean
+
   /** Honest trust roll-up for UI + backend-ready migration */
   overall_reliability_band?: OverallReliabilityBand
   evidence_coverage_score?: number

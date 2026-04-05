@@ -3,6 +3,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Lead, LeadStatus, DoctorAnalysis, PatientSummary, ConsultationReadiness } from '@/types/lead'
+import {
+  type ScanWorkflowState,
+  type TransitionResult,
+  INITIAL_WORKFLOW_STATE,
+  transition,
+} from '@/lib/workflow-state'
 // Mock leads only seeded in development for doctor dashboard demo
 const initialLeads: Lead[] = process.env.NODE_ENV === 'development'
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -49,6 +55,7 @@ interface LeadAnalysisUpdate {
   suppression_count?: Lead['suppression_count']
   limited_regions_count?: Lead['limited_regions_count']
   canonical_analysis?: Lead['canonical_analysis']
+  output_degraded?: Lead['output_degraded']
   status?: LeadStatus
 }
 
@@ -66,6 +73,16 @@ interface ClinicStore {
   updateLeadStatus: (id: string, status: LeadStatus) => void
   updateDoctorNotes: (id: string, notes: string) => void
   generateReport: (id: string, reportUrl: string) => void
+
+  /** Scan workflow FSM state — NOT persisted to localStorage */
+  scanWorkflow: ScanWorkflowState
+  /** Attempt a guarded FSM transition. Returns false if transition was invalid. */
+  transitionWorkflow: (
+    name: Parameters<typeof transition>[1],
+    payload?: Record<string, unknown>,
+  ) => TransitionResult
+  /** Reset workflow to initial state (e.g. on new scan start) */
+  resetWorkflow: () => void
 
   isAuthenticated: boolean
   login: (credentials: { email: string; password: string }) => boolean
@@ -154,6 +171,19 @@ export const useClinicStore = create<ClinicStore>()(
               : l
           ),
         })),
+
+      scanWorkflow: { ...INITIAL_WORKFLOW_STATE },
+      transitionWorkflow: (name, payload) => {
+        const current = useClinicStore.getState().scanWorkflow
+        const result = transition(current, name, payload)
+        if (result.ok) {
+          set({ scanWorkflow: result.state })
+        } else if (process.env.NODE_ENV === 'development') {
+          console.warn(`[Workflow] Transition '${name}' rejected:`, result.error)
+        }
+        return result
+      },
+      resetWorkflow: () => set({ scanWorkflow: { ...INITIAL_WORKFLOW_STATE } }),
 
       isAuthenticated: false,
       login: ({ email, password }) => {

@@ -106,7 +106,7 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.35, ease }}
-            className="mt-11 flex flex-col sm:flex-row items-start gap-5"
+            className="mt-11 flex flex-col sm:flex-row items-start gap-3.5"
           >
             <Link href="/analysis">
               <PremiumButton variant="primary" size="lg">
@@ -146,7 +146,7 @@ export function HeroSection() {
             }}
           />
           {/* Image container — right-aligned, premium but secondary */}
-          <div className="relative w-full max-w-[500px] aspect-[3/4] rounded-2xl overflow-hidden group" style={{ maxHeight: '640px' }}>
+          <div className="relative w-full max-w-[540px] aspect-[3/4] rounded-2xl overflow-hidden group" style={{ maxHeight: '700px' }}>
             {/* Soft left-edge fade for text-to-image transition */}
             <div
               className="absolute inset-0 z-10 pointer-events-none"

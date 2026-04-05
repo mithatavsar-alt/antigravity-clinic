@@ -169,6 +169,77 @@ export function getCaptureManifest(leadId: string): CaptureManifest | null {
   }
 }
 
+// ─── Bridge Integrity ─────────────────────────────────────
+// Validates that required data is present and internally consistent
+// before the processing page commits to an analysis run.
+
+export interface BridgeIntegrityResult {
+  valid: boolean
+  hasPhoto: boolean
+  hasManifest: boolean
+  hasViewPhotos: boolean
+  manifestMatchesPhotos: boolean
+  issues: string[]
+}
+
+/** Validate bridge data integrity for a lead before processing. */
+export function validateBridgeIntegrity(leadId: string): BridgeIntegrityResult {
+  const issues: string[] = []
+
+  const photo = getPhoto(leadId)
+  const hasPhoto = !!photo
+  if (!hasPhoto) issues.push('missing_primary_photo')
+
+  const manifest = getCaptureManifest(leadId)
+  const hasManifest = !!manifest
+  if (!hasManifest) issues.push('missing_capture_manifest')
+
+  const [front, left, right] = getViewPhotos(leadId)
+  const hasViewPhotos = !!front || !!left || !!right
+
+  // Cross-check: if manifest says multi-mode, we should have side photos
+  let manifestMatchesPhotos = true
+  if (manifest?.mode === 'multi') {
+    const capturedViews = manifest.views.filter(v => v.captured).map(v => v.view)
+    if (capturedViews.includes('left') && !left) {
+      issues.push('manifest_claims_left_but_missing')
+      manifestMatchesPhotos = false
+    }
+    if (capturedViews.includes('right') && !right) {
+      issues.push('manifest_claims_right_but_missing')
+      manifestMatchesPhotos = false
+    }
+    if (capturedViews.includes('front') && !front && !photo) {
+      issues.push('manifest_claims_front_but_missing')
+      manifestMatchesPhotos = false
+    }
+  }
+
+  return {
+    valid: hasPhoto && issues.length === 0,
+    hasPhoto,
+    hasManifest,
+    hasViewPhotos,
+    manifestMatchesPhotos,
+    issues,
+  }
+}
+
+/** Remove ALL bridge data for a lead (full cleanup). */
+export function clearBridgeForLead(leadId: string): void {
+  try {
+    const prefixes = [SESSION_KEY_PREFIX, VIEW_KEY_PREFIX, FRAMES_KEY_PREFIX, VIEW_FRAMES_KEY_PREFIX, MANIFEST_KEY_PREFIX]
+    const keys: string[] = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i)
+      if (key && prefixes.some(p => key.startsWith(p) && key.includes(leadId))) {
+        keys.push(key)
+      }
+    }
+    keys.forEach(k => sessionStorage.removeItem(k))
+  } catch { /* ignore */ }
+}
+
 /** Clear all bridge photos (cleanup). */
 function clearPrimaryPhotos(): void {
   try {

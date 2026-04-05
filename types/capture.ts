@@ -33,6 +33,8 @@ export interface CaptureRegionVisibility {
   lips: number
 }
 
+export type LivenessSchemaVersion = '2.0.0'
+
 export interface CaptureLivenessSignals {
   front_steady_observed?: boolean
   blink_detected?: boolean
@@ -46,6 +48,22 @@ export interface CaptureLivenessSignals {
   yaw_right_peak?: number
   motion_consistency?: number
   step_confidence?: Partial<Record<LivenessStepKey, number>>
+  /** Eye openness delta (baseline - min) — strength of blink evidence */
+  eye_openness_delta?: number
+  /** Blink duration in ms (eye close → reopen) — plausibility check */
+  blink_duration_ms?: number
+  /** Timestamp when blink challenge was shown to user */
+  blink_challenge_shown_at?: number
+  /** Yaw transition smoothness 0–1 for left turn (higher = more natural) */
+  yaw_left_smoothness?: number
+  /** Yaw transition smoothness 0–1 for right turn */
+  yaw_right_smoothness?: number
+  /** Frame-over-frame motion continuity 0–1 (low = possible static photo) */
+  temporal_motion_continuity?: number
+  /** Number of distinct motion direction changes observed */
+  motion_direction_changes?: number
+  /** Liveness schema version for forward compatibility */
+  schema_version?: LivenessSchemaVersion
 }
 
 export interface CaptureLivenessStep {
@@ -80,9 +98,13 @@ export interface CaptureFrameMetrics {
   dataUrl?: string
 }
 
+export type CaptureTrigger = 'auto' | 'manual'
+
 export interface CaptureViewManifest {
   view: CaptureViewKey
   captured: boolean
+  /** How this view was captured — 'auto' (countdown) or 'manual' (shutter button) */
+  capture_trigger?: CaptureTrigger
   quality_score: number
   acceptance_score: number
   quality_band: CaptureQualityBand
@@ -115,6 +137,8 @@ export interface CaptureViewManifest {
 export interface CaptureManifest {
   schema_version: CaptureManifestSchemaVersion
   session_id: string
+  /** Analysis run ID — set when the processing page begins analysis, links capture to canonical payload */
+  analysis_run_id?: string
   mode: 'single' | 'multi'
   captured_at: string
   completed_at: string
@@ -124,6 +148,10 @@ export interface CaptureManifest {
   liveness_passed: boolean
   liveness_status: LivenessStatus
   liveness_confidence: number
+  /** Reason liveness is incomplete (null if passed or not required) */
+  liveness_incomplete_reason?: string | null
+  /** Liveness signal schema version */
+  liveness_schema_version?: LivenessSchemaVersion
   liveness_signals?: CaptureLivenessSignals
   liveness_steps?: CaptureLivenessStep[]
   frames: CaptureFrameMetrics[]

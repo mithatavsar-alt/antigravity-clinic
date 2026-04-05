@@ -299,8 +299,21 @@ export interface ViewQualityProfile {
     landmarkConf: number  // 0–1: detection confidence
     stability: number     // 0–1: temporal stability (capture-time only)
   }
+  /** ROI-local quality per region (null if not computed) */
+  roiQualities?: ROILocalQualitySummary[]
+  /** Per-region temporal stability from temporal aggregation (null if single-frame) */
+  temporalRegionStability?: Record<string, number>
   /** Rejection reason if not usable */
   rejectReason?: string
+}
+
+/** Compact ROI quality data embedded in ViewQualityProfile */
+export interface ROILocalQualitySummary {
+  region: ReliabilityRegion
+  sharpness: number     // 0–1
+  exposure: number      // 0–1
+  completeness: number  // 0–1
+  measurable: boolean
 }
 
 /** Reliability of a specific region from a specific view */
@@ -336,6 +349,28 @@ export interface RegionReliability {
   sufficient: boolean
   /** If insufficient, reason why */
   insufficientReason?: string
+  /** Evidence factors that produced the confidence score */
+  evidenceFactors?: RegionEvidenceFactors
+}
+
+/** Transparent breakdown of what drove a region's confidence */
+export interface RegionEvidenceFactors {
+  /** Primary view authority weight used (0–1) */
+  viewAuthority: number
+  /** ROI landmark completeness (0–1) */
+  roiCompleteness: number
+  /** Local sharpness within the ROI (0–1) */
+  localSharpness: number
+  /** Local exposure quality within the ROI (0–1) */
+  localExposure: number
+  /** How well the captured pose fits this region (0–1) */
+  poseFit: number
+  /** Temporal stability for this region (0–1, 0 = single frame) */
+  temporalStability: number
+  /** Occlusion-free factor (0–1, 1 = no occlusion) */
+  occlusionFactor: number
+  /** Whether any regional rule capped confidence */
+  cappedByRule: string | null
 }
 
 /** All facial regions tracked for reliability */

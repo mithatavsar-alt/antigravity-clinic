@@ -8,7 +8,7 @@ import DynamicInsightPanel from './DynamicInsightPanel'
 import type { RegionInsight } from './DynamicInsightPanel'
 import { scoreColor } from '@/lib/ui/score-colors'
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ────────────────────────────────────────────────────
 
 interface RadarDataPoint {
   key: string
@@ -30,8 +30,8 @@ interface RadarChartSectionProps {
   overallReliabilityBand?: string
 }
 
-// â”€â”€â”€ Showcase region definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Maps the 11-score analysis â†’ 6 interactive regions
+// ─── Showcase region definitions ──────────────────────────────
+// Maps the 11-score analysis → 6 interactive regions
 
 interface ShowcaseDef {
   id: string
@@ -115,7 +115,7 @@ const SHOWCASE_DEFS: ShowcaseDef[] = [
   },
 ]
 
-// â”€â”€â”€ Mapping: 11 scores â†’ 6 showcase regions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Mapping: 11 scores → 6 showcase regions ─────────────────
 
 function mapToShowcase(scores: RadarDataPoint[]): ShowcaseRegion[] {
   const byKey = new Map(scores.map((s) => [s.key, s]))
@@ -152,11 +152,11 @@ function mapToShowcase(scores: RadarDataPoint[]): ShowcaseRegion[] {
   })
 }
 
-// â”€â”€â”€ Auto-highlight interval â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Auto-highlight interval ─────────────────────────────────
 
 const AUTO_INTERVAL = 2500
 
-// â”€â”€â”€ Exported Section Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Exported Section Component ──────────────────────────────
 
 export default function RadarChartSection({
   scores,
@@ -167,13 +167,13 @@ export default function RadarChartSection({
   livenessStatus,
   overallReliabilityBand,
 }: RadarChartSectionProps) {
-  // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── State ──────────────────────────────────────────────────
   const [activeIndex, setActiveIndex] = useState(0)
   const [lockedIndex, setLockedIndex] = useState<number | null>(null)
 
   const currentIndex = lockedIndex !== null ? lockedIndex : activeIndex
 
-  // â”€â”€ Derived data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Derived data ───────────────────────────────────────────
   const regions = useMemo(() => mapToShowcase(scores), [scores])
 
   const avg = useMemo(
@@ -181,7 +181,7 @@ export default function RadarChartSection({
     [regions],
   )
 
-  // â”€â”€ Auto-highlight cycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Auto-highlight cycle ───────────────────────────────────
   useEffect(() => {
     if (lockedIndex !== null) return
 
@@ -192,7 +192,7 @@ export default function RadarChartSection({
     return () => clearInterval(id)
   }, [lockedIndex, regions.length])
 
-  // â”€â”€ Selection handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Selection handlers ─────────────────────────────────────
   const handleSelect = useCallback((index: number) => {
     setLockedIndex(index)
     setActiveIndex(index)
@@ -202,7 +202,7 @@ export default function RadarChartSection({
     setLockedIndex(null)
   }, [])
 
-  // â”€â”€ Guard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Guard ──────────────────────────────────────────────────
   if (!scores || scores.length === 0) return null
 
   const avgColor = scoreColor(avg)
@@ -217,7 +217,7 @@ export default function RadarChartSection({
       className="flex flex-col"
       style={{ gap: 'clamp(1.5rem, 3.5vw, 2.5rem)', animation: 'sectionReveal 0.8s ease-out 0.1s both' }}
     >
-      {/* â”€â”€ Section header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Section header ──────────────────────────────── */}
       <div className="flex flex-col items-center gap-3 text-center">
         <span className="text-label text-[rgba(214,185,140,0.55)]">
           Estetik Harita
@@ -235,7 +235,7 @@ export default function RadarChartSection({
         </div>
       </div>
 
-      {/* â”€â”€ Main card: Chart + Score List â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Main card: Chart + Score List ────────────────── */}
       <div
         className="glass-elevated rounded-[24px] sm:rounded-[28px]"
         style={{ animation: 'heroFadeUp 0.9s ease-out 0.2s both' }}
@@ -276,7 +276,7 @@ export default function RadarChartSection({
               {overallReliabilityBand && (
                 <span className="px-2.5 py-1 rounded-full text-[10px] tracking-[0.12em] uppercase border"
                   style={{ color: 'rgba(248,246,242,0.55)', borderColor: 'rgba(248,246,242,0.08)', background: 'rgba(248,246,242,0.02)' }}>
-                  GÃ¼ven BandÄ± {overallReliabilityBand}
+                  Güven Bandı {overallReliabilityBand}
                 </span>
               )}
               {typeof reportConfidence === 'number' && (
@@ -288,7 +288,7 @@ export default function RadarChartSection({
               {typeof evidenceCoverageScore === 'number' && (
                 <span className="px-2.5 py-1 rounded-full text-[10px] tracking-[0.10em] uppercase border"
                   style={{ color: 'rgba(74,227,167,0.62)', borderColor: 'rgba(74,227,167,0.10)', background: 'rgba(74,227,167,0.03)' }}>
-                  KanÄ±t %{evidenceCoverageScore}
+                  Kanıt %{evidenceCoverageScore}
                 </span>
               )}
               {livenessStatus && livenessStatus !== 'not_required' && (
@@ -298,7 +298,7 @@ export default function RadarChartSection({
                     borderColor: livenessStatus === 'passed' ? 'rgba(74,227,167,0.12)' : 'rgba(229,168,59,0.12)',
                     background: livenessStatus === 'passed' ? 'rgba(74,227,167,0.03)' : 'rgba(229,168,59,0.04)',
                   }}>
-                  {livenessStatus === 'passed' ? 'CanlÄ±lÄ±k DoÄrulandÄ±' : 'CanlÄ±lÄ±k SÄ±nÄ±rlÄ±'}
+                  {livenessStatus === 'passed' ? 'Canlılık Doğrulandı' : 'Canlılık Sınırlı'}
                 </span>
               )}
             </div>
@@ -350,7 +350,7 @@ export default function RadarChartSection({
         </div>
       </div>
 
-      {/* â”€â”€ Dynamic Insight Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Dynamic Insight Panel ────────────────────────── */}
       <div key={currentIndex} style={{ animation: 'sectionReveal 0.5s ease-out both' }}>
         <DynamicInsightPanel
           insight={currentInsight}
@@ -360,7 +360,7 @@ export default function RadarChartSection({
         />
       </div>
 
-      {/* â”€â”€ Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Summary ──────────────────────────────────────── */}
       {summaryText && (
         <div
           className="rounded-[14px] px-5 py-4 text-center max-w-2xl mx-auto w-full"

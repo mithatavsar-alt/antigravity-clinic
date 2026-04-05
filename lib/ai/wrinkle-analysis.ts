@@ -1381,6 +1381,23 @@ export function analyzeWrinkles(
  * Returns the averaged result — regions with inconsistent scores across frames
  * get lower confidence, preventing one-off noise from inflating results.
  */
+/** Map wrinkle region keys to temporal stability region keys */
+const WRINKLE_TO_TEMPORAL_REGION: Record<WrinkleRegion, string> = {
+  forehead: 'forehead',
+  glabella: 'forehead',
+  crow_feet_left: 'periocular',
+  crow_feet_right: 'periocular',
+  under_eye_left: 'periocular',
+  under_eye_right: 'periocular',
+  nasolabial_left: 'nasolabial',
+  nasolabial_right: 'nasolabial',
+  marionette_left: 'jawline',
+  marionette_right: 'jawline',
+  cheek_left: 'nasolabial',
+  cheek_right: 'nasolabial',
+  jawline: 'jawline',
+}
+
 export function analyzeWrinklesMultiFrame(
   image: HTMLImageElement | HTMLCanvasElement,
   landmarks: Landmark[],
@@ -1389,6 +1406,10 @@ export function analyzeWrinklesMultiFrame(
   /** Real captured frames from distinct time points. If provided, these are
    *  analyzed directly instead of using synthetic augmentations. */
   realFrames?: HTMLImageElement[],
+  /** Per-region temporal stability scores (0-1) from temporal aggregate.
+   *  When provided, wrinkle confidence per region is weighted by how stable
+   *  the corresponding landmarks were across captured frames. */
+  temporalRegionStability?: Record<string, number>,
 ): WrinkleAnalysisResult | null {
   if (landmarks.length < 400) return null
 
@@ -1472,7 +1493,7 @@ export function analyzeWrinklesMultiFrame(
   }
 
   const aggregatedRegions: WrinkleRegionResult[] = []
-  for (const [, regionResults] of regionMap) {
+  for (const [regionKey, regionResults] of regionMap) {
     if (regionResults.length === 0) continue
 
     const avgScore = regionResults.reduce((s, r) => s + r.score, 0) / regionResults.length
@@ -1483,8 +1504,17 @@ export function analyzeWrinklesMultiFrame(
     const scoreVariance = regionResults.reduce((s, r) => s + (r.score - avgScore) ** 2, 0) / regionResults.length
     const consistencyPenalty = scoreVariance > 200 ? 0.7 : scoreVariance > 100 ? 0.85 : 1.0
 
+    // Apply temporal region stability: boost confidence when landmarks were stable,
+    // penalize when the corresponding facial region was jittery across frames
+    const temporalKey = WRINKLE_TO_TEMPORAL_REGION[regionKey as WrinkleRegion]
+    const temporalStab = temporalRegionStability && temporalKey
+      ? (temporalRegionStability[temporalKey] ?? 1.0)
+      : 1.0
+    // Scale: stability 1.0 = no penalty, 0.5 = moderate penalty (~0.85x), 0.0 = heavy penalty (~0.7x)
+    const temporalFactor = 0.7 + temporalStab * 0.3
+
     const finalScore = clamp(Math.round(avgScore * consistencyPenalty), 0, 100)
-    const finalConf = clamp(avgConf * consistencyPenalty, 0.1, 1.0)
+    const finalConf = clamp(avgConf * consistencyPenalty * temporalFactor, 0.1, 1.0)
     const level = classifyWrinkleLevel(finalScore)
 
     // Use the best evidence strength from the frames

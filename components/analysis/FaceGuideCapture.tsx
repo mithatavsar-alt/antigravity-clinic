@@ -245,23 +245,30 @@ function isReadyForCapture(
   return passing >= required && status.captureAcceptance >= acceptanceThreshold
 }
 
-// ─── MANUAL CAPTURE ELIGIBILITY (separate from auto) ───────
-// More lenient than auto-capture — acts as a reliable fallback.
+// ─── MANUAL CAPTURE ELIGIBILITY (hardened fallback) ──────────
+// Nearly identical trust to auto-capture — only difference is:
+//   • Soft-check gate: 5/6 front (vs 6/6 auto), 4/6 side (vs 5/6 auto)
+//   • No stability-frame countdown (manual is instantaneous)
 //
-// FRONT:  score >= 75 + hard blockers only (no 6/6 soft-check gate)
-// SIDE:   score >= 65 + hard blockers only (no strict angle match)
+// Everything else matches auto:
+//   • Same hard blockers (angle, distance, completeness, occlusion)
+//   • Same front visibility (eyes, forehead, chin, symmetry ≥ 0.55)
+//   • Same side region checks (crow's feet, nasolabial, jawline)
+//   • Same acceptance thresholds (0.86 front, 0.82 side)
 //
-// Hard blockers for manual: no face, face too small, face outside
-// frame, image unreadable (blur). Extreme wrong-angle for front only.
+// Manual is NOT a shortcut — it's a fallback for when one soft metric
+// (typically stability) can't settle, but all other evidence is strong.
 
-const MANUAL_THRESHOLD_FRONT = 0.84
+const MANUAL_THRESHOLD_FRONT = 0.86
 const MANUAL_THRESHOLD_SIDE  = 0.82
+const MANUAL_MIN_PASSING_FRONT = 5
+const MANUAL_MIN_PASSING_SIDE  = 4
 
 function isManualCaptureEligible(
   status: FaceGuideStatus,
   isSide: boolean,
 ): boolean {
-  // ── Hard blockers — always reject ──
+  // ── Hard blockers — same as auto-capture ──
   if (!status.faceDetected) return false
   if (!status.faceLocked) return false
 
@@ -276,16 +283,36 @@ function isManualCaptureEligible(
   if (status.landmarkCompleteness < (isSide ? HARD_MIN_COMPLETENESS_SIDE : HARD_MIN_COMPLETENESS_FRONT)) return false
   if (status.occlusionScore < (isSide ? HARD_MIN_OCCLUSION_SIDE : HARD_MIN_OCCLUSION_FRONT)) return false
 
-  // Front only: reject extreme wrong angles (looking sideways)
-  // but NOT as strict as auto-capture's qb.angle < 0.25
-  if (!isSide && qb.angle < 0.15) return false
+  // Front: reject wrong angles — aligned with auto-capture's hard blocker
+  if (!isSide && qb.angle < 0.25) return false
 
   if (isSide && status.angle !== 'ok') return false
   if (isSide && status.crowFeetScore < HARD_MIN_SIDE_CROW) return false
   if (isSide && status.regionVisibility.nasolabial < HARD_MIN_SIDE_NASOLABIAL) return false
   if (isSide && status.regionVisibility.jawline < HARD_MIN_SIDE_JAWLINE) return false
 
-  // Score threshold — the live qualityScore is the gate
+  // Front-only visibility — must see both eyes, forehead, chin, symmetry (same as auto)
+  if (!isSide) {
+    if (!status.eyesVisible) return false
+    if (!status.foreheadVisible) return false
+    if (!status.chinVisible) return false
+    if (status.symmetryScore < 0.55) return false
+  }
+
+  // ── Soft-check gate (reduced vs auto but not absent) ──
+  const t = isSide ? 0.38 : 0.50
+  let passing = 0
+  if (qb.distance  >= t) passing++
+  if (qb.lighting  >= t) passing++
+  if (qb.angle     >= t) passing++
+  if (qb.centering >= (isSide ? t * 0.6 : t)) passing++
+  if (qb.sharpness >= t) passing++
+  if (qb.stability >= (isSide ? t * 0.5 : t)) passing++
+
+  const minPassing = isSide ? MANUAL_MIN_PASSING_SIDE : MANUAL_MIN_PASSING_FRONT
+  if (passing < minPassing) return false
+
+  // Score threshold — matches auto-capture acceptance thresholds
   const threshold = isSide ? MANUAL_THRESHOLD_SIDE : MANUAL_THRESHOLD_FRONT
   return status.captureAcceptance >= threshold
 }
@@ -888,6 +915,8 @@ interface ViewCaptureRuntime {
   holdDurationMs: number
   countdownResets: number
   blinkDetected: boolean
+  /** How this view was captured — set when auto-advance or manual shutter fires */
+  captureTrigger?: 'auto' | 'manual'
 }
 
 interface LivenessRuntime {
@@ -905,6 +934,22 @@ interface LivenessRuntime {
   yawLeftPeak: number
   yawRightPeak: number
   motionSamples: number[]
+  /** Timestamp when blink challenge instruction was shown */
+  blinkChallengeShownAt?: number
+  /** Duration of the detected blink in ms */
+  blinkDurationMs?: number
+  /** Previous frame's yaw for left-turn smoothness tracking */
+  prevYawLeft: number[]
+  /** Previous frame's yaw for right-turn smoothness tracking */
+  prevYawRight: number[]
+  /** Frame-over-frame landmark position deltas for temporal continuity */
+  frameDeltaSamples: number[]
+  /** Previous frame's average landmark position (for delta calculation) */
+  prevLandmarkCenter?: { x: number; y: number }
+  /** Number of distinct motion direction changes (x-axis) */
+  motionDirectionChanges: number
+  /** Previous motion direction sign */
+  prevMotionSign: number
 }
 
 const VIEW_KEYS: CaptureViewKey[] = ['front', 'left', 'right']
@@ -1007,6 +1052,11 @@ function buildEmptyLivenessRuntime(): LivenessRuntime {
     blinkCount: 0,
     baselineEyeOpenness: 0,
     minEyeOpenness: 1,
+    prevYawLeft: [],
+    prevYawRight: [],
+    frameDeltaSamples: [],
+    motionDirectionChanges: 0,
+    prevMotionSign: 0,
     maxEyeOpenness: 0,
     yawLeftPeak: 0,
     yawRightPeak: 0,
@@ -1028,12 +1078,18 @@ function clearLivenessForView(runtime: LivenessRuntime, view: CaptureViewKey): L
       minEyeOpenness: 1,
       maxEyeOpenness: 0,
       motionSamples: [],
+      blinkChallengeShownAt: undefined,
+      blinkDurationMs: undefined,
+      frameDeltaSamples: [],
+      prevLandmarkCenter: undefined,
+      motionDirectionChanges: 0,
+      prevMotionSign: 0,
     }
   }
   if (view === 'left') {
-    return { ...runtime, leftObservedAt: undefined, yawLeftPeak: 0 }
+    return { ...runtime, leftObservedAt: undefined, yawLeftPeak: 0, prevYawLeft: [] }
   }
-  return { ...runtime, rightObservedAt: undefined, yawRightPeak: 0 }
+  return { ...runtime, rightObservedAt: undefined, yawRightPeak: 0, prevYawRight: [] }
 }
 
 function computeEyeOpenness(landmarks: Landmark[]): number {
@@ -1057,12 +1113,54 @@ function computeEyeOpenness(landmarks: Landmark[]): number {
   return clamp01(((leftOpen + rightOpen) / 2) / 0.18)
 }
 
+/**
+ * Compute yaw sample smoothness: how consistent the yaw transition was.
+ * Smooth natural turns produce values near 1.0; jerky/fake motion is lower.
+ */
+function computeYawSmoothness(samples: number[]): number {
+  if (samples.length < 3) return 0
+  let totalDelta = 0
+  let reversals = 0
+  let prevDelta = 0
+  for (let i = 1; i < samples.length; i++) {
+    const delta = samples[i] - samples[i - 1]
+    totalDelta += Math.abs(delta)
+    if (i > 1 && Math.sign(delta) !== 0 && Math.sign(prevDelta) !== 0 && Math.sign(delta) !== Math.sign(prevDelta)) {
+      reversals += 1
+    }
+    prevDelta = delta
+  }
+  const avgDelta = totalDelta / (samples.length - 1)
+  // Penalize excessive reversals and too-large jumps
+  const reversalPenalty = clamp01(1 - reversals / (samples.length * 0.5))
+  const smoothness = clamp01(avgDelta / 4) * reversalPenalty
+  return smoothness
+}
+
+/**
+ * Compute temporal motion continuity from frame delta samples.
+ * Low = possible static photo. High = real moving face.
+ */
+function computeTemporalMotionContinuity(samples: number[]): number {
+  if (samples.length < 5) return 0
+  // Count frames with meaningful motion (delta > 0.0005)
+  const movingFrames = samples.filter(d => d > 0.0005).length
+  const movingRatio = movingFrames / samples.length
+  // Median delta should be small but non-zero for real faces
+  const sorted = [...samples].sort((a, b) => a - b)
+  const medianDelta = sorted[Math.floor(sorted.length / 2)]
+  // Real faces: median delta 0.001-0.015, moving ratio > 0.4
+  const deltaScore = medianDelta > 0.0008 && medianDelta < 0.05 ? 1 : clamp01(medianDelta / 0.001)
+  return clamp01(movingRatio * 0.6 + deltaScore * 0.4)
+}
+
 function computeLivenessSignals(runtime: LivenessRuntime, required: boolean): {
   status: LivenessStatus
   passed: boolean
   confidence: number
   steps: CaptureLivenessStep[]
   signals: CaptureLivenessSignals
+  incompleteReason: string | null
 } {
   const stepConfidence: Record<CaptureLivenessStep['key'], number> = {
     front: runtime.frontSteadyObservedAt ? 0.9 : Math.min(0.55, runtime.frontSteadyFrames / 6),
@@ -1078,16 +1176,42 @@ function computeLivenessSignals(runtime: LivenessRuntime, required: boolean): {
   const blinkDetected = !!runtime.blinkDetectedAt
   const leftObserved = !!runtime.leftObservedAt
   const rightObserved = !!runtime.rightObservedAt
+
+  // Blink timing plausibility: real blinks are 100–500ms
+  const blinkPlausible = runtime.blinkDurationMs != null
+    ? runtime.blinkDurationMs >= 80 && runtime.blinkDurationMs <= 600
+    : false
+  // Penalize blink confidence if timing is implausible
+  if (blinkDetected && !blinkPlausible && runtime.blinkDurationMs != null) {
+    stepConfidence.blink *= 0.5
+  }
+
+  // Eye openness delta — strength of blink evidence
+  const eyeOpennessDelta = runtime.baselineEyeOpenness > 0 && runtime.minEyeOpenness < 1
+    ? runtime.baselineEyeOpenness - runtime.minEyeOpenness
+    : 0
+
+  // Yaw smoothness for turns
+  const yawLeftSmoothness = computeYawSmoothness(runtime.prevYawLeft)
+  const yawRightSmoothness = computeYawSmoothness(runtime.prevYawRight)
+
+  // Temporal motion continuity
+  const temporalContinuity = computeTemporalMotionContinuity(runtime.frameDeltaSamples)
+
   const passed = required
     ? (frontObserved && blinkDetected && leftObserved && rightObserved)
     : (frontObserved && blinkDetected)
 
+  // Temporal continuity bonus: real moving face boosts confidence slightly
+  const continuityBonus = temporalContinuity > 0.4 ? 0.05 : 0
+
   const confidence = clamp01(
     stepConfidence.front * 0.25 +
-    stepConfidence.blink * 0.35 +
-    stepConfidence.left_turn * 0.20 +
-    stepConfidence.right_turn * 0.20 +
-    motionConsistency * 0.10,
+    stepConfidence.blink * 0.30 +
+    stepConfidence.left_turn * 0.18 +
+    stepConfidence.right_turn * 0.18 +
+    motionConsistency * 0.09 +
+    continuityBonus,
   )
 
   const status: LivenessStatus = !required
@@ -1098,9 +1222,22 @@ function computeLivenessSignals(runtime: LivenessRuntime, required: boolean): {
         ? 'incomplete'
         : 'not_started'
 
+  // Build incomplete reason
+  let incompleteReason: string | null = null
+  if (required && !passed) {
+    const missing: string[] = []
+    if (!frontObserved) missing.push('ön görünüm sabitlenmedi')
+    if (!blinkDetected) missing.push('göz kırpma algılanmadı')
+    if (!leftObserved) missing.push('sol dönüş tamamlanmadı')
+    if (!rightObserved) missing.push('sağ dönüş tamamlanmadı')
+    incompleteReason = missing.length > 0 ? missing.join(', ') : null
+  } else if (!required && !blinkDetected) {
+    incompleteReason = 'göz kırpma algılanmadı'
+  }
+
   const steps: CaptureLivenessStep[] = [
     { key: 'front', observed: frontObserved, confidence: stepConfidence.front, observed_at: runtime.frontSteadyObservedAt, detail: frontObserved ? 'Ön görünüm doğrulandı' : 'Ön görünüm sabitlenmedi' },
-    { key: 'blink', observed: blinkDetected, confidence: stepConfidence.blink, observed_at: runtime.blinkDetectedAt, detail: blinkDetected ? 'Göz kırpma sinyali alındı' : 'Blink doğrulanmadı' },
+    { key: 'blink', observed: blinkDetected, confidence: stepConfidence.blink, observed_at: runtime.blinkDetectedAt, detail: blinkDetected ? 'Göz kırpma sinyali alındı' : 'Göz kırpma algılanmadı' },
     { key: 'left_turn', observed: leftObserved, confidence: stepConfidence.left_turn, observed_at: runtime.leftObservedAt, detail: leftObserved ? 'Sol dönüş doğrulandı' : 'Sol dönüş eksik' },
     { key: 'right_turn', observed: rightObserved, confidence: stepConfidence.right_turn, observed_at: runtime.rightObservedAt, detail: rightObserved ? 'Sağ dönüş doğrulandı' : 'Sağ dönüş eksik' },
   ]
@@ -1110,6 +1247,7 @@ function computeLivenessSignals(runtime: LivenessRuntime, required: boolean): {
     passed,
     confidence,
     steps,
+    incompleteReason,
     signals: {
       front_steady_observed: frontObserved,
       blink_detected: blinkDetected,
@@ -1123,6 +1261,14 @@ function computeLivenessSignals(runtime: LivenessRuntime, required: boolean): {
       yaw_right_peak: runtime.yawRightPeak || undefined,
       motion_consistency: motionConsistency || undefined,
       step_confidence: stepConfidence,
+      eye_openness_delta: eyeOpennessDelta > 0 ? eyeOpennessDelta : undefined,
+      blink_duration_ms: runtime.blinkDurationMs,
+      blink_challenge_shown_at: runtime.blinkChallengeShownAt,
+      yaw_left_smoothness: yawLeftSmoothness > 0 ? yawLeftSmoothness : undefined,
+      yaw_right_smoothness: yawRightSmoothness > 0 ? yawRightSmoothness : undefined,
+      temporal_motion_continuity: temporalContinuity > 0 ? temporalContinuity : undefined,
+      motion_direction_changes: runtime.motionDirectionChanges > 0 ? runtime.motionDirectionChanges : undefined,
+      schema_version: '2.0.0',
     },
   }
 }
@@ -1249,6 +1395,32 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     runtime.maxEyeOpenness = Math.max(runtime.maxEyeOpenness, eyeOpenness)
     runtime.minEyeOpenness = Math.min(runtime.minEyeOpenness, eyeOpenness)
 
+    // ── Temporal motion continuity: frame-over-frame landmark center delta ──
+    // Detects if the face is actually moving (not a static photo)
+    if (landmarks.length >= 468) {
+      const nose = landmarks[4]
+      const chin = landmarks[152]
+      if (nose && chin) {
+        const cx = (nose.x + chin.x) / 2
+        const cy = (nose.y + chin.y) / 2
+        if (runtime.prevLandmarkCenter) {
+          const dx = cx - runtime.prevLandmarkCenter.x
+          const dy = cy - runtime.prevLandmarkCenter.y
+          const delta = Math.sqrt(dx * dx + dy * dy)
+          runtime.frameDeltaSamples.push(delta)
+          if (runtime.frameDeltaSamples.length > 30) runtime.frameDeltaSamples.shift()
+
+          // Track motion direction changes (non-zero dx sign flips)
+          const sign = dx > 0.001 ? 1 : dx < -0.001 ? -1 : 0
+          if (sign !== 0 && runtime.prevMotionSign !== 0 && sign !== runtime.prevMotionSign) {
+            runtime.motionDirectionChanges += 1
+          }
+          if (sign !== 0) runtime.prevMotionSign = sign
+        }
+        runtime.prevLandmarkCenter = { x: cx, y: cy }
+      }
+    }
+
     const frontalReady = view === 'front' && guide.angle === 'ok' && guide.captureAcceptance >= 0.78 && guide.qualityBreakdown.stability >= 0.35
     if (frontalReady) {
       runtime.frontSteadyFrames += 1
@@ -1257,6 +1429,8 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
         : runtime.baselineEyeOpenness * 0.92 + eyeOpenness * 0.08
       if (!runtime.frontSteadyObservedAt && runtime.frontSteadyFrames >= 4) {
         runtime.frontSteadyObservedAt = timestamp
+        // Mark when blink challenge becomes active (front is steady → user can now blink)
+        runtime.blinkChallengeShownAt = runtime.blinkChallengeShownAt ?? timestamp
       }
     } else if (view === 'front') {
       runtime.frontSteadyFrames = Math.max(0, runtime.frontSteadyFrames - 1)
@@ -1274,6 +1448,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
         if (eyeOpenness >= reopenThreshold && elapsed <= 900) {
           runtime.blinkInProgress = false
           runtime.blinkDetectedAt = runtime.blinkDetectedAt ?? timestamp
+          runtime.blinkDurationMs = elapsed
           runtime.blinkCount += 1
           viewRuntimeRef.current.front.blinkDetected = true
         } else if (elapsed > 900) {
@@ -1297,11 +1472,20 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     if (view === 'left' && guide.angle === 'ok' && guide.captureAcceptance >= 0.80) {
       runtime.leftObservedAt = runtime.leftObservedAt ?? timestamp
       runtime.yawLeftPeak = Math.min(runtime.yawLeftPeak, guide.debug?.yawDeg ?? 0)
+      // Track yaw samples for smoothness calculation
+      if (guide.debug?.yawDeg != null) {
+        runtime.prevYawLeft.push(guide.debug.yawDeg)
+        if (runtime.prevYawLeft.length > 10) runtime.prevYawLeft.shift()
+      }
     }
 
     if (view === 'right' && guide.angle === 'ok' && guide.captureAcceptance >= 0.80) {
       runtime.rightObservedAt = runtime.rightObservedAt ?? timestamp
       runtime.yawRightPeak = Math.max(runtime.yawRightPeak, guide.debug?.yawDeg ?? 0)
+      if (guide.debug?.yawDeg != null) {
+        runtime.prevYawRight.push(guide.debug.yawDeg)
+        if (runtime.prevYawRight.length > 10) runtime.prevYawRight.shift()
+      }
     }
   }, [])
 
@@ -1400,6 +1584,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     const manifest: CaptureViewManifest = {
       view,
       captured: acceptedFrames.length > 0,
+      capture_trigger: runtime.captureTrigger,
       quality_score: qualityScore,
       acceptance_score: acceptanceScore,
       quality_band: qualityBand,
@@ -1529,6 +1714,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
       exportedFramesByViewRef.current[multiStep as CaptureViewKey] = exportedFramesRef.current
       const bestDataUrl = captureBestFrame()
       if (bestDataUrl) {
+        viewRuntimeRef.current[multiStep as CaptureViewKey].captureTrigger = 'auto'
         const manifest = finalizeViewManifest(multiStep as CaptureViewKey)
         appendAcceptanceHistory(
           multiStep as CaptureViewKey,
@@ -1910,6 +2096,8 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
       liveness_passed: liveness.passed,
       liveness_status: liveness.status,
       liveness_confidence: liveness.confidence,
+      liveness_incomplete_reason: liveness.incompleteReason,
+      liveness_schema_version: '2.0.0',
       liveness_signals: liveness.signals,
       liveness_steps: liveness.steps,
       frames: captureFramesRef.current
@@ -1985,9 +2173,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     }
   }, [autoConfirm, buildMeta, mode, onCapture, phase, preview])
 
-  // Manual capture — separate, more lenient eligibility (score-based fallback).
-  // Auto-capture uses isReadyForCapture() with strict 6/6 / 5/6 soft-check gates.
-  // Manual uses isManualCaptureEligible() with score thresholds (75 front, 65 side).
+  // Manual capture — hardened fallback with near-auto trust (5/6 front, 4/6 side soft checks).
   const isSideStep = mode === 'multi' && multiStep !== 'front'
   const manualCaptureEnabled = isManualCaptureEligible(status, isSideStep)
   const takeSnapshot = () => {
@@ -2003,6 +2189,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
       frameBufferRef.current.push(frame)
     }
     setShowFlash(true); setTimeout(() => setShowFlash(false), 350)
+    viewRuntimeRef.current[viewKey].captureTrigger = 'manual'
     const manifest = finalizeViewManifest(viewKey)
     appendAcceptanceHistory(
       viewKey,
@@ -2438,6 +2625,13 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 return <p className="font-body text-[10px] text-white/30 text-center tracking-wide">Doğal ifadenizle kameraya bakın</p>
               }
               if (phase === 'tracking' && status.faceDetected) {
+                // Show blink challenge hint when front is steady but blink not yet detected
+                const blinkStep = livenessOverview.steps.find(s => s.key === 'blink')
+                const frontStep = livenessOverview.steps.find(s => s.key === 'front')
+                const showBlinkHint = frontStep?.observed && !blinkStep?.observed && (!isMulti || multiStep === 'front')
+                if (showBlinkHint) {
+                  return <p className="font-body text-[10px] text-[#D4B96A]/55 text-center tracking-wide animate-pulse">Doğal bir şekilde göz kırpın</p>
+                }
                 return <p className="font-body text-[10px] text-white/22 text-center tracking-wide" key={tipIndex}>{TIPS[tipIndex]}</p>
               }
               return null
@@ -2457,7 +2651,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                   const label = step.key === 'front'
                     ? 'Ön'
                     : step.key === 'blink'
-                      ? 'Blink'
+                      ? 'Kırp'
                       : step.key === 'left_turn'
                         ? 'Sol'
                         : 'Sağ'
@@ -2515,7 +2709,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                     </div>
                   )}
 
-                  {/* Shutter button — enabled at score threshold (75 front / 65 side) */}
+                  {/* Shutter button — enabled when manual eligibility passes (hardened fallback) */}
                   <button
                     type="button"
                     onClick={takeSnapshot}
