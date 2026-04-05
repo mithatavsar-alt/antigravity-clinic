@@ -309,12 +309,12 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
               textAnchor={anchor}
               fill={
                 suppressed
-                  ? 'rgba(248,246,242,0.18)'
+                  ? 'rgba(248,246,242,0.30)'
                   : active
                     ? scoreColor(r.score)
                     : muted
-                      ? 'rgba(248,246,242,0.32)'
-                      : 'rgba(248,246,242,0.50)'
+                      ? 'rgba(248,246,242,0.42)'
+                      : 'rgba(248,246,242,0.58)'
               }
               style={{
                 fontSize: `${active ? LABEL_FONT_ACTIVE : LABEL_FONT}px`,

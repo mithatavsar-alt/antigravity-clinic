@@ -8,6 +8,9 @@
 import { FaceMeshError } from './types'
 import type { Landmark } from './types'
 
+const isDev = process.env.NODE_ENV === 'development'
+const devWarn = (...args: unknown[]) => { if (isDev) console.warn(...args) }
+
 // ─── Types ──────────────────────────────────────────────────
 
 export interface HumanDetection {
@@ -135,7 +138,7 @@ export async function init(): Promise<void> {
     try {
       await instance.warmup('full')
     } catch (err) {
-      console.warn('[Human] Warmup failed (non-fatal):', err)
+      devWarn('[Human] Warmup failed (non-fatal):', err)
     }
 
     humanInstance = instance
@@ -147,7 +150,7 @@ export async function init(): Promise<void> {
   } catch (err) {
     initPromise = null
     humanInstance = null
-    console.error('[Human] Init failed:', err)
+    if (isDev) console.error('[Human] Init failed:', err)
     throw err
   }
 }
@@ -166,14 +169,14 @@ export async function detectFace(
   const result = await humanInstance.detect(input)
 
   if (!result.face || result.face.length === 0) {
-    console.warn('[Human] No face detected')
+    devWarn('[Human] No face detected')
     return null
   }
 
   const face = result.face[0]
 
   if (!face.mesh || face.mesh.length < 400) {
-    console.warn('[Human] Insufficient mesh points:', face.mesh?.length ?? 0)
+    devWarn('[Human] Insufficient mesh points:', face.mesh?.length ?? 0)
     return null
   }
 

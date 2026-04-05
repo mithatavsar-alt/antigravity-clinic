@@ -28,6 +28,11 @@ import {
   UPPER_LIP,
   LOWER_LIP,
   JAWLINE,
+  FOREHEAD_ZONE,
+  LEFT_UNDER_EYE,
+  RIGHT_UNDER_EYE,
+  LEFT_NASOLABIAL,
+  RIGHT_NASOLABIAL,
   type FaceGuideStatus,
 } from '@/lib/ai/face-guide'
 import { FACEMESH_TESSELATION } from '@/lib/ai/facemesh-tesselation'
@@ -36,8 +41,10 @@ import {
   drawFaceContour,
   drawDynamicVignette,
   drawContourAccents,
+  drawFixedGuideFrame,
   projectLandmarkToCanvas,
   resetContourSmoothing,
+  type GuideFrameState,
 } from '@/lib/ai/face-contour'
 import type {
   CaptureFrameMetrics,
@@ -52,6 +59,22 @@ import type {
   CaptureViewManifest,
   LivenessStatus,
 } from '@/types/capture'
+
+// ─── Ear-excluded tesselation mesh ─────────────────────────
+// Landmarks in the ear/preauricular region that should NOT appear in the
+// face-only overlay. Edges touching any of these are excluded at module load.
+// These are the outermost lateral landmarks that sit on/near the ear tragus
+// and sideburn area, well outside the clinically relevant facial surface.
+const EAR_AREA_LANDMARKS = new Set([
+  // Left ear / preauricular (widest lateral points)
+  234, 127, 93, 132, 58, 172,
+  // Right ear / preauricular (widest lateral points)
+  454, 356, 323, 361, 288, 389,
+])
+
+const FACE_ONLY_TESSELATION = FACEMESH_TESSELATION.filter(
+  ([a, b]) => !EAR_AREA_LANDMARKS.has(a) && !EAR_AREA_LANDMARKS.has(b)
+)
 
 // ─── Types ──────────────────────────────────────────────────
 export type CaptureMode = 'single' | 'multi'
@@ -139,10 +162,14 @@ interface AutoFitState {
   ty: number   // translateY in %
 }
 
-// ─── Countdown constants (all captures) ────────────────────
-// Every capture (front, left, right) uses a visible 3→2→1 countdown.
-const COUNTDOWN_SECONDS = 3
-const COUNTDOWN_MS = COUNTDOWN_SECONDS * 1000
+// ─── Countdown constants ──────────────────────────────────
+// Front: full 3→2→1 countdown for careful frontal alignment.
+// Left/Right: quick 1-second countdown — stability is ensured by
+// STABILITY_FRAMES_REQUIRED consecutive ready frames BEFORE countdown starts.
+const COUNTDOWN_SECONDS_FRONT = 3
+const COUNTDOWN_MS_FRONT = COUNTDOWN_SECONDS_FRONT * 1000
+const COUNTDOWN_SECONDS_SIDE = 1
+const COUNTDOWN_MS_SIDE = COUNTDOWN_SECONDS_SIDE * 1000
 
 // ─── ANGLE-SPECIFIC READINESS ──────────────────────────────
 // 6 checks aligned with the visible quality pills:
@@ -166,12 +193,12 @@ const HARD_MIN_DISTANCE   = 0.25
 const HARD_MIN_CENTERING  = 0.15
 const HARD_MIN_SHARPNESS  = 0.15
 const HARD_MIN_COMPLETENESS_FRONT = 0.72
-const HARD_MIN_COMPLETENESS_SIDE = 0.62
+const HARD_MIN_COMPLETENESS_SIDE = 0.52
 const HARD_MIN_OCCLUSION_FRONT = 0.74
-const HARD_MIN_OCCLUSION_SIDE = 0.68
-const HARD_MIN_SIDE_CROW = 0.50
-const HARD_MIN_SIDE_NASOLABIAL = 0.50
-const HARD_MIN_SIDE_JAWLINE = 0.55
+const HARD_MIN_OCCLUSION_SIDE = 0.58
+const HARD_MIN_SIDE_CROW = 0.38
+const HARD_MIN_SIDE_NASOLABIAL = 0.38
+const HARD_MIN_SIDE_JAWLINE = 0.42
 
 /** Minimum ready frames before countdown starts (prevents premature capture) */
 const STABILITY_FRAMES_REQUIRED = 6
@@ -180,8 +207,6 @@ const STABILITY_FRAMES_REQUIRED = 6
 const MIN_PASSING_FRONT = 6
 const MIN_PASSING_SIDE  = 5
 
-/** Crow's feet visibility threshold for side captures */
-const SIDE_CROW_FEET_THRESHOLD = 0.35
 
 function isReadyForCapture(
   status: FaceGuideStatus,
@@ -240,8 +265,8 @@ function isReadyForCapture(
   // Left/Right: tolerant 5/6 — one marginal check won't stall capture
   const required = isSide ? MIN_PASSING_SIDE : MIN_PASSING_FRONT
   const acceptanceThreshold = relaxed
-    ? (isSide ? 0.76 : 0.80)
-    : (isSide ? 0.82 : 0.86)
+    ? (isSide ? 0.68 : 0.80)
+    : (isSide ? 0.74 : 0.86)
   return passing >= required && status.captureAcceptance >= acceptanceThreshold
 }
 
@@ -260,7 +285,7 @@ function isReadyForCapture(
 // (typically stability) can't settle, but all other evidence is strong.
 
 const MANUAL_THRESHOLD_FRONT = 0.86
-const MANUAL_THRESHOLD_SIDE  = 0.82
+const MANUAL_THRESHOLD_SIDE  = 0.72
 const MANUAL_MIN_PASSING_FRONT = 5
 const MANUAL_MIN_PASSING_SIDE  = 4
 
@@ -438,6 +463,14 @@ function getStepTurnHint(step: MultiStep, status: FaceGuideStatus): StepTurnHint
 function getAngleAssist(step: MultiStep, status: FaceGuideStatus): AngleAssistCopy | null {
   if (step === 'front') return null
 
+  // When allOk is true, show only positive feedback — no micro-corrections
+  if (status.allOk) {
+    return {
+      primary: 'Mükemmel pozisyon',
+      secondary: 'Sabit kalın, çekim hazırlanıyor',
+    }
+  }
+
   if (step === 'left') {
     if (status.angle === 'look_right') {
       return {
@@ -451,20 +484,15 @@ function getAngleAssist(step: MultiStep, status: FaceGuideStatus): AngleAssistCo
         secondary: 'Fazla döndünüz, sol yanak görünürlüğü yeterli',
       }
     }
-    if (status.angle === 'ok' && status.crowFeetScore < SIDE_CROW_FEET_THRESHOLD) {
-      return {
-        primary: 'Sol göz kenarını biraz daha açın',
-        secondary: 'Sol yanak ve göz kenarı daha net görünmeli',
-      }
-    }
     if (status.angle === 'ok') {
       return {
         primary: 'Açı doğru',
-        secondary: 'Bu pozisyonda sabit kalın, sol yanak görünür durumda',
+        secondary: 'Bu pozisyonda sabit kalın',
       }
     }
   }
 
+  // Right step
   if (status.angle === 'look_left') {
     return {
       primary: 'Başınızı biraz daha sola çevirin',
@@ -477,16 +505,10 @@ function getAngleAssist(step: MultiStep, status: FaceGuideStatus): AngleAssistCo
       secondary: 'Fazla döndünüz, sağ yanak görünürlüğü yeterli',
     }
   }
-  if (status.angle === 'ok' && status.crowFeetScore < SIDE_CROW_FEET_THRESHOLD) {
-    return {
-      primary: 'Sağ göz kenarını biraz daha açın',
-      secondary: 'Sağ yanak ve göz kenarı daha net görünmeli',
-    }
-  }
   if (status.angle === 'ok') {
     return {
       primary: 'Açı doğru',
-      secondary: 'Bu pozisyonda sabit kalın, sağ yanak görünür durumda',
+      secondary: 'Bu pozisyonda sabit kalın',
     }
   }
 
@@ -671,20 +693,19 @@ export function drawMesh(
   }
 
   // ════════════════════════════════════════════════════════════
-  // FULL TRIANGULATED WIREFRAME MESH — 1348 edges, 880 triangles,
-  // all 468 vertices. Dense geometric facial mapping overlay.
+  // FULL TRIANGULATED WIREFRAME MESH — face-only subset.
+  // Excludes ear-area edges for a tighter, face-only overlay.
   // Clean anti-aliased lines, no glow, premium med-tech look.
-  // Naturally denser around eyes/nose/mouth (more triangles there).
   // PURELY VISUAL — does NOT affect analysis.
   // ════════════════════════════════════════════════════════════
   if (showTesselation) {
-    const meshAlpha = Math.min(0.35, 0.10 + qualityScore * 0.25)
+    const meshAlpha = Math.min(0.38, 0.12 + qualityScore * 0.26)
     ctx.beginPath()
-    ctx.lineWidth = 0.35
+    ctx.lineWidth = 0.40
     ctx.strokeStyle = `rgba(${accent},${meshAlpha.toFixed(3)})`
     ctx.lineJoin = 'round'
     ctx.lineCap = 'round'
-    for (const [a, b] of FACEMESH_TESSELATION) {
+    for (const [a, b] of FACE_ONLY_TESSELATION) {
       const la = projected[a], lb = projected[b]
       if (!la || !lb) continue
       ctx.moveTo(la.x, la.y)
@@ -715,27 +736,80 @@ export function drawMesh(
     drawContour(indices, `rgba(${accent},`, opacity, lineW)
   }
 
-  drawGlowContour(JAWLINE, 0.55, 0.7)
-  drawGlowContour(LEFT_EYE, 0.75, 0.8)
-  drawGlowContour(RIGHT_EYE, 0.75, 0.8)
-  drawGlowContour(LEFT_EYEBROW, 0.55, 0.6)
-  drawGlowContour(RIGHT_EYEBROW, 0.55, 0.6)
-  drawGlowContour(NOSE_BRIDGE, 0.60, 0.7)
-  drawGlowContour(UPPER_LIP, 0.55, 0.6)
-  drawGlowContour(LOWER_LIP, 0.55, 0.6)
+  // ── Layer 1 — strongest: primary anatomical contours ──
+  drawGlowContour(JAWLINE, 0.60, 0.8)
+  drawGlowContour(LEFT_EYE, 0.80, 0.9)
+  drawGlowContour(RIGHT_EYE, 0.80, 0.9)
+  drawGlowContour(LEFT_EYEBROW, 0.60, 0.7)
+  drawGlowContour(RIGHT_EYEBROW, 0.60, 0.7)
+  drawGlowContour(NOSE_BRIDGE, 0.65, 0.8)
+  drawGlowContour(UPPER_LIP, 0.60, 0.7)
+  drawGlowContour(LOWER_LIP, 0.60, 0.7)
+
+  // ── Layer 2 — medium: secondary anatomical regions ──
+  // Forehead hairline contour
+  drawContour(FOREHEAD_ZONE, `rgba(${accent},`, 0.30, 0.5)
+  // Under-eye contours (treatment-relevant: dark circles, hollowing)
+  drawContour(LEFT_UNDER_EYE, `rgba(${accent},`, 0.28, 0.45)
+  drawContour(RIGHT_UNDER_EYE, `rgba(${accent},`, 0.28, 0.45)
+  // Nasolabial fold lines (treatment-relevant: fillers)
+  drawContour(LEFT_NASOLABIAL, `rgba(${accent},`, 0.25, 0.4)
+  drawContour(RIGHT_NASOLABIAL, `rgba(${accent},`, 0.25, 0.4)
+  // Crow's feet area — outer eye connectors
+  const LEFT_CROW_AREA = [33, 130, 226, 247, 30, 29, 27, 28, 56]
+  const RIGHT_CROW_AREA = [263, 359, 446, 467, 260, 259, 257, 258, 286]
+  drawContour(LEFT_CROW_AREA, `rgba(${accent},`, 0.22, 0.4)
+  drawContour(RIGHT_CROW_AREA, `rgba(${accent},`, 0.22, 0.4)
+  // Nose sides — alar contour
+  const NOSE_LEFT = [48, 115, 220, 45, 4]
+  const NOSE_RIGHT = [278, 344, 440, 275, 4]
+  drawContour(NOSE_LEFT, `rgba(${accent},`, 0.22, 0.4)
+  drawContour(NOSE_RIGHT, `rgba(${accent},`, 0.22, 0.4)
+  // Chin contour
+  const CHIN_CONTOUR = [175, 148, 176, 149, 150, 136, 172, 58, 132]
+  drawContour(CHIN_CONTOUR, `rgba(${accent},`, 0.20, 0.4)
+  // Cheek structure lines
+  const LEFT_CHEEK = [116, 117, 118, 119, 120, 121, 128, 245]
+  const RIGHT_CHEEK = [345, 346, 347, 348, 349, 350, 357, 465]
+  drawContour(LEFT_CHEEK, `rgba(${accent},`, 0.18, 0.35)
+  drawContour(RIGHT_CHEEK, `rgba(${accent},`, 0.18, 0.35)
+
+  // ── Layer 3 — soft: subtle density support points ──
+  // Brow-to-temple connectors
+  const LEFT_BROW_TEMPLE = [70, 63, 105, 66, 107, 9, 336, 296, 334, 293, 300]
+  drawContour(LEFT_BROW_TEMPLE, `rgba(${accent},`, 0.12, 0.3)
+  // Marionette area
+  const LEFT_MARIONETTE = [61, 146, 91, 181, 84]
+  const RIGHT_MARIONETTE = [291, 375, 321, 405, 314]
+  drawContour(LEFT_MARIONETTE, `rgba(${accent},`, 0.14, 0.3)
+  drawContour(RIGHT_MARIONETTE, `rgba(${accent},`, 0.14, 0.3)
+  // Glabella (between brows)
+  const GLABELLA = [107, 9, 336, 151, 108, 69]
+  drawContour(GLABELLA, `rgba(${accent},`, 0.14, 0.3)
 
   // ════════════════════════════════════════════════════════════
   // ANCHOR DOTS — key landmarks as refined vertex points with glow
   // Premium: outer glow ring + accent fill + bright core
+  // Expanded set for denser, more confident tracking feel
   // ════════════════════════════════════════════════════════════
   const anchors = [
     1,    // nose tip
     33,   // left eye outer
     263,  // right eye outer
+    133,  // left eye inner
+    362,  // right eye inner
     61,   // left mouth corner
     291,  // right mouth corner
     152,  // chin
     10,   // forehead top
+    70,   // left brow outer
+    300,  // right brow outer
+    4,    // nose base
+    168,  // nose bridge top
+    130,  // left crow's feet
+    359,  // right crow's feet
+    148,  // left jaw
+    377,  // right jaw
   ]
   for (const idx of anchors) {
     const point = projected[idx]
@@ -1329,7 +1403,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
   const [multiStep, setMultiStep] = useState<MultiStep>('front')
   const [multiPhotos, setMultiPhotos] = useState<{ front?: string; left?: string; right?: string }>({})
 
-  // 3-second countdown (all captures: front, left, right)
+  // Countdown (3s front, 1s side)
   const countdownStartRef = useRef<number | null>(null)
   const [countdown, setCountdown] = useState<number | null>(null)
 
@@ -1811,6 +1885,9 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
     const rw = Math.round(rect.width), rh = Math.round(rect.height)
     if (mc.width !== rw || mc.height !== rh) { mc.width = rw; mc.height = rh }
 
+    // Compute target angle early — needed for guide frame in both branches
+    const targetAngle: TargetAngle = mode === 'multi' ? multiStep as TargetAngle : 'front'
+
     detectFaceFromVideo(video)
       .then((detection) => {
         processingRef.current = false
@@ -1833,7 +1910,16 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
             setValidationProgress(0)
             if (phaseRef.current === 'stabilizing' || phaseRef.current === 'tracking') updatePhase('detecting')
             const ctx = mc.getContext('2d')
-            if (ctx) ctx.clearRect(0, 0, mc.width, mc.height)
+            if (ctx) {
+              ctx.clearRect(0, 0, mc.width, mc.height)
+              // Keep guide frame visible even without face detection
+              drawFixedGuideFrame(ctx, mc.width, mc.height, {
+                targetAngle,
+                state: 'neutral',
+                qualityScore: 0,
+                time: now,
+              })
+            }
           }
           // Auto-fit: smoothly release back to neutral when no face
           {
@@ -1856,8 +1942,6 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           pushDetection(smoothed, detection?.confidence ?? 0.5)
 
           const shadowScore = detectShadow(video, bc, smoothed)
-          // Map multi-step to target angle for face guide evaluation
-          const targetAngle: TargetAngle = mode === 'multi' ? multiStep as TargetAngle : 'front'
           const guide = evaluateFaceGuide(smoothed, brightness, shadowScore, targetAngle)
           setStatus(guide)
           appendGuidance(multiStep as CaptureViewKey, guide.mainMessage)
@@ -1928,13 +2012,14 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           // Left/Right: hard blockers + 5/6 soft checks (tolerant)
           //   1. isReadyForCapture() checks hard blockers + step-aware soft gate
           //   2. Accumulate STABILITY_FRAMES_REQUIRED consecutive ready frames
-          //   3. Start 3-second countdown
+          //   3. Start countdown (3s front, 1s side)
           //   4. Grace: up to 3 dip frames tolerated during countdown
           //   5. Auto-capture when countdown completes
           const isSideStep = mode === 'multi' && multiStep !== 'front'
           const viewKey = multiStep as CaptureViewKey
           const curPhase = phaseRef.current
           const canAct = !previewRef.current && curPhase !== 'validated' && curPhase !== 'advancing'
+          const countdownDuration = isSideStep ? COUNTDOWN_MS_SIDE : COUNTDOWN_MS_FRONT
 
           const readyNow = isReadyForCapture(guide, isSideStep, failsafeActive)
 
@@ -1955,11 +2040,11 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               updatePhase('stabilizing')
             }
             const elapsed = now - countdownStartRef.current
-            const remaining = Math.ceil((COUNTDOWN_MS - elapsed) / 1000)
+            const remaining = Math.ceil((countdownDuration - elapsed) / 1000)
             setCountdown(Math.max(0, remaining))
-            setValidationProgress(Math.min(1, elapsed / COUNTDOWN_MS))
+            setValidationProgress(Math.min(1, elapsed / countdownDuration))
 
-            if (elapsed >= COUNTDOWN_MS) {
+            if (elapsed >= countdownDuration) {
               const minFrames = Math.max(isSideStep ? 5 : 6, targetAcceptedFrameCount(viewKey) - 2)
               if (frameBufferRef.current.length >= minFrames) {
                 setCountdown(null)
@@ -1995,7 +2080,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
 
           // Buffer best frames — uses aligned 3:4 capture to match UI
           // Only buffer frames that meet minimum quality for clean results
-          const bufferThreshold = isSideStep ? 0.76 : 0.80
+          const bufferThreshold = isSideStep ? 0.66 : 0.80
           // Front: only buffer frames where full face is visible (eyes + forehead + chin)
           const faceFullyVisible = isSideStep || (guide.eyesVisible && guide.foreheadVisible && guide.chinVisible)
           if (guide.captureAcceptance >= bufferThreshold && faceFullyVisible && !previewRef.current && curPhase !== 'validated' && curPhase !== 'advancing') {
@@ -2017,7 +2102,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
           }
 
           // Draw dynamic face contour + mesh — unified on one canvas.
-          // Order: vignette (background) → mesh (middle) → contour (foreground)
+          // Order: guide frame (background) → vignette → mesh → contour (foreground)
           const meshAccent = accentFromQuality(guide.qualityScore)
           const ctx = mc.getContext('2d')
           if (ctx) {
@@ -2029,13 +2114,30 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               targetAngle,
             })
 
-            // 2) Clear canvas, draw vignette first (behind everything)
+            // 2) Clear canvas
             ctx.clearRect(0, 0, mc.width, mc.height)
+
+            // 3) Draw fixed guide frame — always visible, behind everything
+            const guideFrameState: GuideFrameState = guide.allOk
+              ? 'valid'
+              : guide.faceDetected && guide.faceLocked
+                ? 'tracking'
+                : guide.faceDetected
+                  ? 'invalid'
+                  : 'neutral'
+            drawFixedGuideFrame(ctx, mc.width, mc.height, {
+              targetAngle,
+              state: guideFrameState,
+              qualityScore: guide.qualityScore,
+              time: now,
+            })
+
+            // 4) Draw vignette (behind mesh)
             if (contour.valid) {
               drawDynamicVignette(ctx, contour, mc.width, mc.height, 0.65)
             }
 
-            // 3) Draw mesh (tesselation + feature contours + anchors)
+            // 5) Draw mesh (tesselation + feature contours + anchors)
             //    Pass skipClear=true since we already cleared above
             drawMesh(
               ctx,
@@ -2054,7 +2156,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               video.videoHeight,
             )
 
-            // 4) Draw outer face contour + accents on top
+            // 6) Draw outer face contour + accents on top
             if (contour.valid) {
               drawFaceContour(ctx, contour, meshAccent, guide.qualityScore)
               drawContourAccents(ctx, contour, meshAccent, guide.qualityScore)
@@ -2582,15 +2684,16 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                   return isSide ? 'Mükemmel, bu pozisyonda kalın' : 'Sabit kalın, çekim başlıyor…'
                 }
                 if (phase === 'stabilizing') return 'Harika, tam böyle kalın…'
-                if (phase === 'tracking' && status.faceDetected && tiltAssist) {
+                // Side: when allOk, show only positive — suppress ALL corrections
+                if (isSide && phase === 'tracking' && status.faceDetected && status.allOk) {
+                  return 'Mükemmel pozisyon, sabit kalın'
+                }
+                // Tilt correction (front always, side only when NOT allOk)
+                if (phase === 'tracking' && status.faceDetected && tiltAssist && !isSide) {
                   return tiltAssist.primary
                 }
                 if (isSide && phase === 'tracking' && status.faceDetected && angleAssist) {
                   return angleAssist.primary
-                }
-                // Side-specific: crow's feet not yet visible
-                if (isSide && phase === 'tracking' && status.faceDetected && status.angle === 'ok' && status.crowFeetScore < SIDE_CROW_FEET_THRESHOLD) {
-                  return 'Göz kenarı bölgesini biraz daha gösterin'
                 }
                 // Front-specific: chin not visible
                 if (!isSide && phase === 'tracking' && status.faceDetected && !status.chinVisible) {
@@ -2609,7 +2712,12 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               if (countdown !== null && countdown > 0) {
                 return <p className="font-body text-[10px] text-[#D4B96A]/40 text-center tracking-wide">AI tarama hazırlanıyor</p>
               }
-              if (phase === 'tracking' && status.faceDetected && tiltAssist) {
+              // Side: suppress all secondary corrections when allOk
+              if (isSide && phase === 'tracking' && status.faceDetected && status.allOk) {
+                return <p className="font-body text-[10px] text-[#D4B96A]/40 text-center tracking-wide">Çekim için hazır</p>
+              }
+              // Tilt correction secondary (front only)
+              if (!isSide && phase === 'tracking' && status.faceDetected && tiltAssist) {
                 return <p className="font-body text-[10px] text-white/28 text-center tracking-wide">{tiltAssist.secondary}</p>
               }
               if (stepTurnHint && (phase === 'idle' || phase === 'detecting') && !status.faceDetected) {
@@ -2617,9 +2725,6 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               }
               if (isSide && phase === 'tracking' && status.faceDetected && angleAssist) {
                 return <p className="font-body text-[10px] text-white/28 text-center tracking-wide">{angleAssist.secondary}</p>
-              }
-              if (isSide && phase === 'tracking' && status.faceDetected && status.angle === 'ok' && status.crowFeetScore < SIDE_CROW_FEET_THRESHOLD) {
-                return <p className="font-body text-[10px] text-white/25 text-center tracking-wide">Göz kenarı bölgesi analiz için görünür olmalı</p>
               }
               if ((phase === 'idle' || phase === 'detecting') && !status.faceDetected) {
                 return <p className="font-body text-[10px] text-white/30 text-center tracking-wide">Doğal ifadenizle kameraya bakın</p>

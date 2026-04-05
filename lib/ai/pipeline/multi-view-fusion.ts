@@ -182,7 +182,7 @@ function fuseSingleRegion(
   const intensity = classifyIntensity(fusedScore)
 
   // ── Evidence summary ──
-  const evidenceSummary = buildEvidenceSummary(contributingViews, agreement, confidence)
+  const evidenceSummary = buildEvidenceSummary(contributingViews, agreement)
   const confidenceWeakeners = buildWeakeners(usable, agreement, reliabilityRegions, regionReliabilities)
 
   return {
@@ -247,7 +247,6 @@ const VIEW_LABEL: Record<CaptureView, string> = {
 function buildEvidenceSummary(
   views: CaptureView[],
   agreement: AgreementResult,
-  _confidence: ConfidenceBand,
 ): string {
   const viewNames = views.map(v => VIEW_LABEL[v]).join(' ve ')
 

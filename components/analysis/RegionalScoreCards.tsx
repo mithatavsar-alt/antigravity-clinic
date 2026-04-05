@@ -317,8 +317,8 @@ function ConfidenceBar({ value }: { value: number }) {
   const label = value >= 85 ? 'Yüksek' : value >= 70 ? 'İyi' : value >= 55 ? 'Orta' : value >= 40 ? 'Düşük' : 'Sınırlı'
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-[3px] rounded-full bg-white/[0.04] overflow-hidden">
+    <div className="flex items-center gap-2.5">
+      <div className="flex-1 h-[4px] rounded-full bg-white/[0.06] overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-1000 ease-out"
           style={{
@@ -327,7 +327,7 @@ function ConfidenceBar({ value }: { value: number }) {
           }}
         />
       </div>
-      <span className="font-body text-[9px] tracking-[0.08em] uppercase whitespace-nowrap" style={{ color: `${color}90` }}>
+      <span className="font-body text-[11px] sm:text-[12px] tracking-[0.08em] uppercase font-medium whitespace-nowrap" style={{ color }}>
         {label}
       </span>
     </div>
@@ -340,30 +340,30 @@ function ScoreArc({ score, color }: { score: number; color: string }) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => { const t = setTimeout(() => setMounted(true), 200); return () => clearTimeout(t) }, [])
 
-  const r = 22
+  const r = 26
   const circ = 2 * Math.PI * r
   const offset = circ - (mounted ? score / 100 : 0) * circ
 
   return (
-    <svg className="w-[56px] h-[56px]" viewBox="0 0 56 56" fill="none">
-      <circle cx="28" cy="28" r={r} stroke="rgba(248,246,242,0.04)" strokeWidth="3" />
+    <svg className="w-[64px] h-[64px] sm:w-[68px] sm:h-[68px]" viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r={r} stroke="rgba(248,246,242,0.07)" strokeWidth="3" />
       <circle
-        cx="28" cy="28" r={r}
+        cx="32" cy="32" r={r}
         stroke={color}
         strokeWidth="3"
         strokeDasharray={circ}
         strokeDashoffset={offset}
         strokeLinecap="round"
-        transform="rotate(-90 28 28)"
+        transform="rotate(-90 32 32)"
         style={{
           transition: 'stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1)',
           filter: `drop-shadow(0 0 4px ${color}50)`,
         }}
       />
       <text
-        x="28" y="30"
+        x="32" y="34"
         textAnchor="middle"
-        className="font-mono text-[13px] font-light"
+        className="font-mono text-[15px] font-light"
         fill={color}
       >
         {score}
@@ -386,36 +386,36 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
 
   return (
     <div
-      className="rounded-xl border bg-[rgba(248,246,242,0.015)] overflow-hidden"
+      className="rounded-xl border bg-[rgba(248,246,242,0.03)] overflow-hidden"
       style={{
         borderColor: lowConfidence
-          ? 'rgba(200,120,90,0.12)'
-          : card.isPositive ? 'rgba(61,155,122,0.10)' : 'rgba(214,185,140,0.08)',
+          ? 'rgba(200,120,90,0.16)'
+          : card.isPositive ? 'rgba(61,155,122,0.14)' : 'rgba(214,185,140,0.12)',
         animation: `cardEntrance 0.4s ease-out ${idx * 0.08}s both`,
         opacity: lowConfidence ? 0.82 : 1,
       }}
     >
-      <div className="flex gap-3 p-3.5 sm:p-4">
+      <div className="flex gap-4 p-4 sm:p-5">
         <div className="flex-shrink-0">
           <ScoreArc score={card.score} color={scoreColor} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="font-body text-[11px] sm:text-[12px] font-medium text-[rgba(248,246,242,0.75)] tracking-[0.02em]">
+          <div className="flex items-center flex-wrap gap-2 mb-2">
+            <span className="font-body text-[14px] sm:text-[15px] font-semibold text-[rgba(248,246,242,0.88)] tracking-[0.01em]">
               {card.title}
             </span>
             <span
-              className="px-2 py-0.5 rounded-full text-[9px] font-medium tracking-[0.12em] uppercase"
+              className="px-2.5 py-0.5 rounded-full text-[10px] font-medium tracking-[0.10em] uppercase"
               style={{ background: sev.bg, color: sev.text }}
             >
               {sev.label}
             </span>
             {card.sourceView && (
               <span
-                className="px-2 py-0.5 rounded-full text-[9px] font-medium tracking-[0.10em] uppercase"
+                className="px-2 py-0.5 rounded-full text-[10px] font-medium tracking-[0.08em] uppercase"
                 style={{
                   background: 'rgba(248,246,242,0.03)',
-                  color: lowConfidence ? 'rgba(200,120,90,0.72)' : 'rgba(248,246,242,0.42)',
+                  color: lowConfidence ? 'rgba(200,120,90,0.78)' : 'rgba(248,246,242,0.58)',
                 }}
               >
                 {card.sourceView}
@@ -423,7 +423,7 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
             )}
             {mediumConfidence && !lowConfidence && (
               <span
-                className="px-2 py-0.5 rounded-full text-[9px] font-medium tracking-[0.10em] uppercase"
+                className="px-2 py-0.5 rounded-full text-[10px] font-medium tracking-[0.08em] uppercase"
                 style={{ background: 'rgba(214,185,140,0.05)', color: 'rgba(214,185,140,0.62)' }}
               >
                 Orta Guven
@@ -431,30 +431,30 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
             )}
             {lowConfidence && (
               <span
-                className="px-2 py-0.5 rounded-full text-[9px] font-medium tracking-[0.10em] uppercase"
+                className="px-2 py-0.5 rounded-full text-[10px] font-medium tracking-[0.08em] uppercase"
                 style={{ background: 'rgba(200,120,90,0.08)', color: 'rgba(200,120,90,0.72)' }}
               >
                 Dusuk Guven
               </span>
             )}
           </div>
-          <p className="font-body text-[12px] sm:text-[11px] text-[rgba(248,246,242,0.48)] leading-[1.65] mb-2">
+          <p className="font-body text-[13px] sm:text-[14px] text-[rgba(248,246,242,0.62)] leading-[1.75] mb-2.5">
             {card.observation}
           </p>
           <ConfidenceBar value={card.confidence} />
         </div>
       </div>
       {(card.limitation || lowConfidence) && (
-        <div className="px-4 sm:px-3.5 py-2 border-t border-[rgba(200,120,90,0.06)]">
-          <p className="font-body text-[9px] text-[rgba(200,120,90,0.5)] leading-[1.5] flex items-center gap-1.5">
+        <div className="px-4 sm:px-5 py-2.5 border-t border-[rgba(200,120,90,0.06)]">
+          <p className="font-body text-[12px] text-[rgba(200,120,90,0.65)] leading-[1.6] flex items-center gap-1.5">
             <span className="opacity-60">⚠</span>
-            {card.limitation ?? 'Bu bolge mevcut kanitla sinirli guvenle degerlendirildi.'}
+            {card.limitation ?? 'Bu bölge mevcut kanıtla sınırlı güvenle değerlendirildi.'}
           </p>
         </div>
       )}
       {card.consultationNote && (
-        <div className="px-4 sm:px-3.5 py-2.5 border-t border-[rgba(214,185,140,0.05)] bg-[rgba(214,185,140,0.015)]">
-          <p className="font-body text-[10px] sm:text-[9px] text-[rgba(214,185,140,0.45)] leading-[1.6] italic">
+        <div className="px-4 sm:px-5 py-3 border-t border-[rgba(214,185,140,0.05)] bg-[rgba(214,185,140,0.015)]">
+          <p className="font-body text-[12px] text-[rgba(214,185,140,0.60)] leading-[1.7] italic">
             {card.consultationNote}
           </p>
         </div>
@@ -467,10 +467,10 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
 
 function SectionHeader({ label, icon }: { label: string; icon: string }) {
   return (
-    <div className="flex items-center gap-2 mt-3 mb-1.5">
-      <span className="text-[11px] font-medium text-[rgba(248,246,242,0.25)]">{icon}</span>
-      <span className="font-body text-[10px] tracking-[0.18em] uppercase text-[rgba(248,246,242,0.3)]">{label}</span>
-      <div className="flex-1 h-px bg-[rgba(248,246,242,0.04)]" />
+    <div className="flex items-center gap-2.5 mt-4 mb-2">
+      <span className="text-[14px] font-medium text-[rgba(248,246,242,0.55)]">{icon}</span>
+      <span className="font-body text-[12px] sm:text-[13px] tracking-[0.14em] uppercase font-medium text-[rgba(248,246,242,0.55)]">{label}</span>
+      <div className="flex-1 h-px bg-[rgba(248,246,242,0.07)]" />
     </div>
   )
 }
@@ -504,31 +504,31 @@ function BilateralBar({ item }: { item: BilateralComparisonData }) {
     : item.asymmetryLevel === 'mild_asymmetry' ? 'Hafif Fark' : 'Belirgin Fark'
 
   return (
-    <div className="rounded-lg border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.01)] p-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="font-body text-[11px] text-[rgba(248,246,242,0.6)]">{item.label}</span>
-        <span className="font-body text-[9px] tracking-[0.12em] uppercase px-2 py-0.5 rounded-full"
-          style={{ background: `${levelColor}12`, color: levelColor }}>
+    <div className="rounded-lg border border-[rgba(248,246,242,0.08)] bg-[rgba(248,246,242,0.03)] p-4 sm:p-5">
+      <div className="flex items-center justify-between mb-3">
+        <span className="font-body text-[14px] sm:text-[15px] font-semibold text-[rgba(248,246,242,0.82)]">{item.label}</span>
+        <span className="font-body text-[11px] sm:text-[12px] tracking-[0.10em] uppercase px-2.5 py-0.5 rounded-full font-medium"
+          style={{ background: `${levelColor}18`, color: levelColor }}>
           {levelLabel}
         </span>
       </div>
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="font-mono text-[10px] text-[rgba(248,246,242,0.4)] w-6 text-right">Sol</span>
-        <div className="flex-1 h-[3px] rounded-full bg-white/[0.04] overflow-hidden">
+      <div className="flex items-center gap-3 mb-2">
+        <span className="font-mono text-[12px] text-[rgba(248,246,242,0.58)] w-7 text-right">Sol</span>
+        <div className="flex-1 h-[5px] rounded-full bg-white/[0.06] overflow-hidden">
           <div className="h-full rounded-full transition-all duration-700 ease-out"
             style={{ width: mounted ? `${item.leftScore}%` : '0%', background: levelColor }} />
         </div>
-        <span className="font-mono text-[10px] text-[rgba(248,246,242,0.5)] w-5">{item.leftScore}</span>
+        <span className="font-mono text-[14px] text-[rgba(248,246,242,0.68)] w-7">{item.leftScore}</span>
       </div>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="font-mono text-[10px] text-[rgba(248,246,242,0.4)] w-6 text-right">Sağ</span>
-        <div className="flex-1 h-[3px] rounded-full bg-white/[0.04] overflow-hidden">
+      <div className="flex items-center gap-3 mb-3">
+        <span className="font-mono text-[12px] text-[rgba(248,246,242,0.58)] w-7 text-right">Sağ</span>
+        <div className="flex-1 h-[5px] rounded-full bg-white/[0.06] overflow-hidden">
           <div className="h-full rounded-full transition-all duration-700 ease-out"
             style={{ width: mounted ? `${item.rightScore}%` : '0%', background: levelColor }} />
         </div>
-        <span className="font-mono text-[10px] text-[rgba(248,246,242,0.5)] w-5">{item.rightScore}</span>
+        <span className="font-mono text-[14px] text-[rgba(248,246,242,0.68)] w-7">{item.rightScore}</span>
       </div>
-      <p className="font-body text-[10px] text-[rgba(248,246,242,0.35)] leading-[1.6] italic">{item.note}</p>
+      <p className="font-body text-[13px] sm:text-[14px] text-[rgba(248,246,242,0.52)] leading-[1.7] italic">{item.note}</p>
     </div>
   )
 }
@@ -539,8 +539,8 @@ function SynthesisSection({ synthesis, viewSummaries }: { synthesis: SynthesisDa
   return (
     <div className="flex flex-col gap-3 mt-2">
       {/* Overall narrative */}
-      <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(214,185,140,0.02)] p-4">
-        <p className="font-body text-[12px] text-[rgba(248,246,242,0.55)] leading-[1.75]">
+      <div className="rounded-xl border border-[rgba(214,185,140,0.14)] bg-[rgba(214,185,140,0.04)] p-5 sm:p-6">
+        <p className="font-body text-[14px] sm:text-[15px] text-[rgba(248,246,242,0.72)] leading-[1.85]">
           {synthesis.overallNarrative}
         </p>
       </div>
@@ -551,22 +551,22 @@ function SynthesisSection({ synthesis, viewSummaries }: { synthesis: SynthesisDa
           <SectionHeader label="Görünüm Özetleri" icon="⊞" />
           <div className="grid gap-2">
             {viewSummaries.map(vs => (
-              <div key={vs.view} className="rounded-lg border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.01)] p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.6)]">{vs.label}</span>
+              <div key={vs.view} className="rounded-lg border border-[rgba(248,246,242,0.08)] bg-[rgba(248,246,242,0.03)] p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-body text-[14px] font-semibold text-[rgba(248,246,242,0.80)]">{vs.label}</span>
                   <div className="flex items-center gap-1.5">
                     {vs.usable ? (
-                      <span className="font-mono text-[10px] text-[#3D9B7A]">%{vs.qualityScore}</span>
+                      <span className="font-mono text-[14px] font-medium text-[#3D9B7A]">%{vs.qualityScore}</span>
                     ) : (
-                      <span className="font-mono text-[10px] text-[#C8785A]">Yetersiz</span>
+                      <span className="font-mono text-[14px] font-medium text-[#C8785A]">Yetersiz</span>
                     )}
                   </div>
                 </div>
-                <p className="font-body text-[10px] text-[rgba(248,246,242,0.4)] leading-[1.6]">{vs.narrative}</p>
+                <p className="font-body text-[13px] text-[rgba(248,246,242,0.55)] leading-[1.7]">{vs.narrative}</p>
                 {vs.limitations.length > 0 && (
-                  <div className="mt-1.5 flex flex-wrap gap-1">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {vs.limitations.map((lim, i) => (
-                      <span key={i} className="font-body text-[9px] text-[rgba(200,120,90,0.5)] bg-[rgba(200,120,90,0.05)] px-1.5 py-0.5 rounded">
+                      <span key={i} className="font-body text-[11px] text-[rgba(200,120,90,0.68)] bg-[rgba(200,120,90,0.08)] px-2 py-0.5 rounded">
                         {lim}
                       </span>
                     ))}
@@ -584,11 +584,11 @@ function SynthesisSection({ synthesis, viewSummaries }: { synthesis: SynthesisDa
           <SectionHeader label="Güçlü Alanlar" icon="✦" />
           <div className="grid gap-1.5">
             {synthesis.strongestAreas.map(area => (
-              <div key={area.region} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-[rgba(61,155,122,0.03)] border border-[rgba(61,155,122,0.08)]">
-                <span className="text-[10px] mt-0.5 text-[#3D9B7A]">●</span>
+              <div key={area.region} className="flex items-start gap-3 px-4 py-3 rounded-lg bg-[rgba(61,155,122,0.05)] border border-[rgba(61,155,122,0.12)]">
+                <span className="text-[11px] mt-0.5 text-[#3D9B7A]">●</span>
                 <div className="flex-1">
-                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.6)]">{area.label}</span>
-                  <p className="font-body text-[10px] text-[rgba(248,246,242,0.35)] leading-[1.5] mt-0.5">{area.note}</p>
+                  <span className="font-body text-[14px] font-medium text-[rgba(248,246,242,0.82)]">{area.label}</span>
+                  <p className="font-body text-[13px] text-[rgba(248,246,242,0.55)] leading-[1.65] mt-1">{area.note}</p>
                 </div>
               </div>
             ))}
@@ -602,11 +602,11 @@ function SynthesisSection({ synthesis, viewSummaries }: { synthesis: SynthesisDa
           <SectionHeader label="Değerlendirme Önerilen Alanlar" icon="◇" />
           <div className="grid gap-1.5">
             {synthesis.improvementAreas.map(area => (
-              <div key={area.region} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-[rgba(214,185,140,0.02)] border border-[rgba(214,185,140,0.06)]">
-                <span className="text-[10px] mt-0.5 text-[#D6B98C]">◇</span>
+              <div key={area.region} className="flex items-start gap-3 px-4 py-3 rounded-lg bg-[rgba(214,185,140,0.04)] border border-[rgba(214,185,140,0.10)]">
+                <span className="text-[11px] mt-0.5 text-[#D6B98C]">◇</span>
                 <div className="flex-1">
-                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.6)]">{area.label}</span>
-                  <p className="font-body text-[10px] text-[rgba(248,246,242,0.35)] leading-[1.5] mt-0.5">{area.note}</p>
+                  <span className="font-body text-[14px] font-medium text-[rgba(248,246,242,0.82)]">{area.label}</span>
+                  <p className="font-body text-[13px] text-[rgba(248,246,242,0.55)] leading-[1.65] mt-1">{area.note}</p>
                 </div>
               </div>
             ))}
@@ -643,13 +643,13 @@ export function RegionalScoreCards(props: RegionalScoreCardsProps) {
 
     return (
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-label text-[rgba(248,246,242,0.35)]">
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-body text-[14px] sm:text-[15px] tracking-[0.06em] uppercase font-semibold text-[rgba(248,246,242,0.62)]">
             Çoklu Açı Değerlendirmesi
           </span>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[rgba(61,155,122,0.06)] border border-[rgba(61,155,122,0.12)]">
-            <span className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(61,155,122,0.5)]">Güven</span>
-            <span className="font-mono text-[11px] text-[#3D9B7A]">{multiViewAnalysis.globalConfidence}%</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[rgba(61,155,122,0.08)] border border-[rgba(61,155,122,0.16)]">
+            <span className="font-body text-[11px] sm:text-[12px] tracking-[0.08em] uppercase text-[rgba(61,155,122,0.70)]">Güven</span>
+            <span className="font-mono text-[14px] font-medium text-[#3D9B7A]">{multiViewAnalysis.globalConfidence}%</span>
           </div>
         </div>
 
@@ -707,8 +707,8 @@ export function RegionalScoreCards(props: RegionalScoreCardsProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-label text-[rgba(248,246,242,0.35)] mb-1 block">
-        Bolgesel Degerlendirmeler
+      <span className="font-body text-[14px] sm:text-[15px] tracking-[0.06em] uppercase font-semibold text-[rgba(248,246,242,0.58)] mb-2 block">
+        Bölgesel Değerlendirmeler
       </span>
       <div className="flex flex-col gap-2.5">
         {cards.map((card, idx) => (

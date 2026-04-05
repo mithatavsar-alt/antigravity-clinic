@@ -354,7 +354,6 @@ export function validateFocusArea(
 export function validateAgeEstimation(
   age: AgeEstimation | null,
   qualityGate: QualityGateResult,
-  _config?: PipelineConfig,
 ): ValidatedMetric<AgeEstimation> | null {
   if (!age) return null
 
@@ -453,7 +452,6 @@ export function validateSymmetry(
 export function validateSkinTexture(
   tex: SkinTextureProfile | null,
   qualityGate: QualityGateResult,
-  _youngProfile?: YoungFaceProfile,
 ): ValidatedMetric<SkinTextureProfile> | null {
   if (!tex) return null
 

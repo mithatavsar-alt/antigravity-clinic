@@ -177,7 +177,6 @@ export function runTrustPipeline(
   const ageMetric = validateAgeEstimation(
     rawAnalysis.ageEstimation,
     qualityGate,
-    config,
   )
 
   // Validate symmetry (HIGH RELIABILITY)
@@ -190,7 +189,6 @@ export function runTrustPipeline(
   const skinTextureMetric = validateSkinTexture(
     rawAnalysis.skinTexture,
     qualityGate,
-    youngFaceProfile,
   )
 
   // Validate lip analysis

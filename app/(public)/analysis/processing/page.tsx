@@ -2077,11 +2077,11 @@ function ProcessingContent() {
             />
           </div>
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[12px] font-light text-[rgba(248,246,242,0.30)] tabular-nums tracking-tight">
+            <span className="font-mono text-[12px] font-light text-[rgba(248,246,242,0.45)] tabular-nums tracking-tight">
               {overallProgress}%
             </span>
             {isRunning && (
-              <span className="text-label-sm text-[rgba(248,246,242,0.25)]">
+              <span className="text-label-sm text-[rgba(248,246,242,0.42)]">
                 Aşama {currentStage + 1}/5
               </span>
             )}
@@ -2121,7 +2121,7 @@ function ProcessingContent() {
 
             const dotColor = isDoneStage ? '#3D9B7A' : isActive ? '#D6B98C' : isErrorStage ? '#C47A7A' : 'rgba(248,246,242,0.12)'
             const dotSize  = isActive ? 12 : isDoneStage ? 10 : 8
-            const labelColor = isDoneStage ? 'rgba(61,155,122,0.85)' : isActive ? '#D6B98C' : isErrorStage ? '#C47A7A' : isWaiting ? 'rgba(248,246,242,0.2)' : 'rgba(248,246,242,0.35)'
+            const labelColor = isDoneStage ? 'rgba(61,155,122,0.85)' : isActive ? '#D6B98C' : isErrorStage ? '#C47A7A' : isWaiting ? 'rgba(248,246,242,0.38)' : 'rgba(248,246,242,0.50)'
 
             return (
               <div

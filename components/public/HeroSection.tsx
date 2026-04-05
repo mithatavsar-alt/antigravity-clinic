@@ -43,7 +43,7 @@ export function HeroSection() {
       {/* Decorative vertical gold accent — desktop only */}
       <div className="hidden lg:block absolute top-[15%] left-[48px] w-px h-[70%] pointer-events-none" style={{ background: 'linear-gradient(180deg, transparent, rgba(196,163,90,0.12) 30%, rgba(196,163,90,0.12) 70%, transparent)' }} />
 
-      <div className="relative z-10 container-main grid grid-cols-1 lg:grid-cols-[54%_46%] gap-10 lg:gap-8 items-center py-28 sm:py-32 lg:py-24">
+      <div className="relative z-10 w-full max-w-[1600px] mx-auto px-6 sm:px-10 lg:px-16 xl:px-20 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 xl:gap-20 items-center py-20 sm:py-28 lg:py-16">
         {/* Mobile hero portrait — visible only below lg */}
         <motion.div
           initial={{ opacity: 0, scale: 0.97 }}
@@ -68,7 +68,7 @@ export function HeroSection() {
         </motion.div>
 
         {/* Left — Text content */}
-        <div className="flex flex-col items-start text-left">
+        <div className="flex flex-col items-start text-left lg:max-w-[600px]">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -83,7 +83,7 @@ export function HeroSection() {
             transition={{ duration: 0.8, delay: 0.1, ease }}
             className="mt-6"
           >
-            <EditorialHeading as="h1" className="!text-[clamp(2.8rem,6vw,5rem)] !leading-[0.98]">
+            <EditorialHeading as="h1" className="!text-[clamp(2.6rem,5.5vw,4.8rem)] !leading-[0.98]">
               <span className="text-[var(--color-text)]">Doğal Güzelliğinizi</span>
               <br />
               <GoldItalic>Keşfedin</GoldItalic>
@@ -94,8 +94,8 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.2, ease }}
-            className="mt-8 font-body font-light text-[var(--color-text-secondary)] max-w-xl leading-[1.8]"
-            style={{ fontSize: 'clamp(16px, 1.7vw, 19px)' }}
+            className="mt-8 font-body font-light text-[var(--color-text-secondary)] max-w-lg leading-[1.8]"
+            style={{ fontSize: 'clamp(15px, 1.5vw, 18px)' }}
           >
             AI destekli yüz analizi ile kişiselleştirilmiş estetik değerlendirme.
             Bilimsel verilerle desteklenen öneriler.
@@ -106,15 +106,15 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.35, ease }}
-            className="mt-11 flex flex-col sm:flex-row items-start gap-3.5"
+            className="mt-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
           >
             <Link href="/analysis">
-              <PremiumButton variant="primary" size="lg">
+              <PremiumButton variant="primary" size="lg" className="w-full sm:w-auto min-w-[220px]">
                 Ön Değerlendirme Başlat
               </PremiumButton>
             </Link>
             <a href={contact.whatsappUrl} target="_blank" rel="noopener noreferrer">
-              <PremiumButton variant="ghost" size="lg">
+              <PremiumButton variant="ghost" size="lg" className="w-full sm:w-auto min-w-[220px]">
                 WhatsApp ile İletişim
               </PremiumButton>
             </a>
@@ -125,18 +125,18 @@ export function HeroSection() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.5, ease }}
-            className="mt-14"
+            className="mt-12"
           >
             <HeroTrustStrip />
           </motion.div>
         </div>
 
-        {/* Right — Hero portrait (supporting visual, not dominant) */}
+        {/* Right — Hero portrait */}
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 1.0, delay: 0.2, ease }}
-          className="relative hidden lg:flex justify-end items-center"
+          className="relative hidden lg:flex justify-center items-center"
         >
           {/* Decorative ring */}
           <div
@@ -145,20 +145,20 @@ export function HeroSection() {
               background: 'linear-gradient(160deg, rgba(196,163,90,0.06) 0%, rgba(196,163,90,0.01) 100%)',
             }}
           />
-          {/* Image container — right-aligned, premium but secondary */}
-          <div className="relative w-full max-w-[540px] aspect-[3/4] rounded-2xl overflow-hidden group" style={{ maxHeight: '700px' }}>
+          {/* Image container — fills column, balanced with text */}
+          <div className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden group" style={{ maxHeight: 'clamp(520px, 70vh, 740px)' }}>
             {/* Soft left-edge fade for text-to-image transition */}
             <div
               className="absolute inset-0 z-10 pointer-events-none"
               style={{
-                background: 'linear-gradient(90deg, rgba(245,237,226,0.35) 0%, rgba(245,237,226,0.08) 10%, transparent 22%)',
+                background: 'linear-gradient(90deg, rgba(245,237,226,0.30) 0%, rgba(245,237,226,0.06) 8%, transparent 18%)',
               }}
             />
             <ImageWithFallback
               src="/images/Hero/Home1.jpg"
               alt="Doğal güzellik — medikal estetik"
               className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.03]"
-              sizes="(max-width: 1024px) 0vw, 500px"
+              sizes="(max-width: 1024px) 0vw, 50vw"
               priority
               fallbackIcon="face"
             />

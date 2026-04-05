@@ -43,7 +43,7 @@ export default function DynamicInsightPanel({ insight, score, regionIndex, confi
       className="glass-elevated rounded-[20px] sm:rounded-[24px] overflow-hidden"
       style={{
         animation: 'insightPanelFade 0.28s ease-out',
-        border: '1px solid rgba(214,185,140,0.06)',
+        border: '1px solid rgba(214,185,140,0.10)',
       }}
     >
       <div className="p-5 sm:p-7">
@@ -102,7 +102,7 @@ export default function DynamicInsightPanel({ insight, score, regionIndex, confi
             {/* Analysis */}
             <p
               className="font-body text-[13px] sm:text-[14px] leading-[1.7] mb-2"
-              style={{ color: 'rgba(248,246,242,0.50)' }}
+              style={{ color: 'rgba(248,246,242,0.62)' }}
             >
               {insight.analysis}
             </p>
@@ -110,7 +110,7 @@ export default function DynamicInsightPanel({ insight, score, regionIndex, confi
             {/* Info */}
             <p
               className="font-body text-[12px] sm:text-[13px] leading-[1.7]"
-              style={{ color: 'rgba(248,246,242,0.30)' }}
+              style={{ color: 'rgba(248,246,242,0.48)' }}
             >
               {insight.info}
             </p>
@@ -118,8 +118,8 @@ export default function DynamicInsightPanel({ insight, score, regionIndex, confi
             {/* Low-confidence caveat */}
             {isLowConfidence && (
               <p
-                className="font-body text-[10px] leading-[1.5] mt-2 flex items-center gap-1.5"
-                style={{ color: 'rgba(200,120,90,0.50)' }}
+                className="font-body text-[11px] leading-[1.5] mt-2 flex items-center gap-1.5"
+                style={{ color: 'rgba(200,120,90,0.65)' }}
               >
                 <span className="opacity-60">⚠</span>
                 Bu bölge için güven düzeyi sınırlıdır; sonuçlar referans niteliğindedir.
@@ -133,19 +133,19 @@ export default function DynamicInsightPanel({ insight, score, regionIndex, confi
               href={insight.treatmentSlug}
               className="inline-flex items-center gap-2 font-body text-[12px] sm:text-[13px] tracking-[0.02em] px-4 sm:px-5 py-2.5 rounded-full transition-all duration-300 group/cta whitespace-nowrap"
               style={{
-                color: 'rgba(214,185,140,0.55)',
-                background: 'rgba(214,185,140,0.03)',
-                border: '1px solid rgba(214,185,140,0.08)',
+                color: 'rgba(214,185,140,0.70)',
+                background: 'rgba(214,185,140,0.04)',
+                border: '1px solid rgba(214,185,140,0.12)',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'rgba(214,185,140,0.20)'
-                e.currentTarget.style.color = 'rgba(214,185,140,0.80)'
-                e.currentTarget.style.background = 'rgba(214,185,140,0.06)'
+                e.currentTarget.style.borderColor = 'rgba(214,185,140,0.25)'
+                e.currentTarget.style.color = 'rgba(214,185,140,0.90)'
+                e.currentTarget.style.background = 'rgba(214,185,140,0.08)'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'rgba(214,185,140,0.08)'
-                e.currentTarget.style.color = 'rgba(214,185,140,0.55)'
-                e.currentTarget.style.background = 'rgba(214,185,140,0.03)'
+                e.currentTarget.style.borderColor = 'rgba(214,185,140,0.12)'
+                e.currentTarget.style.color = 'rgba(214,185,140,0.70)'
+                e.currentTarget.style.background = 'rgba(214,185,140,0.04)'
               }}
             >
               {insight.treatmentLabel}

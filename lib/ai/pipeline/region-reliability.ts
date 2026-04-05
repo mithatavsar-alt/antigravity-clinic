@@ -141,7 +141,6 @@ function getTemporalStability(
  */
 function estimateOcclusionFactor(
   roiQ: ROILocalQualitySummary | undefined,
-  _vq: ViewQualityProfile,
 ): number {
   if (!roiQ || !roiQ.measurable) return DEFAULT_OCCLUSION_FACTOR
 
@@ -188,7 +187,7 @@ function computeViewRegionConfidence(
   const localExposure = roiQ?.measurable ? roiQ.exposure : DEFAULT_LOCAL_EXPOSURE
   const poseFit = vq.factors.posefit
   const temporalStability = getTemporalStability(vq, region)
-  const occlusionFactor = estimateOcclusionFactor(roiQ, vq)
+  const occlusionFactor = estimateOcclusionFactor(roiQ)
 
   // Core formula: multiplicative — each weak factor pulls down the whole
   const rawConfidence = authorityWeight

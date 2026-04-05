@@ -12,12 +12,24 @@
 import type { Landmark } from './types'
 
 // ─── Outer face boundary landmarks (ordered clockwise) ──────
-// MediaPipe FaceMesh face oval indices, starting from forehead center.
-// This is the silhouette path used to derive the expanded contour.
+// Tighter face-only contour that excludes ear-adjacent landmarks.
+// The standard MediaPipe face oval extends to preauricular/ear regions
+// (landmarks 234, 454, 356, 323, 93, 127). This version replaces those
+// with medial cheek landmarks so the contour hugs only the facial surface.
+// Starts from forehead center (10), goes clockwise.
 const FACE_BOUNDARY_INDICES = [
-  10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
-  397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
-  172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
+  // Forehead center → right forehead → right temple
+  10, 338, 297, 332, 284, 251,
+  // Right cheek (medial path — replaces 389, 356, 454, 323)
+  301, 368, 435, 397,
+  // Right jaw → chin
+  365, 379, 378, 400, 377, 152,
+  // Chin → left jaw
+  148, 176, 149, 150, 136,
+  // Left cheek (medial path — replaces 172, 58, 132, 93, 234, 127)
+  215, 138, 135, 169, 71,
+  // Left temple → left forehead → back to center
+  162, 21, 54, 103, 67, 109,
 ]
 
 // ─── Expansion config ───────────────────────────────────────
@@ -33,24 +45,24 @@ interface ExpansionConfig {
 export type FaceContourTargetAngle = 'front' | 'left' | 'right'
 
 const FRONT_EXPANSION: ExpansionConfig = {
-  top: 0.095,
-  bottom: 0.055,
-  left: 0.045,
-  right: 0.045,
+  top: 0.085,
+  bottom: 0.045,
+  left: 0.020,
+  right: 0.020,
 }
 
 const LEFT_EXPANSION: ExpansionConfig = {
-  top: 0.085,
-  bottom: 0.05,
-  left: 0.055,
-  right: 0.022,
+  top: 0.075,
+  bottom: 0.04,
+  left: 0.025,
+  right: 0.012,
 }
 
 const RIGHT_EXPANSION: ExpansionConfig = {
-  top: 0.085,
-  bottom: 0.05,
-  left: 0.022,
-  right: 0.055,
+  top: 0.075,
+  bottom: 0.04,
+  left: 0.012,
+  right: 0.025,
 }
 
 // ─── Smoothing state ────────────────────────────────────────
@@ -187,7 +199,6 @@ export function computeFaceContour(
 
     // Determine directional expansion factor
     // top/bottom bias based on vertical position relative to center
-    let expandX: number
     let expandY: number
 
     if (dy < 0) {
@@ -198,7 +209,7 @@ export function computeFaceContour(
       expandY = expansion.bottom
     }
 
-    expandX = dx < 0 ? expansion.left : expansion.right
+    const expandX = dx < 0 ? expansion.left : expansion.right
 
     return {
       x: p.x + dx * expandX,
@@ -429,4 +440,277 @@ export function drawContourAccents(
   ctx.stroke()
 
   ctx.restore()
+}
+
+// ─── Fixed face guide frame ────────────────────────────────
+// A persistent, face-contour-inspired guide drawn on the canvas.
+// Always visible during capture to help the user position their face.
+// Adapts shape for front vs side capture. Responds to validation state.
+
+export type GuideFrameState = 'neutral' | 'tracking' | 'valid' | 'invalid'
+
+interface GuideFrameOptions {
+  targetAngle: FaceContourTargetAngle
+  state: GuideFrameState
+  /** 0-1 quality score for intensity modulation */
+  qualityScore: number
+  /** Breathing animation phase — pass Date.now() */
+  time: number
+}
+
+/**
+ * Generate a face-contour-shaped path for the fixed guide frame.
+ * Returns normalized points (0-1 range) that can be scaled to canvas.
+ */
+function getGuideFramePoints(
+  targetAngle: FaceContourTargetAngle,
+): { x: number; y: number }[] {
+  // Front: centered symmetrical face oval
+  // Side: asymmetric, shifted and narrower on the hidden side
+  if (targetAngle === 'front') {
+    // Premium face-contour oval — forehead wider, chin narrower
+    const steps = 48
+    const points: { x: number; y: number }[] = []
+    for (let i = 0; i < steps; i++) {
+      const t = (i / steps) * Math.PI * 2
+      // Egg-shaped: wider at forehead (top), narrower at chin (bottom)
+      const yBase = 0.5 - Math.cos(t) * 0.44
+      const widthAtY = yBase < 0.35
+        ? 0.34 + (0.35 - yBase) * 0.12   // forehead: wider
+        : yBase > 0.72
+          ? 0.34 - (yBase - 0.72) * 0.55  // chin: narrower
+          : 0.34 + (0.50 - Math.abs(yBase - 0.50)) * 0.06 // cheeks: slight bulge
+      const x = 0.5 + Math.sin(t) * widthAtY
+      points.push({ x, y: yBase })
+    }
+    return points
+  }
+
+  // Side guide — asymmetric profile shape
+  const isLeft = targetAngle === 'left'
+  const steps = 48
+  const points: { x: number; y: number }[] = []
+  for (let i = 0; i < steps; i++) {
+    const t = (i / steps) * Math.PI * 2
+    const yBase = 0.5 - Math.cos(t) * 0.43
+
+    // Asymmetric widths: visible side wider, hidden side narrower
+    const sinT = Math.sin(t)
+    let widthVisible = 0.30 + (0.50 - Math.abs(yBase - 0.50)) * 0.08
+    let widthHidden = 0.18 + (0.50 - Math.abs(yBase - 0.50)) * 0.03
+
+    // Chin taper
+    if (yBase > 0.72) {
+      const taper = (yBase - 0.72) * 0.50
+      widthVisible -= taper
+      widthHidden -= taper * 0.8
+    }
+    // Forehead slight expansion
+    if (yBase < 0.30) {
+      widthVisible += (0.30 - yBase) * 0.08
+      widthHidden += (0.30 - yBase) * 0.04
+    }
+
+    let x: number
+    if (isLeft) {
+      // Left capture: face turned left, visible cheek on right side of screen (mirrored camera)
+      x = sinT > 0
+        ? 0.48 + sinT * widthVisible
+        : 0.48 + sinT * widthHidden
+    } else {
+      // Right capture: face turned right, visible cheek on left side of screen
+      x = sinT > 0
+        ? 0.52 + sinT * widthHidden
+        : 0.52 + sinT * widthVisible
+    }
+    points.push({ x, y: yBase })
+  }
+  return points
+}
+
+/**
+ * Draw the fixed face guide frame on the capture canvas.
+ * This is drawn BEFORE the mesh and contour layers — it sits behind everything
+ * as a persistent positioning reference.
+ */
+export function drawFixedGuideFrame(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  canvasH: number,
+  options: GuideFrameOptions,
+): void {
+  const { targetAngle, state, qualityScore, time } = options
+
+  const normalizedPoints = getGuideFramePoints(targetAngle)
+
+  // Scale to canvas — the guide occupies ~72% of canvas height, centered
+  const guideH = canvasH * 0.72
+  const guideW = canvasW * 0.78
+  const offsetX = (canvasW - guideW) / 2
+  const offsetY = (canvasH - guideH) / 2 - canvasH * 0.02 // slight upward shift
+
+  const points = normalizedPoints.map(p => ({
+    x: offsetX + p.x * guideW,
+    y: offsetY + p.y * guideH,
+  }))
+
+  // Breathing animation
+  const breathe = 1 + Math.sin(time / 3000) * 0.004
+  const cx = canvasW / 2
+  const cy = canvasH / 2 - canvasH * 0.02
+
+  const scaledPoints = points.map(p => ({
+    x: cx + (p.x - cx) * breathe,
+    y: cy + (p.y - cy) * breathe,
+  }))
+
+  // State-driven colors
+  let strokeRgb: string
+  let glowRgb: string
+  let baseAlpha: number
+  let glowAlpha: number
+  let glowBlur: number
+
+  switch (state) {
+    case 'valid':
+      strokeRgb = '0,220,160'     // green-teal
+      glowRgb = '0,220,160'
+      baseAlpha = 0.22 + qualityScore * 0.18
+      glowAlpha = 0.06 + qualityScore * 0.08
+      glowBlur = 14
+      break
+    case 'tracking':
+      strokeRgb = '196,163,90'    // warm gold
+      glowRgb = '196,163,90'
+      baseAlpha = 0.14 + qualityScore * 0.12
+      glowAlpha = 0.04 + qualityScore * 0.04
+      glowBlur = 10
+      break
+    case 'invalid':
+      strokeRgb = '196,163,90'    // still gold, just dimmer — not red/aggressive
+      glowRgb = '196,163,90'
+      baseAlpha = 0.08
+      glowAlpha = 0.02
+      glowBlur = 6
+      break
+    default: // neutral
+      strokeRgb = '214,185,140'   // warm beige
+      glowRgb = '214,185,140'
+      baseAlpha = 0.10
+      glowAlpha = 0.03
+      glowBlur = 8
+  }
+
+  // Layer 1: Soft outer glow
+  ctx.save()
+  ctx.shadowColor = `rgba(${glowRgb},${glowAlpha.toFixed(3)})`
+  ctx.shadowBlur = glowBlur
+  ctx.lineWidth = 2.5
+  ctx.strokeStyle = `rgba(${strokeRgb},${(baseAlpha * 0.35).toFixed(3)})`
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  drawClosedSmooth(ctx, scaledPoints)
+  ctx.stroke()
+  ctx.shadowColor = 'transparent'
+  ctx.shadowBlur = 0
+  ctx.restore()
+
+  // Layer 2: Main guide line
+  ctx.save()
+  ctx.lineWidth = 1.2
+  ctx.strokeStyle = `rgba(${strokeRgb},${baseAlpha.toFixed(3)})`
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  drawClosedSmooth(ctx, scaledPoints)
+  ctx.stroke()
+  ctx.restore()
+
+  // Layer 3: Inner highlight
+  ctx.save()
+  ctx.lineWidth = 0.5
+  ctx.strokeStyle = `rgba(255,255,255,${(baseAlpha * 0.25).toFixed(3)})`
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  drawClosedSmooth(ctx, scaledPoints)
+  ctx.stroke()
+  ctx.restore()
+
+  // Corner orientation markers — small ticks at cardinal points
+  if (state === 'neutral' || state === 'tracking') {
+    const tickAlpha = (baseAlpha * 0.6).toFixed(3)
+    ctx.save()
+    ctx.strokeStyle = `rgba(${strokeRgb},${tickAlpha})`
+    ctx.lineWidth = 1.0
+    ctx.lineCap = 'round'
+
+    // Top center tick
+    const topP = scaledPoints[0]
+    if (topP) {
+      ctx.beginPath()
+      ctx.moveTo(topP.x, topP.y - 6)
+      ctx.lineTo(topP.x, topP.y + 6)
+      ctx.stroke()
+    }
+
+    // Bottom center tick
+    const botP = scaledPoints[Math.floor(scaledPoints.length / 2)]
+    if (botP) {
+      ctx.beginPath()
+      ctx.moveTo(botP.x, botP.y - 6)
+      ctx.lineTo(botP.x, botP.y + 6)
+      ctx.stroke()
+    }
+
+    // Left center tick
+    const leftP = scaledPoints[Math.floor(scaledPoints.length * 0.75)]
+    if (leftP) {
+      ctx.beginPath()
+      ctx.moveTo(leftP.x - 6, leftP.y)
+      ctx.lineTo(leftP.x + 6, leftP.y)
+      ctx.stroke()
+    }
+
+    // Right center tick
+    const rightP = scaledPoints[Math.floor(scaledPoints.length * 0.25)]
+    if (rightP) {
+      ctx.beginPath()
+      ctx.moveTo(rightP.x - 6, rightP.y)
+      ctx.lineTo(rightP.x + 6, rightP.y)
+      ctx.stroke()
+    }
+
+    ctx.restore()
+  }
+}
+
+/**
+ * Draw a closed smooth curve using Catmull-Rom interpolation.
+ * Shared helper for guide frame rendering.
+ */
+function drawClosedSmooth(
+  ctx: CanvasRenderingContext2D,
+  points: { x: number; y: number }[],
+): void {
+  const n = points.length
+  if (n < 4) return
+
+  ctx.beginPath()
+  ctx.moveTo(points[0].x, points[0].y)
+
+  const tension = 0.5
+  for (let i = 0; i < n; i++) {
+    const p0 = points[(i - 1 + n) % n]
+    const p1 = points[i]
+    const p2 = points[(i + 1) % n]
+    const p3 = points[(i + 2) % n]
+
+    const cp1x = p1.x + (p2.x - p0.x) / (6 * tension)
+    const cp1y = p1.y + (p2.y - p0.y) / (6 * tension)
+    const cp2x = p2.x - (p3.x - p1.x) / (6 * tension)
+    const cp2y = p2.y - (p3.y - p1.y) / (6 * tension)
+
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y)
+  }
+
+  ctx.closePath()
 }

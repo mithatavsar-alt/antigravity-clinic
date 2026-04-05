@@ -432,10 +432,12 @@ export const UPPER_LIP = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291]
 export const LOWER_LIP = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291]
 
 // ─── Extended landmark groups (full-face coverage) ──────────
-// Jawline: full chin-to-ear contour (bottom half of face oval)
+// Jawline: face-only chin-to-cheek contour (excludes ear-area landmarks 234/454)
+// Uses the inner jaw path that stays on visible facial surface
 export const JAWLINE = [
-  234, 127, 162, 21, 54, 103, 67, 109, 10, 338, 297, 332,
-  284, 251, 389, 356, 454,
+  // Left jaw → chin → right jaw (medial path)
+  171, 175, 148, 176, 149, 150, 136, 152,
+  377, 400, 378, 379, 365, 397, 395,
 ]
 // Forehead zone: hairline-adjacent + upper face landmarks
 export const FOREHEAD_ZONE = [10, 338, 297, 332, 284, 251, 21, 54, 103, 67, 109, 10]
@@ -566,10 +568,10 @@ export function evaluateFaceGuide(
   // Angle evaluation — target-aware for multi-angle capture.
   // Require a visibly side-oriented pose so left/right steps do not
   // still look almost frontal.
-  const ANGLED_MIN = 0.14
+  const ANGLED_MIN = 0.10
   const ANGLED_MAX = 0.44
-  const ANGLED_IDEAL = 0.22
-  const SIDE_NEAR_MIN = ANGLED_MIN * 0.90
+  const ANGLED_IDEAL = 0.18
+  const SIDE_NEAR_MIN = ANGLED_MIN * 0.80
 
   // Angle evaluation — target-aware for multi-angle capture.
   //
@@ -585,8 +587,11 @@ export function evaluateFaceGuide(
   // mirror makes this feel natural. The validator uses raw-image coordinates.
   const absNoseOffset = Math.abs(noseOffset)
 
+  // Side captures tolerate more head tilt — turning naturally causes slight roll
+  const effectiveRollThreshold = targetAngle === 'front' ? ROLL_THRESHOLD : ROLL_THRESHOLD * 1.8
+
   let angle: FaceGuideStatus['angle'] = 'ok'
-  if (tiltRatio > ROLL_THRESHOLD) angle = 'tilt'
+  if (tiltRatio > effectiveRollThreshold) angle = 'tilt'
   else if (targetAngle === 'front') {
     // Frontal: must look straight
     if (noseOffset > YAW_THRESHOLD) angle = 'look_left'
@@ -595,14 +600,14 @@ export function evaluateFaceGuide(
     else if (pitchOffset > PITCH_THRESHOLD) angle = 'look_down'
   } else if (targetAngle === 'left') {
     // Left face view: expect negative noseOffset (head turned right IRL)
-    const sidePitch = PITCH_THRESHOLD * 1.32
+    const sidePitch = PITCH_THRESHOLD * 1.6
     if (noseOffset > -ANGLED_MIN) angle = 'look_right'     // not turned enough
     else if (noseOffset < -ANGLED_MAX) angle = 'look_left'  // turned too far
     else if (pitchOffset < -sidePitch) angle = 'look_up'
     else if (pitchOffset > sidePitch) angle = 'look_down'
   } else if (targetAngle === 'right') {
     // Right face view: expect positive noseOffset (head turned left IRL)
-    const sidePitch = PITCH_THRESHOLD * 1.32
+    const sidePitch = PITCH_THRESHOLD * 1.6
     if (noseOffset < ANGLED_MIN) angle = 'look_left'       // not turned enough
     else if (noseOffset > ANGLED_MAX) angle = 'look_right'  // turned too far
     else if (pitchOffset < -sidePitch) angle = 'look_up'
@@ -647,7 +652,7 @@ export function evaluateFaceGuide(
   const crowFeetScore = crowLandmarks.length > 0 ? visibilityRatio(landmarks, crowLandmarks) : 1
   const sideEvidenceStrong = targetAngle === 'front'
     ? false
-    : crowFeetScore >= 0.48 && regionVisibility.nasolabial >= 0.52 && regionVisibility.jawline >= 0.55
+    : crowFeetScore >= 0.38 && regionVisibility.nasolabial >= 0.42 && regionVisibility.jawline >= 0.45
   const nearSidePoseAccepted = targetAngle === 'left'
     ? noseOffset <= -SIDE_NEAR_MIN && noseOffset > -ANGLED_MIN
     : targetAngle === 'right'
@@ -709,15 +714,15 @@ export function evaluateFaceGuide(
   const chinRequired = targetAngle === 'front'
   const sideTruthful = targetAngle === 'front'
     ? true
-    : crowFeetScore >= 0.50 && regionVisibility.nasolabial >= 0.55 && regionVisibility.jawline >= 0.58
+    : crowFeetScore >= 0.40 && regionVisibility.nasolabial >= 0.44 && regionVisibility.jawline >= 0.48
   const allOk =
     centering === 'ok' &&
     distanceOk &&
     angleOk &&
     lightingOk &&
     eyesVisible &&
-    landmarkCompleteness >= (targetAngle === 'front' ? 0.72 : 0.62) &&
-    occlusionScore >= (targetAngle === 'front' ? 0.74 : 0.68) &&
+    landmarkCompleteness >= (targetAngle === 'front' ? 0.72 : 0.52) &&
+    occlusionScore >= (targetAngle === 'front' ? 0.74 : 0.58) &&
     sideTruthful &&
     (foreheadRequired ? foreheadVisible : true) &&
     (chinRequired ? chinVisible : true)
@@ -727,8 +732,12 @@ export function evaluateFaceGuide(
     : 'Başınızı hafifçe sağa düzeltin'
 
   // Main message priority — premium, calm, elegant Turkish guidance
+  // For side captures: if allOk, show only positive feedback — no micro-corrections
   let mainMessage = 'Mükemmel, tam böyle kalın'
-  if (distance === 'too_far') mainMessage = 'Kameraya biraz daha yaklaşın'
+  if (targetAngle !== 'front' && allOk) {
+    // Side pose is fully accepted — suppress all corrective messages
+    mainMessage = 'Mükemmel, tam böyle kalın'
+  } else if (distance === 'too_far') mainMessage = 'Kameraya biraz daha yaklaşın'
   else if (distance === 'too_close') mainMessage = 'Hafifçe geri çekilin'
   else if (centering === 'off_center') mainMessage = 'Yüzünüzü merkeze hizalayın'
   else if (angle === 'tilt') mainMessage = tiltCorrectionMessage

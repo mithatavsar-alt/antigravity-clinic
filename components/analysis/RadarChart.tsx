@@ -254,7 +254,7 @@ export default function RadarChartSection({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
                   </svg>
                 </div>
-                <span className="text-label text-[rgba(248,246,242,0.30)]">
+                <span className="text-label text-[rgba(248,246,242,0.52)]">
                   İnteraktif Harita
                 </span>
               </div>
@@ -267,8 +267,8 @@ export default function RadarChartSection({
                   border: `1px solid ${avgColor}14`,
                 }}
               >
-                <span className="text-label-sm" style={{ color: `${avgColor}70` }}>Ortalama</span>
-                <span className="font-mono text-[16px] font-light" style={{ color: avgColor }}>{avg}</span>
+                <span className="text-label-sm" style={{ color: `${avgColor}88` }}>Ortalama</span>
+                <span className="font-mono text-[16px] font-medium" style={{ color: avgColor }}>{avg}</span>
               </div>
             </div>
 
@@ -328,8 +328,8 @@ export default function RadarChartSection({
 
             {/* Quality caveat */}
             {captureQuality && captureQuality !== 'high' && (
-              <div className="rounded-[10px] px-3.5 py-2.5" style={{ background: 'rgba(214,185,140,0.02)', border: '1px solid rgba(214,185,140,0.05)' }}>
-                <p className="font-body text-[11px] text-[rgba(248,246,242,0.22)] leading-relaxed italic text-center">
+              <div className="rounded-[10px] px-3.5 py-2.5" style={{ background: 'rgba(214,185,140,0.04)', border: '1px solid rgba(214,185,140,0.10)' }}>
+                <p className="font-body text-[12px] text-[rgba(248,246,242,0.45)] leading-relaxed italic text-center">
                   {captureQuality === 'low'
                     ? 'Bu değerlendirme mevcut görüntü kalitesine göre yaklaşık olarak oluşturulmuştur.'
                     : 'Görüntü kalitesi orta düzeydedir. Sonuçlar genel yönelimi yansıtmaktadır.'}
@@ -338,8 +338,8 @@ export default function RadarChartSection({
             )}
 
             {(suppressedCount > 0 || currentRegion.status === 'low') && (
-              <div className="rounded-[10px] px-3.5 py-2.5" style={{ background: 'rgba(200,120,90,0.03)', border: '1px solid rgba(200,120,90,0.08)' }}>
-                <p className="font-body text-[11px] text-[rgba(248,246,242,0.34)] leading-relaxed text-center">
+              <div className="rounded-[10px] px-3.5 py-2.5" style={{ background: 'rgba(200,120,90,0.04)', border: '1px solid rgba(200,120,90,0.12)' }}>
+                <p className="font-body text-[12px] text-[rgba(248,246,242,0.50)] leading-relaxed text-center">
                   {suppressedCount > 0
                     ? `${suppressedCount} bölge yeterli kanıt olmadığı için normal skor gibi gösterilmemiştir.`
                     : 'Seçili bölge düşük güvenle değerlendirilmiştir; sonuç yön gösterici olarak okunmalıdır.'}
@@ -365,15 +365,15 @@ export default function RadarChartSection({
         <div
           className="rounded-[14px] px-5 py-4 text-center max-w-2xl mx-auto w-full"
           style={{
-            background: 'rgba(214,185,140,0.02)',
-            border: '1px solid rgba(214,185,140,0.05)',
+            background: 'rgba(214,185,140,0.04)',
+            border: '1px solid rgba(214,185,140,0.10)',
             animation: 'sectionReveal 0.6s ease-out 0.5s both',
           }}
         >
-          <p className="font-body text-[12px] text-[rgba(248,246,242,0.35)] leading-[1.8]">
+          <p className="font-body text-[13px] text-[rgba(248,246,242,0.55)] leading-[1.8]">
             {summaryText}
           </p>
-          <p className="font-body text-[10px] text-[rgba(248,246,242,0.18)] leading-relaxed mt-2 italic">
+          <p className="font-body text-[11px] text-[rgba(248,246,242,0.38)] leading-relaxed mt-2 italic">
             Bu analiz AI destekli ön değerlendirme niteliğindedir. Kesin sonuçlar klinik muayene gerektirir.
           </p>
         </div>
