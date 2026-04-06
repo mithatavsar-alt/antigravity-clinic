@@ -202,10 +202,12 @@ export function LandmarkOverlay({
   // ── Load image dims when propLandmarks given ──────────────
   useEffect(() => {
     if (!propLandmarks || imageDims) return
+    let cancelled = false
     const img = new Image()
     img.crossOrigin = 'anonymous'
-    img.onload = () => setImageDims({ w: img.naturalWidth, h: img.naturalHeight })
+    img.onload = () => { if (!cancelled) setImageDims({ w: img.naturalWidth, h: img.naturalHeight }) }
     img.src = src
+    return () => { cancelled = true }
   }, [src, propLandmarks, imageDims])
 
   // ── Draw canvas — fires when mapped AND visible ─────────────

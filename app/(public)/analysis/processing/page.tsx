@@ -1154,7 +1154,7 @@ function ProcessingContent() {
           })
         }
         if (bridgeCheck.issues.length > 0 && process.env.NODE_ENV === 'development') {
-          console.warn('[Pipeline] Bridge integrity issues:', bridgeCheck.issues)
+          devWarn('[Pipeline] Bridge integrity issues:', bridgeCheck.issues)
         }
 
         // Retrieve capture manifest (per-view quality from capture time)
@@ -1929,6 +1929,8 @@ function ProcessingContent() {
     }
 
     runPipeline()
+
+    return () => { clearTimeout(safetyTimer) }
   }, [id])
 
   const handleRetry = useCallback(() => {

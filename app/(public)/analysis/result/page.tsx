@@ -413,8 +413,8 @@ function ThreeViewGallery({ photos, viewQualities, onPhotoClick }: {
                 </button>
               ) : (
                 <div className="aspect-[3/4] w-full rounded-xl bg-[rgba(20,18,15,0.4)] border border-[rgba(248,246,242,0.04)] flex flex-col items-center justify-center gap-1.5">
-                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.35)]">{VIEW_ICONS[view]}</span>
-                  <span className="font-body text-[9px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.30)]">
+                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.50)]">{VIEW_ICONS[view]}</span>
+                  <span className="font-body text-[9px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.45)]">
                     Çekilmedi
                   </span>
                 </div>
@@ -730,7 +730,7 @@ function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence
       </div>
 
       {/* Caveat */}
-      <p className="font-body text-[11px] text-[rgba(248,246,242,0.38)] leading-relaxed">
+      <p className="font-body text-[11px] text-[rgba(248,246,242,0.55)] leading-relaxed">
         Yapay zeka destekli ön değerlendirmedir.
       </p>
     </div>

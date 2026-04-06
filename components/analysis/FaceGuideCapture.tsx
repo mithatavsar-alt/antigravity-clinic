@@ -2409,7 +2409,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               </div>
               <div className="text-center px-4">
                 <p className="font-body text-[12px] sm:text-[13px] text-white/60 tracking-wide">AI tarama motoru hazırlanıyor</p>
-                <p className="font-body text-[10px] text-white/25 mt-1">İlk kullanımda birkaç saniye sürebilir</p>
+                <p className="font-body text-[10px] text-white/40 mt-1">İlk kullanımda birkaç saniye sürebilir</p>
               </div>
             </div>
           )}
@@ -2611,7 +2611,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               <svg className={`w-3 h-3 transition-colors duration-200 ${showMesh ? 'text-[#D6B98C]' : 'text-white/30'}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
               </svg>
-              <span className={`font-body text-[9px] tracking-[0.06em] transition-colors duration-200 ${showMesh ? 'text-white/50' : 'text-white/25'}`}>
+              <span className={`font-body text-[9px] tracking-[0.06em] transition-colors duration-200 ${showMesh ? 'text-white/50' : 'text-white/38'}`}>
                 {showMesh ? 'AI Haritası' : 'Harita Kapalı'}
               </span>
             </button>
@@ -2719,13 +2719,13 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               }
               // Tilt correction secondary (front only)
               if (!isSide && phase === 'tracking' && status.faceDetected && tiltAssist) {
-                return <p className="font-body text-[10px] text-white/28 text-center tracking-wide">{tiltAssist.secondary}</p>
+                return <p className="font-body text-[10px] text-white/45 text-center tracking-wide">{tiltAssist.secondary}</p>
               }
               if (stepTurnHint && (phase === 'idle' || phase === 'detecting') && !status.faceDetected) {
-                return <p className="font-body text-[10px] text-white/28 text-center tracking-wide">{stepTurnHint.short}</p>
+                return <p className="font-body text-[10px] text-white/45 text-center tracking-wide">{stepTurnHint.short}</p>
               }
               if (isSide && phase === 'tracking' && status.faceDetected && angleAssist) {
-                return <p className="font-body text-[10px] text-white/28 text-center tracking-wide">{angleAssist.secondary}</p>
+                return <p className="font-body text-[10px] text-white/45 text-center tracking-wide">{angleAssist.secondary}</p>
               }
               if ((phase === 'idle' || phase === 'detecting') && !status.faceDetected) {
                 return <p className="font-body text-[10px] text-white/30 text-center tracking-wide">Doğal ifadenizle kameraya bakın</p>
@@ -2738,7 +2738,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 if (showBlinkHint) {
                   return <p className="font-body text-[10px] text-[#D4B96A]/55 text-center tracking-wide animate-pulse">Doğal bir şekilde göz kırpın</p>
                 }
-                return <p className="font-body text-[10px] text-white/22 text-center tracking-wide" key={tipIndex}>{TIPS[tipIndex]}</p>
+                return <p className="font-body text-[10px] text-white/40 text-center tracking-wide" key={tipIndex}>{TIPS[tipIndex]}</p>
               }
               return null
             })()}
@@ -2844,11 +2844,11 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                         Çekim hazır
                       </p>
                     ) : status.faceDetected ? (
-                      <p className="font-body text-[9px] text-white/20 tracking-[0.08em] uppercase leading-tight text-center">
+                      <p className="font-body text-[9px] text-white/40 tracking-[0.08em] uppercase leading-tight text-center">
                         {phase === 'stabilizing' ? 'Taranıyor…' : 'Konumlanıyor…'}
                       </p>
                     ) : (
-                      <p className="font-body text-[9px] text-white/15 tracking-[0.08em] uppercase leading-tight text-center">
+                      <p className="font-body text-[9px] text-white/35 tracking-[0.08em] uppercase leading-tight text-center">
                         Otomatik tarama
                       </p>
                     )}

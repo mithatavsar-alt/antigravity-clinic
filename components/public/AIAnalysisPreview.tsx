@@ -349,15 +349,6 @@ export function AIAnalysisPreview() {
     startCycle()
   }, [startCycle])
 
-  // ═══ Public API: update a single region score ═══
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _updateScore = useCallback((key: string, value: number) => {
-    setScores(prev => {
-      if (prev[key] === value) return prev
-      return { ...prev, [key]: Math.max(0, Math.min(100, Math.round(value))) }
-    })
-  }, [])
-
   /* ── Shared SVG colors for light theme ── */
   const gridStroke = 'rgba(26, 26, 46, 0.12)'
   const axisStroke = 'rgba(26, 26, 46, 0.08)'
