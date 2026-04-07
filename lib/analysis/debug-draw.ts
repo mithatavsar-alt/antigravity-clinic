@@ -178,10 +178,8 @@ export function drawDebugOverlay(
 
   // 4. Skin confidence heatmap
   if (config.showSkinConfidenceHeatmap && skinConfidence) {
-    const cellW = (skinConfidence.cellWidth / w) * w // cell dimensions in canvas pixels
-    const cellH = (skinConfidence.cellHeight / h) * h
-    // cellWidth/cellHeight are already in pixel space relative to the source image
-    // Scale to canvas: assume normalized grid over image dimensions
+    // cellWidth/cellHeight are in pixel space relative to the source image
+    // Scale to canvas dimensions
     const scaleX = w / (skinConfidence.gridCols * skinConfidence.cellWidth || 1)
     const scaleY = h / (skinConfidence.gridRows * skinConfidence.cellHeight || 1)
 
