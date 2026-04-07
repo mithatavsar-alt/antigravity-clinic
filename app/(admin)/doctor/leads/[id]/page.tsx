@@ -26,7 +26,7 @@ function Section({ title, children, badge }: { title: string; children: React.Re
     <section>
       <div className="flex items-center gap-3 mb-4">
         <h3 className="font-display text-[18px] font-light text-[#F8F6F2]">{title}</h3>
-        <div className="flex-1 h-px bg-[rgba(248,246,242,0.04)]" />
+        <div className="flex-1 h-px bg-[rgba(18,16,13,0.55)]" />
         {badge}
       </div>
       {children}
@@ -65,7 +65,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   if (!lead) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <div className="w-16 h-16 rounded-full bg-[rgba(248,246,242,0.03)] flex items-center justify-center">
+        <div className="w-16 h-16 rounded-full bg-[rgba(20,18,14,0.55)] flex items-center justify-center">
           {fetchError ? (
             <svg className="w-6 h-6 text-[#C47A7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
@@ -133,12 +133,12 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       <div className="flex items-center gap-2">
         <button
           onClick={() => router.push('/doctor/leads')}
-          className="font-body text-[10px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.3)] hover:text-[#D6B98C] transition-colors"
+          className="font-body text-[10px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)] hover:text-[#D6B98C] transition-colors"
         >
           ← Lead Listesi
         </button>
-        <span className="text-[rgba(248,246,242,0.1)]">/</span>
-        <span className="font-mono text-[10px] text-[rgba(248,246,242,0.2)]">{lead.id.slice(0, 8)}</span>
+        <span className="text-[rgba(248,246,242,0.20)]">/</span>
+        <span className="font-mono text-[10px] text-[rgba(248,246,242,0.38)]">{lead.id.slice(0, 8)}</span>
       </div>
 
       {/* ── Patient Header ── */}
@@ -149,21 +149,21 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <StatusBadge status={lead.status} type="lead" />
             {lead.readiness_band && <StatusBadge status={lead.readiness_band} type="readiness" />}
             {lead.age_range && (
-              <span className="font-mono text-[10px] text-[rgba(248,246,242,0.35)] px-2 py-0.5 rounded-md bg-[rgba(248,246,242,0.03)]">
+              <span className="font-mono text-[10px] text-[rgba(248,246,242,0.52)] px-2 py-0.5 rounded-md bg-[rgba(20,18,14,0.55)]">
                 {lead.age_range}
               </span>
             )}
             {lead.phone && (
-              <span className="font-mono text-[10px] text-[rgba(248,246,242,0.35)]">{lead.phone}</span>
+              <span className="font-mono text-[10px] text-[rgba(248,246,242,0.52)]">{lead.phone}</span>
             )}
           </div>
-          <p className="font-body text-[11px] text-[rgba(248,246,242,0.25)] mt-1">{formatDateTime(lead.created_at)}</p>
+          <p className="font-body text-[11px] text-[rgba(248,246,242,0.42)] mt-1">{formatDateTime(lead.created_at)}</p>
         </div>
 
         <div className="flex gap-2">
           <button
             onClick={handleGenerateReport}
-            className="px-4 py-2 rounded-lg bg-[rgba(214,185,140,0.08)] border border-[rgba(214,185,140,0.15)] font-body text-[10px] tracking-[0.1em] uppercase text-[#D6B98C] hover:bg-[rgba(214,185,140,0.12)] transition-colors"
+            className="px-4 py-2 rounded-lg bg-[rgba(214,185,140,0.08)] border border-[rgba(214,185,140,0.22)] font-body text-[10px] tracking-[0.1em] uppercase text-[#D6B98C] hover:bg-[rgba(214,185,140,0.18)] transition-colors"
           >
             Rapor
           </button>
@@ -267,36 +267,36 @@ function AIScoresPanel({ aiScores }: { aiScores: Record<string, unknown> }) {
   const suggestions = aiScores.suggestions as string[] | undefined
 
   return (
-    <div className="rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.02)] p-5">
+    <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-5">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
         {symmetry != null && (
           <div>
-            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.3)] mb-1">Simetri</p>
-            <p className="font-mono text-[20px] font-light text-[#F8F6F2]">{symmetry}<span className="text-[11px] text-[rgba(248,246,242,0.3)]">%</span></p>
+            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)] mb-1">Simetri</p>
+            <p className="font-mono text-[20px] font-light text-[#F8F6F2]">{symmetry}<span className="text-[11px] text-[rgba(248,246,242,0.48)]">%</span></p>
           </div>
         )}
         {proportion != null && (
           <div>
-            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.3)] mb-1">Altın Oran</p>
-            <p className="font-mono text-[20px] font-light text-[#F8F6F2]">{proportion}<span className="text-[11px] text-[rgba(248,246,242,0.3)]">%</span></p>
+            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)] mb-1">Altın Oran</p>
+            <p className="font-mono text-[20px] font-light text-[#F8F6F2]">{proportion}<span className="text-[11px] text-[rgba(248,246,242,0.48)]">%</span></p>
           </div>
         )}
         {metrics && Object.entries(metrics).slice(0, 4).map(([key, val]) => (
           <div key={key}>
-            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.3)] mb-1">
+            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)] mb-1">
               {key === 'faceRatio' ? 'Yüz Oranı' : key === 'eyeDistanceRatio' ? 'Göz Mesafesi' : key === 'noseToFaceWidth' ? 'Burun/Yüz' : key === 'symmetryRatio' ? 'Simetri Oranı' : key}
             </p>
-            <p className="font-mono text-[14px] text-[rgba(248,246,242,0.6)]">{typeof val === 'number' ? val.toFixed(3) : String(val)}</p>
+            <p className="font-mono text-[14px] text-[rgba(248,246,242,0.72)]">{typeof val === 'number' ? val.toFixed(3) : String(val)}</p>
           </div>
         ))}
       </div>
 
       {suggestions && suggestions.length > 0 && (
-        <div className="pt-3 border-t border-[rgba(248,246,242,0.04)]">
-          <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.25)] mb-2">Bulgular</p>
+        <div className="pt-3 border-t border-[rgba(214,185,140,0.08)]">
+          <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.42)] mb-2">Bulgular</p>
           <ul className="flex flex-col gap-1">
             {suggestions.map((s, i) => (
-              <li key={i} className="font-body text-[11px] text-[rgba(248,246,242,0.45)] flex items-start gap-2">
+              <li key={i} className="font-body text-[11px] text-[rgba(248,246,242,0.62)] flex items-start gap-2">
                 <span className="text-[#D6B98C] mt-0.5">·</span>
                 {s}
               </li>

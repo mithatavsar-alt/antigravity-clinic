@@ -49,7 +49,7 @@ export function AnalysisHeroSummary({
   const qualInfo = qualityLabel(captureQuality)
 
   return (
-    <div className="rounded-2xl border border-[rgba(248,246,242,0.06)] bg-[rgba(14,11,9,0.6)] backdrop-blur-sm overflow-hidden">
+    <div className="rounded-2xl border border-[rgba(214,185,140,0.10)] bg-[rgba(16,14,11,0.65)] backdrop-blur-lg backdrop-blur-sm overflow-hidden">
       {/* Top gradient accent */}
       <div className="h-px bg-gradient-to-r from-transparent via-[rgba(214,185,140,0.3)] to-transparent" />
 
@@ -60,7 +60,7 @@ export function AnalysisHeroSummary({
           <div className="flex-shrink-0 flex flex-col items-center">
             <div className="relative w-24 h-24">
               <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(248,246,242,0.06)" strokeWidth="4" />
+                <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(248,246,242,0.10)" strokeWidth="4" />
                 <circle
                   cx="50" cy="50" r="42"
                   fill="none"
@@ -73,7 +73,7 @@ export function AnalysisHeroSummary({
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="font-mono text-[28px] font-light text-[#F8F6F2]">{score}</span>
-                <span className="font-body text-[8px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.35)]">skor</span>
+                <span className="font-body text-[8px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.52)]">skor</span>
               </div>
             </div>
             <p className="font-body text-[10px] tracking-[0.12em] uppercase mt-2" style={{ color: scoreColor(score) }}>
@@ -110,9 +110,9 @@ export function AnalysisHeroSummary({
 
         {/* Summary + Warnings */}
         {(summaryText || recaptureRecommended) && (
-          <div className="mt-6 pt-5 border-t border-[rgba(248,246,242,0.04)]">
+          <div className="mt-6 pt-5 border-t border-[rgba(214,185,140,0.08)]">
             {summaryText && (
-              <p className="font-body text-[13px] text-[rgba(248,246,242,0.55)] leading-relaxed">{summaryText}</p>
+              <p className="font-body text-[13px] text-[rgba(248,246,242,0.68)] leading-relaxed">{summaryText}</p>
             )}
             {recaptureRecommended && (
               <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(196,136,58,0.08)] border border-[rgba(196,136,58,0.15)]">
@@ -131,11 +131,11 @@ export function AnalysisHeroSummary({
 
 function MetricTile({ label, value, color, sub }: { label: string; value: string; color: string; sub?: string }) {
   return (
-    <div className="rounded-xl bg-[rgba(248,246,242,0.02)] border border-[rgba(248,246,242,0.04)] px-3.5 py-3">
-      <p className="font-body text-[9px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.3)] mb-1.5">{label}</p>
+    <div className="rounded-xl bg-[rgba(16,14,11,0.55)] backdrop-blur-lg border border-[rgba(214,185,140,0.08)] px-3.5 py-3">
+      <p className="font-body text-[9px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.48)] mb-1.5">{label}</p>
       <div className="flex items-baseline gap-1.5">
         <span className="font-mono text-[16px] font-light" style={{ color }}>{value}</span>
-        {sub && <span className="font-mono text-[10px] text-[rgba(248,246,242,0.25)]">{sub}</span>}
+        {sub && <span className="font-mono text-[10px] text-[rgba(248,246,242,0.42)]">{sub}</span>}
       </div>
     </div>
   )

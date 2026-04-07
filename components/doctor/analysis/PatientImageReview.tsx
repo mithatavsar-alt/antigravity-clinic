@@ -29,13 +29,13 @@ export function PatientImageReview({ frontPhoto, leftPhoto, rightPhoto, addition
 
   if (photos.length === 0 && additionalPhotos.length === 0) {
     return (
-      <div className="rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(14,11,9,0.4)] p-8 text-center">
-        <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[rgba(248,246,242,0.03)] flex items-center justify-center">
-          <svg className="w-5 h-5 text-[rgba(248,246,242,0.2)]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+      <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-8 text-center">
+        <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[rgba(20,18,14,0.55)] flex items-center justify-center">
+          <svg className="w-5 h-5 text-[rgba(248,246,242,0.38)]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 001.5-1.5V5.25a1.5 1.5 0 00-1.5-1.5H3.75a1.5 1.5 0 00-1.5 1.5V19.5a1.5 1.5 0 001.5 1.5z" />
           </svg>
         </div>
-        <p className="font-body text-[12px] text-[rgba(248,246,242,0.3)]">Hasta fotoğrafı mevcut değil</p>
+        <p className="font-body text-[12px] text-[rgba(248,246,242,0.48)]">Hasta fotoğrafı mevcut değil</p>
       </div>
     )
   }
@@ -49,14 +49,14 @@ export function PatientImageReview({ frontPhoto, leftPhoto, rightPhoto, addition
             <button
               key={key}
               onClick={() => src && setPreviewSrc(src)}
-              className="group relative aspect-[3/4] rounded-xl overflow-hidden border border-[rgba(248,246,242,0.06)] bg-[rgba(14,11,9,0.6)] hover:border-[rgba(214,185,140,0.2)] transition-colors"
+              className="group relative aspect-[3/4] rounded-xl overflow-hidden border border-[rgba(214,185,140,0.10)] bg-[rgba(16,14,11,0.65)] backdrop-blur-lg hover:border-[rgba(214,185,140,0.2)] transition-colors"
             >
               {src ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={src} alt={labels[key]} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <div className="w-8 h-8 rounded-full bg-[rgba(248,246,242,0.04)] animate-pulse" />
+                  <div className="w-8 h-8 rounded-full bg-[rgba(18,16,13,0.55)] animate-pulse" />
                 </div>
               )}
               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">

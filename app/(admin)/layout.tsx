@@ -14,7 +14,7 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
   return (
     <div
       className="min-h-screen"
-      style={{ background: 'linear-gradient(160deg, #0A0908 0%, #14110E 20%, #0F1214 50%, #0A0B0D 100%)' }}
+      style={{ background: 'linear-gradient(160deg, #100D0B 0%, #1A1510 30%, #151318 55%, #100E0C 100%)' }}
     >
       <DoctorTopNav />
       <div className="flex">

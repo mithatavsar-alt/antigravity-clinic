@@ -21,10 +21,10 @@ export function DoctorTopNav() {
   }
 
   return (
-    <header className="bg-[rgba(14,11,9,0.92)] backdrop-blur-md border-b border-[rgba(248,246,242,0.06)] px-6 h-14 flex items-center justify-between sticky top-0 z-40">
+    <header className="bg-[rgba(18,15,12,0.88)] backdrop-blur-md border-b border-[rgba(214,185,140,0.10)] px-6 h-14 flex items-center justify-between sticky top-0 z-40">
       <Link href="/doctor/dashboard" className="font-display text-[17px] font-light tracking-[0.04em] text-[#F8F6F2]">
         Dr. Müjde Ocak <span className="text-[#D6B98C]">Clinic</span>
-        <span className="font-body text-[10px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.35)] ml-3">
+        <span className="font-body text-[10px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.52)] ml-3">
           Doktor Paneli
         </span>
       </Link>
@@ -36,10 +36,10 @@ export function DoctorTopNav() {
         >
           Leads
         </Link>
-        <span className="hidden sm:inline font-body text-[11px] text-[rgba(248,246,242,0.4)]">Dr. Müjde Ocak</span>
+        <span className="hidden sm:inline font-body text-[11px] text-[rgba(248,246,242,0.58)]">Dr. Müjde Ocak</span>
         <button
           onClick={handleLogout}
-          className="font-body text-[10px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.3)] hover:text-[#C47A7A] transition-colors"
+          className="font-body text-[10px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.48)] hover:text-[#C47A7A] transition-colors"
         >
           Çıkış
         </button>

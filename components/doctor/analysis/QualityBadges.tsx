@@ -14,8 +14,8 @@ interface QualityBadgesProps {
 
 function badge(label: string, value: string | number, color: string) {
   return (
-    <div key={label} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(248,246,242,0.02)] border border-[rgba(248,246,242,0.04)]">
-      <span className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.3)]">{label}</span>
+    <div key={label} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(16,14,11,0.55)] backdrop-blur-lg border border-[rgba(214,185,140,0.08)]">
+      <span className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)]">{label}</span>
       <span className="font-mono text-[11px]" style={{ color }}>{value}</span>
     </div>
   )

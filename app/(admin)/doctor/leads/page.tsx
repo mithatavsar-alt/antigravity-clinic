@@ -70,7 +70,7 @@ export default function LeadsPage() {
           <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[#D6B98C] mb-1">Hasta Yönetimi</p>
           <h1 className="font-display text-[28px] font-light text-[#F8F6F2]">Lead Listesi</h1>
         </div>
-        <div className="font-mono text-[11px] text-[rgba(248,246,242,0.3)]">
+        <div className="font-mono text-[11px] text-[rgba(248,246,242,0.48)]">
           {filtered.length} / {allLeads.length} kayıt
         </div>
       </div>
@@ -81,12 +81,12 @@ export default function LeadsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Ad veya telefon ara..."
-          className="min-w-[200px] bg-[rgba(248,246,242,0.04)] border border-[rgba(248,246,242,0.08)] rounded-lg px-3 py-2 font-body text-[12px] text-[#F8F6F2] placeholder:text-[rgba(248,246,242,0.2)] focus:outline-none focus:border-[rgba(214,185,140,0.2)]"
+          className="min-w-[200px] bg-[rgba(18,16,13,0.55)] border border-[rgba(214,185,140,0.12)] rounded-lg px-3 py-2 font-body text-[12px] text-[#F8F6F2] placeholder:text-[rgba(248,246,242,0.38)] focus:outline-none focus:border-[rgba(214,185,140,0.35)]"
         />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as LeadStatus | '')}
-          className="bg-[rgba(248,246,242,0.04)] border border-[rgba(248,246,242,0.08)] rounded-lg px-3 py-2 font-body text-[12px] text-[#F8F6F2] focus:outline-none focus:border-[rgba(214,185,140,0.2)]"
+          className="bg-[rgba(18,16,13,0.55)] border border-[rgba(214,185,140,0.12)] rounded-lg px-3 py-2 font-body text-[12px] text-[#F8F6F2] focus:outline-none focus:border-[rgba(214,185,140,0.35)]"
         >
           <option value="" className="bg-[#14110E]">Tüm Statüler</option>
           {statusOptions.map(({ value, label }) => (
@@ -96,7 +96,7 @@ export default function LeadsPage() {
         <select
           value={bandFilter}
           onChange={(e) => setBandFilter(e.target.value as ReadinessBand | '')}
-          className="bg-[rgba(248,246,242,0.04)] border border-[rgba(248,246,242,0.08)] rounded-lg px-3 py-2 font-body text-[12px] text-[#F8F6F2] focus:outline-none focus:border-[rgba(214,185,140,0.2)]"
+          className="bg-[rgba(18,16,13,0.55)] border border-[rgba(214,185,140,0.12)] rounded-lg px-3 py-2 font-body text-[12px] text-[#F8F6F2] focus:outline-none focus:border-[rgba(214,185,140,0.35)]"
         >
           <option value="" className="bg-[#14110E]">Tüm Hazırlık</option>
           <option value="very_high" className="bg-[#14110E]">Çok Yüksek</option>
@@ -118,8 +118,8 @@ export default function LeadsPage() {
 
       {/* Lead rows */}
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.02)] p-12 text-center">
-          <p className="font-body text-[13px] text-[rgba(248,246,242,0.3)]">Sonuç bulunamadı</p>
+        <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-12 text-center">
+          <p className="font-body text-[13px] text-[rgba(248,246,242,0.48)]">Sonuç bulunamadı</p>
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
@@ -140,22 +140,22 @@ function LeadRow({ lead }: { lead: Lead }) {
   return (
     <Link
       href={`/doctor/leads/${lead.id}`}
-      className="group flex items-center gap-4 px-4 py-3 rounded-xl border border-[rgba(248,246,242,0.03)] bg-[rgba(248,246,242,0.01)] hover:border-[rgba(214,185,140,0.12)] hover:bg-[rgba(248,246,242,0.025)] transition-all"
+      className="group flex items-center gap-4 px-4 py-3 rounded-xl border border-[rgba(214,185,140,0.06)] bg-[rgba(16,14,11,0.45)] backdrop-blur-md hover:border-[rgba(214,185,140,0.20)] hover:bg-[rgba(20,18,14,0.65)] transition-all"
     >
       {/* Score mini arc */}
       <div className="flex-shrink-0 w-9 h-9 relative">
         {score != null ? (
           <>
             <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-              <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(248,246,242,0.04)" strokeWidth="2" />
+              <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(248,246,242,0.08)" strokeWidth="2" />
               <circle cx="18" cy="18" r="14" fill="none" stroke={scoreColor(score)} strokeWidth="2" strokeLinecap="round"
                 strokeDasharray={`${(score / 100) * 88} 88`} />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center font-mono text-[10px] text-[rgba(248,246,242,0.7)]">{score}</span>
+            <span className="absolute inset-0 flex items-center justify-center font-mono text-[10px] text-[rgba(248,246,242,0.80)]">{score}</span>
           </>
         ) : (
-          <div className="w-full h-full rounded-full bg-[rgba(248,246,242,0.03)] flex items-center justify-center">
-            <span className="font-mono text-[9px] text-[rgba(248,246,242,0.15)]">—</span>
+          <div className="w-full h-full rounded-full bg-[rgba(20,18,14,0.55)] flex items-center justify-center">
+            <span className="font-mono text-[9px] text-[rgba(248,246,242,0.28)]">—</span>
           </div>
         )}
       </div>
@@ -167,15 +167,15 @@ function LeadRow({ lead }: { lead: Lead }) {
             {lead.full_name}
           </span>
           {lead.age_range && (
-            <span className="font-mono text-[9px] text-[rgba(248,246,242,0.25)]">{lead.age_range}</span>
+            <span className="font-mono text-[9px] text-[rgba(248,246,242,0.42)]">{lead.age_range}</span>
           )}
         </div>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="font-body text-[10px] text-[rgba(248,246,242,0.25)]">
+          <span className="font-body text-[10px] text-[rgba(248,246,242,0.42)]">
             {concernAreaLabels[lead.concern_area as keyof typeof concernAreaLabels] ?? lead.concern_area}
           </span>
-          <span className="text-[rgba(248,246,242,0.1)]">·</span>
-          <span className="font-mono text-[10px] text-[rgba(248,246,242,0.2)]">{lead.phone}</span>
+          <span className="text-[rgba(248,246,242,0.20)]">·</span>
+          <span className="font-mono text-[10px] text-[rgba(248,246,242,0.38)]">{lead.phone}</span>
         </div>
       </div>
 
@@ -186,12 +186,12 @@ function LeadRow({ lead }: { lead: Lead }) {
       </div>
 
       {/* Date */}
-      <span className="flex-shrink-0 font-mono text-[10px] text-[rgba(248,246,242,0.2)]">
+      <span className="flex-shrink-0 font-mono text-[10px] text-[rgba(248,246,242,0.38)]">
         {formatDate(lead.created_at)}
       </span>
 
       {/* Arrow */}
-      <svg className="w-4 h-4 text-[rgba(248,246,242,0.1)] group-hover:text-[#D6B98C] transition-colors flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+      <svg className="w-4 h-4 text-[rgba(248,246,242,0.20)] group-hover:text-[#D6B98C] transition-colors flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
       </svg>
     </Link>

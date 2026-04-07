@@ -51,8 +51,8 @@ export function RegionAnalysisGrid({ radarScores, focusAreas, wrinkleScores }: R
 
   if (regions.length === 0) {
     return (
-      <div className="rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(14,11,9,0.4)] p-8 text-center">
-        <p className="font-body text-[12px] text-[rgba(248,246,242,0.3)]">Bölgesel analiz verisi mevcut değil</p>
+      <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-8 text-center">
+        <p className="font-body text-[12px] text-[rgba(248,246,242,0.48)]">Bölgesel analiz verisi mevcut değil</p>
       </div>
     )
   }
@@ -140,7 +140,7 @@ function RegionCard({ region }: { region: MergedRegion }) {
   const catColor = region.category ? categoryColors[region.category] : undefined
 
   return (
-    <div className="rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.02)] p-4 flex flex-col gap-3 hover:border-[rgba(248,246,242,0.08)] transition-colors">
+    <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-4 flex flex-col gap-3 hover:border-[rgba(214,185,140,0.18)] transition-colors">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -160,7 +160,7 @@ function RegionCard({ region }: { region: MergedRegion }) {
         {/* Score Arc */}
         <div className="relative w-12 h-12 flex-shrink-0">
           <svg viewBox="0 0 48 48" className="w-full h-full -rotate-90">
-            <circle cx="24" cy="24" r="19" fill="none" stroke="rgba(248,246,242,0.04)" strokeWidth="3" />
+            <circle cx="24" cy="24" r="19" fill="none" stroke="rgba(248,246,242,0.08)" strokeWidth="3" />
             <circle
               cx="24" cy="24" r="19"
               fill="none" stroke={color} strokeWidth="3" strokeLinecap="round"
@@ -177,13 +177,13 @@ function RegionCard({ region }: { region: MergedRegion }) {
       <div className="flex items-center gap-3">
         {region.confidence != null && (
           <div className="flex items-center gap-1.5">
-            <div className="w-16 h-1 rounded-full bg-[rgba(248,246,242,0.06)] overflow-hidden">
+            <div className="w-16 h-1 rounded-full bg-[rgba(248,246,242,0.10)] overflow-hidden">
               <div
                 className="h-full rounded-full"
                 style={{ width: `${Math.round(region.confidence * 100)}%`, backgroundColor: color }}
               />
             </div>
-            <span className="font-mono text-[9px] text-[rgba(248,246,242,0.3)]">{Math.round(region.confidence * 100)}%</span>
+            <span className="font-mono text-[9px] text-[rgba(248,246,242,0.48)]">{Math.round(region.confidence * 100)}%</span>
           </div>
         )}
         {region.evidenceStrength && (
@@ -195,12 +195,12 @@ function RegionCard({ region }: { region: MergedRegion }) {
 
       {/* Insight */}
       {region.insight && (
-        <p className="font-body text-[11px] text-[rgba(248,246,242,0.4)] leading-relaxed line-clamp-2">{region.insight}</p>
+        <p className="font-body text-[11px] text-[rgba(248,246,242,0.58)] leading-relaxed line-clamp-2">{region.insight}</p>
       )}
 
       {/* Wrinkle Level Badge */}
       {region.wrinkleLevel && (
-        <span className="inline-flex self-start px-2 py-0.5 rounded-md text-[9px] font-mono tracking-[0.05em] uppercase bg-[rgba(248,246,242,0.03)] text-[rgba(248,246,242,0.35)]">
+        <span className="inline-flex self-start px-2 py-0.5 rounded-md text-[9px] font-mono tracking-[0.05em] uppercase bg-[rgba(20,18,14,0.55)] text-[rgba(248,246,242,0.52)]">
           {region.wrinkleLevel === 'minimal' ? 'Minimal' : region.wrinkleLevel === 'low' ? 'Düşük' : region.wrinkleLevel === 'medium' ? 'Orta' : 'Yüksek'}
         </span>
       )}

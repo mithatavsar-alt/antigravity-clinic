@@ -65,8 +65,8 @@ export function DoctorRadarSection({ radarAnalysis }: DoctorRadarSectionProps) {
 
   if (regions.length === 0) {
     return (
-      <div className="rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(14,11,9,0.4)] p-8 text-center">
-        <p className="font-body text-[12px] text-[rgba(248,246,242,0.3)]">Radar analiz verisi mevcut değil</p>
+      <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-8 text-center">
+        <p className="font-body text-[12px] text-[rgba(248,246,242,0.48)]">Radar analiz verisi mevcut değil</p>
       </div>
     )
   }
@@ -79,7 +79,7 @@ export function DoctorRadarSection({ radarAnalysis }: DoctorRadarSectionProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       {/* Radar Chart */}
-      <div className="rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(14,11,9,0.4)] p-6 flex items-center justify-center">
+      <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-6 flex items-center justify-center">
         <div className="w-full max-w-[320px]">
           <InteractiveRadarChart
             regions={regions}
@@ -92,7 +92,7 @@ export function DoctorRadarSection({ radarAnalysis }: DoctorRadarSectionProps) {
       {/* Detail Panel */}
       <div className="flex flex-col gap-3">
         {/* Active region detail */}
-        <div className="rounded-xl border border-[rgba(248,246,242,0.06)] bg-[rgba(248,246,242,0.02)] p-5">
+        <div className="rounded-xl border border-[rgba(214,185,140,0.10)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-5">
           <div className="flex items-center justify-between mb-3">
             <h4 className="font-body text-[14px] font-medium text-[#F8F6F2]">{activeRegion?.label}</h4>
             <span className="font-mono text-[20px] font-light" style={{ color: scoreColor(activeRegion?.score ?? 50) }}>
@@ -105,9 +105,9 @@ export function DoctorRadarSection({ radarAnalysis }: DoctorRadarSectionProps) {
             <div className="flex flex-col gap-2">
               {activeScores.map((s) => (
                 <div key={s.key} className="flex items-center justify-between gap-3">
-                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.45)] truncate">{s.label}</span>
+                  <span className="font-body text-[11px] text-[rgba(248,246,242,0.62)] truncate">{s.label}</span>
                   <div className="flex items-center gap-2">
-                    <div className="w-20 h-1 rounded-full bg-[rgba(248,246,242,0.06)] overflow-hidden">
+                    <div className="w-20 h-1 rounded-full bg-[rgba(248,246,242,0.10)] overflow-hidden">
                       <div className="h-full rounded-full" style={{ width: `${s.score}%`, backgroundColor: scoreColor(s.score) }} />
                     </div>
                     <span className="font-mono text-[11px] w-6 text-right" style={{ color: scoreColor(s.score) }}>{s.score}</span>
@@ -127,7 +127,7 @@ export function DoctorRadarSection({ radarAnalysis }: DoctorRadarSectionProps) {
               className={`px-3 py-2 rounded-lg font-body text-[10px] tracking-[0.05em] transition-all ${
                 i === activeIndex
                   ? 'bg-[rgba(214,185,140,0.1)] border border-[rgba(214,185,140,0.2)] text-[#D6B98C]'
-                  : 'bg-[rgba(248,246,242,0.02)] border border-[rgba(248,246,242,0.03)] text-[rgba(248,246,242,0.35)] hover:text-[rgba(248,246,242,0.6)]'
+                  : 'bg-[rgba(16,14,11,0.55)] backdrop-blur-lg border border-[rgba(214,185,140,0.06)] text-[rgba(248,246,242,0.52)] hover:text-[rgba(248,246,242,0.6)]'
               }`}
             >
               <span className="block">{r.label}</span>
@@ -138,16 +138,16 @@ export function DoctorRadarSection({ radarAnalysis }: DoctorRadarSectionProps) {
 
         {/* Insights */}
         {radarAnalysis?.derivedInsights && (
-          <div className="rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.02)] p-4">
+          <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-4">
             {radarAnalysis.derivedInsights.strongestAreas && radarAnalysis.derivedInsights.strongestAreas.length > 0 && (
               <div className="mb-2">
-                <span className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.25)]">Güçlü: </span>
+                <span className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.42)]">Güçlü: </span>
                 <span className="font-body text-[11px] text-[#4AE3A7]">{radarAnalysis.derivedInsights.strongestAreas.join(', ')}</span>
               </div>
             )}
             {radarAnalysis.derivedInsights.improvementAreas && radarAnalysis.derivedInsights.improvementAreas.length > 0 && (
               <div>
-                <span className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.25)]">İyileştirme: </span>
+                <span className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.42)]">İyileştirme: </span>
                 <span className="font-body text-[11px] text-[#D6B98C]">{radarAnalysis.derivedInsights.improvementAreas.join(', ')}</span>
               </div>
             )}

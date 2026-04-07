@@ -54,8 +54,8 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full border-2 border-[rgba(248,246,242,0.08)] border-t-[#D6B98C] animate-spin" />
-          <p className="font-body text-[12px] text-[rgba(248,246,242,0.3)]">Yükleniyor...</p>
+          <div className="w-8 h-8 rounded-full border-2 border-[rgba(214,185,140,0.12)] border-t-[#D6B98C] animate-spin" />
+          <p className="font-body text-[12px] text-[rgba(248,246,242,0.48)]">Yükleniyor...</p>
         </div>
       </div>
     )
@@ -85,9 +85,9 @@ export default function DashboardPage() {
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.02)] px-4 py-4"
+            className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg px-4 py-4"
           >
-            <p className="font-body text-[9px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.3)] mb-2">{stat.label}</p>
+            <p className="font-body text-[9px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.48)] mb-2">{stat.label}</p>
             <p className="font-mono text-[28px] font-light leading-none" style={{ color: stat.color }}>{stat.value}</p>
           </div>
         ))}
@@ -103,8 +103,8 @@ export default function DashboardPage() {
         </div>
 
         {latestLeads.length === 0 ? (
-          <div className="rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.02)] p-12 text-center">
-            <p className="font-body text-[13px] text-[rgba(248,246,242,0.3)]">Henüz başvuru bulunmuyor.</p>
+          <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-12 text-center">
+            <p className="font-body text-[13px] text-[rgba(248,246,242,0.48)]">Henüz başvuru bulunmuyor.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -127,19 +127,19 @@ function LeadCard({ lead }: { lead: Lead }) {
   return (
     <Link
       href={`/doctor/leads/${lead.id}`}
-      className="group rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.02)] p-4 hover:border-[rgba(214,185,140,0.15)] hover:bg-[rgba(248,246,242,0.03)] transition-all"
+      className="group rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-4 hover:border-[rgba(214,185,140,0.22)] hover:bg-[rgba(20,18,14,0.60)] transition-all"
     >
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="min-w-0">
           <h3 className="font-body text-[13px] font-medium text-[#F8F6F2] truncate group-hover:text-[#D6B98C] transition-colors">
             {lead.full_name}
           </h3>
-          <p className="font-body text-[10px] text-[rgba(248,246,242,0.3)] mt-0.5">{formatDate(lead.created_at)}</p>
+          <p className="font-body text-[10px] text-[rgba(248,246,242,0.48)] mt-0.5">{formatDate(lead.created_at)}</p>
         </div>
         {score != null && (
           <div className="flex-shrink-0 w-10 h-10 relative">
             <svg viewBox="0 0 40 40" className="w-full h-full -rotate-90">
-              <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(248,246,242,0.04)" strokeWidth="2.5" />
+              <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(248,246,242,0.08)" strokeWidth="2.5" />
               <circle cx="20" cy="20" r="16" fill="none" stroke={scoreColor(score)} strokeWidth="2.5" strokeLinecap="round"
                 strokeDasharray={`${(score / 100) * 100.5} 100.5`} />
             </svg>
@@ -153,7 +153,7 @@ function LeadCard({ lead }: { lead: Lead }) {
         {lead.readiness_band && <StatusBadge status={lead.readiness_band} type="readiness" />}
       </div>
 
-      <div className="flex items-center justify-between text-[rgba(248,246,242,0.3)]">
+      <div className="flex items-center justify-between text-[rgba(248,246,242,0.48)]">
         <span className="font-body text-[10px]">
           {concernAreaLabels[lead.concern_area as keyof typeof concernAreaLabels] ?? lead.concern_area}
         </span>

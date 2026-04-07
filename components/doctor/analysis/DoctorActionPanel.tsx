@@ -69,16 +69,16 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* Status + Insights */}
-      <div className="rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.02)] p-5">
+      <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-5">
         <h4 className="font-body text-[10px] tracking-[0.15em] uppercase text-[#D6B98C] mb-4">Durum & Aksiyon</h4>
 
         {/* Status selector */}
         <div className="mb-4">
-          <label className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.3)] mb-1.5 block">Lead Durumu</label>
+          <label className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)] mb-1.5 block">Lead Durumu</label>
           <select
             value={lead.status}
             onChange={(e) => onStatusChange?.(e.target.value as LeadStatus)}
-            className="w-full bg-[rgba(248,246,242,0.04)] border border-[rgba(248,246,242,0.08)] rounded-lg px-3 py-2 font-body text-[12px] text-[#F8F6F2] focus:outline-none focus:border-[rgba(214,185,140,0.3)]"
+            className="w-full bg-[rgba(18,16,13,0.55)] border border-[rgba(214,185,140,0.12)] rounded-lg px-3 py-2 font-body text-[12px] text-[#F8F6F2] focus:outline-none focus:border-[rgba(214,185,140,0.40)]"
           >
             {statusOptions.map((s) => (
               <option key={s.value} value={s.value} className="bg-[#14110E]">{s.label}</option>
@@ -88,11 +88,11 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
 
         {/* Readiness score */}
         {rs > 0 && (
-          <div className="mb-4 p-3 rounded-lg bg-[rgba(248,246,242,0.02)]">
-            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.3)] mb-1">Hazırlık Skoru</p>
+          <div className="mb-4 p-3 rounded-lg bg-[rgba(16,14,11,0.55)] backdrop-blur-lg">
+            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)] mb-1">Hazırlık Skoru</p>
             <div className="flex items-baseline gap-2">
               <span className="font-mono text-[22px] font-light" style={{ color: scoreColor(rs) }}>{rs}</span>
-              <span className="font-body text-[10px] text-[rgba(248,246,242,0.3)]">/ 100</span>
+              <span className="font-body text-[10px] text-[rgba(248,246,242,0.48)]">/ 100</span>
             </div>
           </div>
         )}
@@ -101,7 +101,7 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
         {insights.length > 0 && (
           <div className="flex flex-col gap-1.5">
             {insights.map((ins) => (
-              <div key={ins.label} className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-[rgba(248,246,242,0.02)]">
+              <div key={ins.label} className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-[rgba(16,14,11,0.55)] backdrop-blur-lg">
                 <span className="text-[10px]" style={{ color: ins.color }}>{ins.icon}</span>
                 <span className="font-body text-[11px]" style={{ color: ins.color }}>{ins.label}</span>
               </div>
@@ -111,11 +111,11 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
       </div>
 
       {/* Doctor Notes */}
-      <div className="lg:col-span-2 rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.02)] p-5">
+      <div className="lg:col-span-2 rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-5">
         <div className="flex items-center justify-between mb-4">
           <h4 className="font-body text-[10px] tracking-[0.15em] uppercase text-[#D6B98C]">Doktor Notları</h4>
           {lead.doctor_notes_updated_at && (
-            <span className="font-mono text-[9px] text-[rgba(248,246,242,0.2)]">
+            <span className="font-mono text-[9px] text-[rgba(248,246,242,0.38)]">
               Son güncelleme: {new Date(lead.doctor_notes_updated_at).toLocaleDateString('tr-TR')}
             </span>
           )}
@@ -127,11 +127,11 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
           maxLength={2000}
           rows={5}
           placeholder="Hastaya özel klinik notlarınızı buraya ekleyin..."
-          className="w-full bg-[rgba(248,246,242,0.03)] border border-[rgba(248,246,242,0.06)] rounded-lg px-4 py-3 font-body text-[13px] text-[rgba(248,246,242,0.7)] placeholder:text-[rgba(248,246,242,0.15)] focus:outline-none focus:border-[rgba(214,185,140,0.2)] resize-none leading-relaxed"
+          className="w-full bg-[rgba(20,18,14,0.55)] border border-[rgba(214,185,140,0.10)] rounded-lg px-4 py-3 font-body text-[13px] text-[rgba(248,246,242,0.80)] placeholder:text-[rgba(248,246,242,0.28)] focus:outline-none focus:border-[rgba(214,185,140,0.35)] resize-none leading-relaxed"
         />
 
         <div className="flex items-center justify-between mt-3">
-          <span className="font-mono text-[9px] text-[rgba(248,246,242,0.2)]">{notes.length} / 2000</span>
+          <span className="font-mono text-[9px] text-[rgba(248,246,242,0.38)]">{notes.length} / 2000</span>
           <div className="flex items-center gap-3">
             {saved && <span className="font-body text-[11px] text-[#4AE3A7]">Kaydedildi</span>}
             {saveError && <span className="font-body text-[11px] text-[#C47A7A]">Kayıt başarısız</span>}
