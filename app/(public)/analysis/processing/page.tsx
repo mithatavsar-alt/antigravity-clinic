@@ -329,10 +329,10 @@ async function buildTemporalSupportForView(
 
 // ─── Canvas drawing utilities ───────────────────────────────
 
-const GOLD = '#D6B98C'
-const EMERALD = '#3D9B7A'
-const NEON_GREEN = '#4AE3A7'
-const BRIGHT_GOLD = '#E8C97A'
+const GOLD = '#D2B48A'
+const EMERALD = '#68C4A0'
+const NEON_GREEN = '#7EDFC0'
+const BRIGHT_GOLD = '#E4C896'
 
 /** Compute face bounding box from landmarks (normalized 0–1) */
 function getFaceBounds(landmarks: Landmark[]) {
@@ -350,6 +350,31 @@ function getFaceBounds(landmarks: Landmark[]) {
   const fw = maxX - minX
   const fh = maxY - minY
   return { cx, cy, fw, fh, minX, minY, maxX, maxY }
+}
+
+function applyFaceFrameVars(
+  element: HTMLElement | null,
+  bounds: ReturnType<typeof getFaceBounds>,
+) {
+  if (!element) return
+
+  const focusX = Math.min(62, Math.max(38, bounds.cx * 100))
+  const focusY = Math.min(64, Math.max(34, bounds.cy * 100))
+  const focusRx = Math.min(34, Math.max(22, bounds.fw * 58))
+  const focusRy = Math.min(42, Math.max(28, bounds.fh * 64))
+  const scanLeft = Math.min(28, Math.max(9, bounds.minX * 100 - 5))
+  const scanWidth = Math.min(72, Math.max(42, bounds.fw * 100 + 10))
+  const scanTop = Math.min(68, Math.max(10, bounds.minY * 100 - 7))
+  const scanTravel = Math.min(58, Math.max(28, bounds.fh * 100 + 10))
+
+  element.style.setProperty('--face-focus-x', `${focusX.toFixed(2)}%`)
+  element.style.setProperty('--face-focus-y', `${focusY.toFixed(2)}%`)
+  element.style.setProperty('--face-focus-rx', `${focusRx.toFixed(2)}%`)
+  element.style.setProperty('--face-focus-ry', `${focusRy.toFixed(2)}%`)
+  element.style.setProperty('--scan-left', `${scanLeft.toFixed(2)}%`)
+  element.style.setProperty('--scan-width', `${scanWidth.toFixed(2)}%`)
+  element.style.setProperty('--scan-top', `${scanTop.toFixed(2)}%`)
+  element.style.setProperty('--scan-travel', `${scanTravel.toFixed(2)}%`)
 }
 
 /** Expand a point outward from face center */
@@ -417,8 +442,7 @@ function drawLandmarkPoints(
   time: number,
 ) {
   const count = Math.floor(landmarks.length * Math.min(progress, 1))
-  // Breathing pulse: subtle scale oscillation
-  const breathe = 1 + 0.008 * Math.sin(time * 0.002)
+  const breathe = 1 + 0.004 * Math.sin(time * 0.0018)
 
   for (let i = 0; i < count; i++) {
     const lm = landmarks[i]
@@ -426,29 +450,26 @@ function drawLandmarkPoints(
     const [px, py] = expandPoint(lm, cx, cy, scaleX * breathe, scaleY * breathe, w, h)
 
     if (isPriority) {
-      // Glow dot for priority zones
       ctx.save()
       ctx.shadowColor = NEON_GREEN
-      ctx.shadowBlur = 6
+      ctx.shadowBlur = 4
       ctx.fillStyle = NEON_GREEN
-      ctx.globalAlpha = 0.5 + 0.3 * Math.sin((i / count) * Math.PI + time * 0.003)
+      ctx.globalAlpha = 0.24 + 0.16 * Math.sin((i / count) * Math.PI + time * 0.0026)
       ctx.beginPath()
-      ctx.arc(px, py, 2.5, 0, Math.PI * 2)
+      ctx.arc(px, py, 1.9, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
 
-      // Bright core
-      ctx.fillStyle = 'rgba(255,255,255,0.8)'
-      ctx.globalAlpha = 0.7
+      ctx.fillStyle = 'rgba(255,255,255,0.7)'
+      ctx.globalAlpha = 0.62
       ctx.beginPath()
-      ctx.arc(px, py, 0.9, 0, Math.PI * 2)
+      ctx.arc(px, py, 0.65, 0, Math.PI * 2)
       ctx.fill()
     } else {
-      // Standard dot with subtle glow
       ctx.fillStyle = GOLD
-      ctx.globalAlpha = 0.35 + 0.25 * Math.sin((i / count) * Math.PI)
+      ctx.globalAlpha = 0.16 + 0.10 * Math.sin((i / count) * Math.PI)
       ctx.beginPath()
-      ctx.arc(px, py, 1.5, 0, Math.PI * 2)
+      ctx.arc(px, py, 1.05, 0, Math.PI * 2)
       ctx.fill()
     }
   }
@@ -508,24 +529,44 @@ function drawZoneHighlight(
 function drawScanSweep(
   ctx: CanvasRenderingContext2D,
   w: number, h: number,
+  faceMinX: number, faceMaxX: number,
   faceMinY: number, faceMaxY: number,
   progress: number,
   color: string,
 ) {
-  // Scan only within expanded face bounds (with 25% top padding for forehead)
-  const topY = Math.max(0, faceMinY * h - h * 0.12)
-  const bottomY = Math.min(h, faceMaxY * h + h * 0.04)
+  const topY = Math.max(0, faceMinY * h - h * 0.08)
+  const bottomY = Math.min(h, faceMaxY * h + h * 0.05)
   const range = bottomY - topY
   const y = topY + progress * range
+  const leftX = Math.max(0, faceMinX * w - w * 0.08)
+  const rightX = Math.min(w, faceMaxX * w + w * 0.08)
+  const bandWidth = Math.max(40, rightX - leftX)
+  const centerX = (leftX + rightX) / 2
 
-  const gradient = ctx.createLinearGradient(0, y - 25, 0, y + 25)
+  const gradient = ctx.createLinearGradient(0, y - 34, 0, y + 34)
   gradient.addColorStop(0, 'transparent')
+  gradient.addColorStop(0.32, 'rgba(126,223,192,0.05)')
   gradient.addColorStop(0.5, color)
+  gradient.addColorStop(0.68, 'rgba(126,223,192,0.05)')
   gradient.addColorStop(1, 'transparent')
+
+  ctx.save()
   ctx.fillStyle = gradient
-  ctx.globalAlpha = 0.35
-  ctx.fillRect(0, y - 25, w, 50)
-  ctx.globalAlpha = 1
+  ctx.globalAlpha = 0.18
+  ctx.fillRect(leftX, y - 34, bandWidth, 68)
+
+  const halo = ctx.createRadialGradient(centerX, y, 0, centerX, y, bandWidth * 0.45)
+  halo.addColorStop(0, 'rgba(162,238,214,0.16)')
+  halo.addColorStop(0.6, 'rgba(126,223,192,0.05)')
+  halo.addColorStop(1, 'transparent')
+  ctx.fillStyle = halo
+  ctx.globalAlpha = 0.75
+  ctx.fillRect(leftX, y - 44, bandWidth, 88)
+
+  ctx.fillStyle = 'rgba(235,255,247,0.32)'
+  ctx.globalAlpha = 0.9
+  ctx.fillRect(leftX + bandWidth * 0.08, y - 0.5, bandWidth * 0.84, 1)
+  ctx.restore()
 }
 
 function drawGlowOverlay(
@@ -539,30 +580,27 @@ function drawGlowOverlay(
 ) {
   if (FACE_OVAL.length < 3) return
 
-  // Breathing pulse on glow
-  const breathe = 1 + 0.012 * Math.sin(time * 0.0015)
+  const breathe = 1 + 0.008 * Math.sin(time * 0.0015)
   const sx = scaleX * breathe
   const sy = scaleY * breathe
 
-  // Outer glow (wide, soft)
   ctx.save()
   ctx.shadowColor = NEON_GREEN
-  ctx.shadowBlur = 25
+  ctx.shadowBlur = 18
   ctx.strokeStyle = NEON_GREEN
-  ctx.lineWidth = 2.5
-  ctx.globalAlpha = alpha * 0.4
+  ctx.lineWidth = 1.8
+  ctx.globalAlpha = alpha * 0.2
 
   drawExpandedPath(ctx, landmarks, FACE_OVAL, w, h, cx, cy, sx, sy, 1, true)
   ctx.stroke()
   ctx.restore()
 
-  // Inner neon contour (sharper)
   ctx.save()
   ctx.shadowColor = NEON_GREEN
-  ctx.shadowBlur = 8
-  ctx.strokeStyle = BRIGHT_GOLD
-  ctx.lineWidth = 1.2
-  ctx.globalAlpha = alpha * 0.6
+  ctx.shadowBlur = 6
+  ctx.strokeStyle = 'rgba(239,250,245,0.82)'
+  ctx.lineWidth = 0.95
+  ctx.globalAlpha = alpha * 0.42
 
   drawExpandedPath(ctx, landmarks, FACE_OVAL, w, h, cx, cy, sx, sy, 1, true)
   ctx.stroke()
@@ -924,6 +962,7 @@ function ProcessingContent() {
   const landmarksRef = useRef<Landmark[] | null>(null)
   const [freeze, setFreeze] = useState(false)
 
+  const frameRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animFrameRef = useRef<number>(0)
   const stageStartRef = useRef(performance.now())
@@ -964,15 +1003,16 @@ function ProcessingContent() {
 
     // Compute face bounds for dynamic scaling
     const bounds = getFaceBounds(landmarks)
-    const { cx, cy, fw, minY: fMinY, maxY: fMaxY } = bounds
+    const { cx, cy, fw, minX: fMinX, minY: fMinY, maxX: fMaxX, maxY: fMaxY } = bounds
+    applyFaceFrameVars(frameRef.current, bounds)
 
     // Dynamic scaling: expand overlay 15–20% beyond mesh boundary
     // Extra vertical expansion for forehead (+25% top)
-    const baseScaleX = 1.15
-    const baseScaleY = 1.25
+    const baseScaleX = 1.05
+    const baseScaleY = 1.11
     // If face is small in frame, expand more; if large, clip to canvas
     const faceRatio = fw // width as fraction of frame
-    const dynamicScale = faceRatio < 0.3 ? 1.15 : faceRatio > 0.6 ? 0.95 : 1.0
+    const dynamicScale = faceRatio < 0.3 ? 1.05 : faceRatio > 0.6 ? 0.98 : 1.0
     const scaleX = baseScaleX * dynamicScale
     const scaleY = baseScaleY * dynamicScale
 
@@ -998,29 +1038,29 @@ function ProcessingContent() {
       // Stage 1: Draw connection lines (expanded, with neon glow on contour)
       if (currentStage >= 1 && landmarks) {
         const lineProgress = currentStage === 1 ? progress : 1
-        const lineAlpha = currentStage === 1 ? 0.5 + 0.5 * progress : 0.7
+        const lineAlpha = currentStage === 1 ? 0.42 + 0.34 * progress : 0.64
         ctx.globalAlpha = lineAlpha
 
         // Outer contour — neon glow
-        drawConnections(ctx, landmarks, FACE_OVAL, w, h, cx, cy, scaleX, scaleY, lineProgress, EMERALD, 1.5, true)
+        drawConnections(ctx, landmarks, FACE_OVAL, w, h, cx, cy, scaleX, scaleY, lineProgress, EMERALD, 1.15, true)
         // Jawline — full chin-to-ear
-        drawConnections(ctx, landmarks, JAWLINE, w, h, cx, cy, scaleX, scaleY, lineProgress, EMERALD, 1.2, true)
+        drawConnections(ctx, landmarks, JAWLINE, w, h, cx, cy, scaleX, scaleY, lineProgress, EMERALD, 0.95, true)
         // Forehead contour
-        drawConnections(ctx, landmarks, FOREHEAD_ZONE, w, h, cx, cy, scaleX, scaleY * 1.1, lineProgress, NEON_GREEN, 1, true)
+        drawConnections(ctx, landmarks, FOREHEAD_ZONE, w, h, cx, cy, scaleX, scaleY * 1.04, lineProgress, NEON_GREEN, 0.85, true)
         // Temple regions
-        drawConnections(ctx, landmarks, LEFT_TEMPLE, w, h, cx, cy, scaleX, scaleY, lineProgress, GOLD, 0.8)
-        drawConnections(ctx, landmarks, RIGHT_TEMPLE, w, h, cx, cy, scaleX, scaleY, lineProgress, GOLD, 0.8)
+        drawConnections(ctx, landmarks, LEFT_TEMPLE, w, h, cx, cy, scaleX, scaleY, lineProgress, GOLD, 0.65)
+        drawConnections(ctx, landmarks, RIGHT_TEMPLE, w, h, cx, cy, scaleX, scaleY, lineProgress, GOLD, 0.65)
         // Eyes
-        drawConnections(ctx, landmarks, LEFT_EYE, w, h, cx, cy, scaleX, scaleY, lineProgress, NEON_GREEN, 1)
-        drawConnections(ctx, landmarks, RIGHT_EYE, w, h, cx, cy, scaleX, scaleY, lineProgress, NEON_GREEN, 1)
+        drawConnections(ctx, landmarks, LEFT_EYE, w, h, cx, cy, scaleX, scaleY, lineProgress, NEON_GREEN, 0.9)
+        drawConnections(ctx, landmarks, RIGHT_EYE, w, h, cx, cy, scaleX, scaleY, lineProgress, NEON_GREEN, 0.9)
         // Eyebrows
-        drawConnections(ctx, landmarks, LEFT_EYEBROW, w, h, cx, cy, scaleX, scaleY, lineProgress, GOLD, 0.8)
-        drawConnections(ctx, landmarks, RIGHT_EYEBROW, w, h, cx, cy, scaleX, scaleY, lineProgress, GOLD, 0.8)
+        drawConnections(ctx, landmarks, LEFT_EYEBROW, w, h, cx, cy, scaleX, scaleY, lineProgress, GOLD, 0.7)
+        drawConnections(ctx, landmarks, RIGHT_EYEBROW, w, h, cx, cy, scaleX, scaleY, lineProgress, GOLD, 0.7)
         // Nose
-        drawConnections(ctx, landmarks, NOSE_BRIDGE, w, h, cx, cy, scaleX, scaleY, lineProgress, GOLD, 0.8)
+        drawConnections(ctx, landmarks, NOSE_BRIDGE, w, h, cx, cy, scaleX, scaleY, lineProgress, GOLD, 0.68)
         // Lips
-        drawConnections(ctx, landmarks, UPPER_LIP, w, h, cx, cy, scaleX, scaleY, lineProgress, EMERALD, 0.8)
-        drawConnections(ctx, landmarks, LOWER_LIP, w, h, cx, cy, scaleX, scaleY, lineProgress, EMERALD, 0.8)
+        drawConnections(ctx, landmarks, UPPER_LIP, w, h, cx, cy, scaleX, scaleY, lineProgress, EMERALD, 0.7)
+        drawConnections(ctx, landmarks, LOWER_LIP, w, h, cx, cy, scaleX, scaleY, lineProgress, EMERALD, 0.7)
         ctx.globalAlpha = 1
       }
 
@@ -1037,7 +1077,7 @@ function ProcessingContent() {
 
       // Stage 3: Scan sweep (within expanded face bounds)
       if (currentStage === 3 && landmarks) {
-        drawScanSweep(ctx, w, h, fMinY, fMaxY, progress, NEON_GREEN)
+        drawScanSweep(ctx, w, h, fMinX, fMaxX, fMinY, fMaxY, progress, NEON_GREEN)
       }
 
       // Stage 4: Glow overlay (expanded + breathing)
@@ -2049,6 +2089,19 @@ function ProcessingContent() {
         background: 'linear-gradient(160deg, #0A0908 0%, #141110 20%, #0F1214 50%, #0A0B0D 100%)',
       }}
     >
+      <style jsx global>{`
+        @keyframes premiumScanPulse {
+          0%, 100% { opacity: 0.58; transform: scale(1); }
+          50% { opacity: 0.9; transform: scale(1.02); }
+        }
+
+        @keyframes premiumScanBand {
+          0% { transform: translate3d(0, 0, 0); opacity: 0; }
+          12% { opacity: 0.78; }
+          88% { opacity: 0.74; }
+          100% { transform: translate3d(0, var(--scan-travel, 48%), 0); opacity: 0; }
+        }
+      `}</style>
       {/* Ambient depth glows — cinematic */}
       <div className="fixed inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 60% 50% at 50% 25%, rgba(214,185,140,0.025) 0%, transparent 55%), radial-gradient(ellipse 40% 30% at 50% 75%, rgba(61,155,122,0.015) 0%, transparent 45%)' }} />
 
@@ -2056,16 +2109,17 @@ function ProcessingContent() {
 
         {/* ── Photo with canvas overlay — cinematic frame ── */}
         <div
+          ref={frameRef}
           className="relative w-full overflow-hidden"
           style={{
             aspectRatio: '3 / 4',
-            borderRadius: '24px',
+            borderRadius: '26px',
             border: isDone
-              ? '1px solid rgba(61,155,122,0.20)'
-              : '1px solid rgba(214,185,140,0.08)',
+              ? '1px solid rgba(104,196,160,0.18)'
+              : '1px solid rgba(237,234,230,0.07)',
             boxShadow: isDone
-              ? '0 0 40px rgba(61,155,122,0.25), 0 0 100px rgba(61,155,122,0.06), 0 24px 64px rgba(0,0,0,0.5)'
-              : '0 20px 60px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(214,185,140,0.04) inset',
+              ? '0 0 34px rgba(104,196,160,0.18), 0 0 88px rgba(104,196,160,0.04), 0 28px 72px rgba(0,0,0,0.56)'
+              : '0 28px 76px rgba(0,0,0,0.58), inset 0 1px 0 rgba(255,255,255,0.03), inset 0 0 0 0.5px rgba(237,234,230,0.05)',
             animation: isDone ? 'glowPulse 2.5s ease-in-out infinite' : undefined,
             transition: 'box-shadow 0.8s ease, border-color 0.8s ease',
           }}
@@ -2077,11 +2131,25 @@ function ProcessingContent() {
               src={photoUrl}
               alt="Analiz edilen fotoğraf"
               className="absolute inset-0 w-full h-full object-cover"
-              style={{ filter: isRunning ? 'brightness(0.7)' : 'brightness(0.85)' }}
+              style={{ filter: isRunning ? 'brightness(0.66) saturate(0.84) contrast(1.04)' : 'brightness(0.82) saturate(0.92) contrast(1.02)' }}
             />
           ) : (
             <div className="absolute inset-0 bg-[rgba(20,18,15,0.9)]" />
           )}
+
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: 'linear-gradient(180deg, rgba(4,5,7,0.20) 0%, rgba(4,5,7,0.05) 24%, rgba(4,5,7,0.04) 72%, rgba(4,5,7,0.22) 100%)',
+              mixBlendMode: 'multiply',
+            }}
+          />
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: 'radial-gradient(ellipse var(--face-focus-rx, 27%) var(--face-focus-ry, 34%) at var(--face-focus-x, 50%) var(--face-focus-y, 46%), rgba(0,0,0,0) 0%, rgba(6,8,10,0.04) 52%, rgba(6,8,10,0.22) 78%, rgba(6,8,10,0.44) 100%)',
+            }}
+          />
 
           {/* Canvas overlay for landmark animations */}
           <canvas
@@ -2094,35 +2162,60 @@ function ProcessingContent() {
 
           {/* Scan line overlay (stage 3) */}
           {currentStage === 3 && isRunning && (
-            <div
-              className="absolute left-0 right-0 h-[2px] pointer-events-none"
-              style={{
-                background: `linear-gradient(90deg, transparent, ${NEON_GREEN}, transparent)`,
-                animation: 'scanLine 2s linear infinite',
-                boxShadow: `0 0 12px ${NEON_GREEN}`,
-              }}
-            />
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <div
+                className="absolute premium-scan-band"
+                style={{
+                  left: 'var(--scan-left, 16%)',
+                  width: 'var(--scan-width, 64%)',
+                  top: 'calc(var(--scan-top, 18%) - 34px)',
+                  height: '68px',
+                  borderRadius: '999px',
+                  animation: 'premiumScanBand 2.6s cubic-bezier(0.33, 0, 0.2, 1) infinite',
+                  mixBlendMode: 'screen',
+                }}
+              >
+                <div
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    background: 'linear-gradient(180deg, rgba(126,223,192,0) 0%, rgba(126,223,192,0.06) 28%, rgba(196,245,226,0.24) 50%, rgba(126,223,192,0.08) 72%, rgba(126,223,192,0) 100%)',
+                    filter: 'blur(2px)',
+                  }}
+                />
+                <div
+                  className="absolute left-[8%] right-[8%] top-1/2 h-px -translate-y-1/2"
+                  style={{
+                    background: 'linear-gradient(90deg, rgba(126,223,192,0), rgba(233,255,248,0.78) 50%, rgba(126,223,192,0))',
+                    boxShadow: '0 0 14px rgba(126,223,192,0.28), 0 0 26px rgba(126,223,192,0.10)',
+                  }}
+                />
+              </div>
+            </div>
           )}
 
           {/* Stage indicator badge — premium pill */}
           {isRunning && (
             <div
-              className="absolute top-5 left-5 flex items-center gap-2.5 rounded-full px-4 py-2"
+              className="absolute top-5 left-5 flex items-center gap-2.5 rounded-full px-4 py-2.5"
               style={{
-                background: 'rgba(10, 8, 6, 0.80)',
-                backdropFilter: 'blur(16px)',
-                border: '1px solid rgba(214, 185, 140, 0.10)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                background: 'linear-gradient(180deg, rgba(14,16,19,0.78) 0%, rgba(10,8,6,0.84) 100%)',
+                backdropFilter: 'blur(18px) saturate(125%)',
+                border: '1px solid rgba(237,234,230,0.08)',
+                boxShadow: '0 12px 34px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.04)',
                 animation: 'stageFadeIn 0.4s ease-out',
               }}
             >
               <span
-                className="text-sm"
-                style={{ animation: 'aiPulse 1.5s ease-in-out infinite' }}
-              >
-                {STAGES[currentStage].icon}
-              </span>
-              <span className="text-label text-[#D6B98C]" style={{ fontSize: '9px' }}>
+                className="inline-flex h-2 w-2 rounded-full"
+                style={{
+                  background: currentStage === 3 ? NEON_GREEN : GOLD,
+                  boxShadow: currentStage === 3
+                    ? '0 0 14px rgba(126,223,192,0.44)'
+                    : '0 0 12px rgba(210,180,138,0.32)',
+                  animation: 'premiumScanPulse 2.2s ease-in-out infinite',
+                }}
+              />
+              <span className="font-body text-[10px] tracking-[0.16em] uppercase" style={{ color: 'rgba(248,246,242,0.72)' }}>
                 {STAGES[currentStage].label}
               </span>
             </div>
@@ -2154,7 +2247,7 @@ function ProcessingContent() {
 
         {/* ── Progress bar — refined ── */}
         <div className="w-full flex flex-col gap-2.5">
-          <div className="w-full h-[2.5px] rounded-full bg-[rgba(248,246,242,0.04)] overflow-hidden">
+          <div className="w-full h-[4px] rounded-full overflow-hidden" style={{ background: 'rgba(248,246,242,0.035)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
             <div
               className="h-full rounded-full transition-all duration-1000 ease-out"
               style={{
@@ -2163,17 +2256,18 @@ function ProcessingContent() {
                   ? '#C47A7A'
                   : isDone
                     ? EMERALD
-                    : `linear-gradient(90deg, ${GOLD}, ${EMERALD})`,
-                boxShadow: isError ? 'none' : isDone ? `0 0 8px ${EMERALD}40` : `0 0 6px ${GOLD}30`,
+                    : 'linear-gradient(90deg, rgba(210,180,138,0.92) 0%, rgba(137,214,183,0.92) 100%)',
+                boxShadow: isError ? 'none' : isDone ? '0 0 10px rgba(104,196,160,0.20)' : '0 0 14px rgba(126,223,192,0.16)',
               }}
             />
           </div>
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[12px] font-light text-[rgba(248,246,242,0.45)] tabular-nums tracking-tight">
+            <span className="font-mono text-[12px] font-light text-[rgba(248,246,242,0.52)] tabular-nums tracking-tight">
               {overallProgress}%
             </span>
             {isRunning && (
-              <span className="text-label-sm text-[rgba(248,246,242,0.42)]">
+              <span className="inline-flex items-center gap-1.5 font-body text-[10px] tracking-[0.14em] uppercase text-[rgba(248,246,242,0.50)]">
+                <span className="inline-flex h-1 w-1 rounded-full bg-[rgba(210,180,138,0.7)]" />
                 Aşama {currentStage + 1}/5
               </span>
             )}
@@ -2360,7 +2454,3 @@ export default function AnalysisProcessingPage() {
     </Suspense>
   )
 }
-
-
-
-
