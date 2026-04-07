@@ -4,67 +4,33 @@ import Link from 'next/link'
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useClinicStore } from '@/lib/store'
-import { GlassCard } from '@/components/design-system/GlassCard'
-import { StatusBadge } from '@/components/design-system/StatusBadge'
-import { RegionBar } from '@/components/design-system/RegionBar'
-import { PlaceholderImage } from '@/components/design-system/PlaceholderImage'
-import { PremiumButton } from '@/components/design-system/PremiumButton'
-import { ThinLine } from '@/components/design-system/ThinLine'
-import { CollapsibleSection } from '@/components/design-system/CollapsibleSection'
-import { readinessBandConfig } from '@/lib/readiness'
 import { logAuditEvent } from '@/lib/audit'
-import { createClient } from '@/lib/supabase/client'
+import { createClient, isSupabaseConfigured } from '@/lib/supabase/client'
 import { insertDoctorNote, updateSession, sessionToLead } from '@/lib/supabase/queries'
-import {
-  communicationPreferenceLabels,
-  concernAreaLabels,
-  consultationTimingLabels,
-  desiredResultLabels,
-  goalClarityLabels,
-  photoQualityLabels,
-  sourceLabels,
-  timeIntentLabels,
-  type LeadStatus,
-  upsellPotentialLabels,
-} from '@/types/lead'
+import { StatusBadge } from '@/components/design-system/StatusBadge'
+import type { LeadStatus } from '@/types/lead'
 import { formatDateTime } from '@/lib/utils'
-import { useSignedUrls, resolvePhotoSrc } from '@/lib/supabase/use-signed-urls'
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="font-body text-[10px] tracking-[0.15em] uppercase text-[rgba(26,26,46,0.4)] mb-0.5">{label}</p>
-      <p className="font-body text-[13px] text-[#1A1A2E]">{value}</p>
-    </div>
-  )
-}
+// Doctor analysis components
+import { AnalysisHeroSummary } from '@/components/doctor/analysis/AnalysisHeroSummary'
+import { RegionAnalysisGrid } from '@/components/doctor/analysis/RegionAnalysisGrid'
+import { PatientImageReview } from '@/components/doctor/analysis/PatientImageReview'
+import { QualityBadges } from '@/components/doctor/analysis/QualityBadges'
+import { DoctorRadarSection } from '@/components/doctor/analysis/DoctorRadarSection'
+import { IntakeContextPanel } from '@/components/doctor/analysis/IntakeContextPanel'
+import { DoctorActionPanel } from '@/components/doctor/analysis/DoctorActionPanel'
 
-function MediaGrid({ title, items, signedUrls }: { title: string; items: string[]; signedUrls: Record<string, string> }) {
+// ── Section wrapper ──
+function Section({ title, children, badge }: { title: string; children: React.ReactNode; badge?: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-3">
-      <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)]">{title}</p>
-      {items.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {items.map((item, index) => {
-            const src = resolvePhotoSrc(item, signedUrls)
-            return (
-              <div key={`${title}-${index}`} className="rounded-[14px] overflow-hidden border border-[rgba(196,163,90,0.16)]">
-                {src ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={src} alt={`${title} ${index + 1}`} className="w-full h-32 object-cover" />
-                ) : (
-                  <div className="w-full h-32 flex items-center justify-center bg-[rgba(196,163,90,0.04)]">
-                    <p className="font-body text-[10px] text-[rgba(26,26,46,0.35)] animate-pulse">Yükleniyor...</p>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      ) : (
-        <PlaceholderImage variant="media" className="h-28" label="Henüz medya yüklenmedi" />
-      )}
-    </div>
+    <section>
+      <div className="flex items-center gap-3 mb-4">
+        <h3 className="font-display text-[18px] font-light text-[#F8F6F2]">{title}</h3>
+        <div className="flex-1 h-px bg-[rgba(248,246,242,0.04)]" />
+        {badge}
+      </div>
+      {children}
+    </section>
   )
 }
 
@@ -77,109 +43,83 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [fetchError, setFetchError] = useState<string | null>(null)
   const lead = zustandLead ?? sbLead
 
-  // Fetch from server API if not found in Zustand (bypasses RLS)
   useEffect(() => {
     if (!zustandLead) {
       fetch(`/api/doctor/leads/${id}`)
         .then(async (res) => {
           if (!res.ok) {
             setFetchError('Lead verileri yüklenemedi.')
-            console.error('[LeadDetail] API error:', res.status)
             return
           }
           const { data } = await res.json()
           if (data) setSbLead(sessionToLead(data as Record<string, unknown>))
         })
-        .catch((e) => {
-          setFetchError('Sunucuya bağlanılamadı.')
-          console.error('[LeadDetail] Network error:', e)
-        })
+        .catch(() => setFetchError('Sunucuya bağlanılamadı.'))
     }
   }, [id, zustandLead])
 
-  // Use sbLead?.doctor_notes as the initial value when it becomes available.
-  // This avoids setState-in-effect: we derive the initial value from the latest lead.
-  const resolvedInitialNotes = (sbLead?.doctor_notes ?? zustandLead?.doctor_notes) || ''
-  const [notes, setNotes] = useState('')
-  const [notesSourceKey, setNotesSourceKey] = useState('')
-  const [notesSaved, setNotesSaved] = useState(false)
-  const [notesSaveError, setNotesSaveError] = useState(false)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  // One-time sync: when the Supabase lead arrives and notes are still empty
-  if (resolvedInitialNotes && !notes && notesSourceKey !== id) {
-    setNotes(resolvedInitialNotes)
-    setNotesSourceKey(id)
-  }
-
-  // Resolve private storage paths to signed URLs for doctor photo display
-  const allPhotoPaths = lead
-    ? [lead.patient_photo_url, ...lead.doctor_frontal_photos, ...lead.doctor_mimic_photos, ...lead.before_media, ...lead.after_media].filter(Boolean) as string[]
-    : []
-  const signedUrlMap = useSignedUrls(allPhotoPaths)
-
   useEffect(() => {
-    if (lead) {
-      logAuditEvent('lead_viewed', { lead_id: lead.id })
-    }
+    if (lead) logAuditEvent('lead_viewed', { lead_id: lead.id })
   }, [lead])
 
   if (!lead) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <p className="font-display text-2xl font-light text-[#1A1A2E]">
-          {fetchError ?? 'Lead bulunamadı'}
-        </p>
+        <div className="w-16 h-16 rounded-full bg-[rgba(248,246,242,0.03)] flex items-center justify-center">
+          {fetchError ? (
+            <svg className="w-6 h-6 text-[#C47A7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+          ) : (
+            <div className="w-5 h-5 rounded-full border-2 border-[rgba(248,246,242,0.1)] border-t-[#D6B98C] animate-spin" />
+          )}
+        </div>
+        <p className="font-display text-[20px] font-light text-[#F8F6F2]">{fetchError ?? 'Yükleniyor...'}</p>
         {fetchError && (
-          <button type="button" onClick={() => window.location.reload()} className="font-body text-[12px] text-medical-trust hover:underline">
+          <button onClick={() => window.location.reload()} className="font-body text-[11px] text-[#D6B98C] hover:underline">
             Tekrar Dene
           </button>
         )}
-        <PremiumButton onClick={() => router.push('/doctor/leads')} variant="ghost">
-          Geri Dön
-        </PremiumButton>
       </div>
     )
   }
 
-  const doctorAnalysis = lead.doctor_analysis
-  const readiness = lead.consultation_readiness
-  const readinessConfig = lead.readiness_band ? readinessBandConfig[lead.readiness_band] : null
+  // Extract analysis data safely
+  const radarAnalysis = lead.radar_analysis as { radarScores?: Array<{ key: string; label: string; score: number; confidence?: number; category?: string; insight?: string }>; derivedInsights?: { strongestAreas?: string[]; improvementAreas?: string[]; summaryText?: string } } | undefined
+  const focusAreas = lead.focus_areas as Array<{ region: string; label: string; score: number; insight?: string; doctorReviewRecommended?: boolean }> | undefined
+  const wrinkleScores = lead.wrinkle_scores as { regions?: Array<{ region: string; label: string; score: number; level?: string; confidence?: number; insight?: string; evidenceStrength?: string }>; overallScore?: number } | undefined
+  const ageEstimation = lead.age_estimation as { pointEstimate?: number; estimatedRange?: [number, number]; confidence?: string } | undefined
+  const patientSummary = lead.patient_summary as { summary_text?: string } | undefined
 
-  const upperFace = ['alin', 'glabella', 'kaz_ayagi']
-  const midFace = ['goz_alti', 'yanak_orta_yuz', 'nazolabial']
-  const lowerFace = ['dudak', 'marionette', 'jawline', 'cene_ucu']
-  const general = ['cilt_kalitesi', 'simetri_gozlemi']
+  const overallScore = wrinkleScores?.overallScore ?? (radarAnalysis?.radarScores ? Math.round(radarAnalysis.radarScores.reduce((s, r) => s + r.score, 0) / radarAnalysis.radarScores.length) : undefined)
 
-  const handleSaveNotes = async () => {
+  const handleStatusChange = (status: LeadStatus) => {
+    updateLeadStatus(lead.id, status)
+    logAuditEvent('lead_status_changed', { lead_id: lead.id, status })
+    if (isSupabaseConfigured()) {
+      try {
+        const sessionId = sbLead ? lead.id : lead.id
+        const sb = createClient()
+        updateSession(sb, sessionId, { status }).catch(() => {})
+      } catch { /* best-effort */ }
+    }
+  }
+
+  const handleSaveNotes = async (notes: string): Promise<boolean> => {
     updateDoctorNotes(lead.id, notes)
     logAuditEvent('doctor_note_added', { lead_id: lead.id })
-    setNotesSaveError(false)
-
-    // Persist to Supabase
-    // For Supabase-loaded leads, lead.id IS the session UUID.
-    // For Zustand-originated leads, try _supabase_session_id first.
-    const cl = useClinicStore.getState().currentLead ?? {} as Record<string, unknown>
-    const sessionId = sbLead
-      ? lead.id
-      : ((cl as Record<string, unknown>)._supabase_session_id as string | undefined) ?? lead.id
-
-    if (sessionId && notes.trim()) {
-      try {
-        const sb = createClient()
-        const { error } = await insertDoctorNote(sb, sessionId, notes)
-        if (error) {
-          setNotesSaveError(true)
-          console.error('[DoctorNotes] Supabase save error:', error.message)
-          return
-        }
-      } catch (e) {
-        setNotesSaveError(true)
-        console.error('[DoctorNotes] Network error:', e)
-        return
+    if (!isSupabaseConfigured()) return true
+    try {
+      const sb = createClient()
+      const { error } = await insertDoctorNote(sb, lead.id, notes)
+      if (error) {
+        console.error('[DoctorNotes] Save error:', error.message)
+        return false
       }
+      return true
+    } catch {
+      return false
     }
-    setNotesSaved(true)
-    window.setTimeout(() => setNotesSaved(false), 3000)
   }
 
   const handleGenerateReport = () => {
@@ -188,355 +128,182 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-4xl">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col gap-8 max-w-5xl">
+      {/* ── Breadcrumb ── */}
+      <div className="flex items-center gap-2">
         <button
           onClick={() => router.push('/doctor/leads')}
-          className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.4)] hover:text-[#1A1A2E] transition-colors"
+          className="font-body text-[10px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.3)] hover:text-[#D6B98C] transition-colors"
         >
           ← Lead Listesi
         </button>
-        <span className="text-[rgba(26,26,46,0.2)]">/</span>
-        <span className="font-mono text-[11px] text-[rgba(26,26,46,0.4)]">{lead.id}</span>
+        <span className="text-[rgba(248,246,242,0.1)]">/</span>
+        <span className="font-mono text-[10px] text-[rgba(248,246,242,0.2)]">{lead.id.slice(0, 8)}</span>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* ── Patient Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-[28px] font-light text-[#1A1A2E]">{lead.full_name}</h1>
-          <div className="flex gap-2 mt-2 flex-wrap">
+          <h1 className="font-display text-[32px] font-light text-[#F8F6F2] mb-2">{lead.full_name}</h1>
+          <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={lead.status} type="lead" />
             {lead.readiness_band && <StatusBadge status={lead.readiness_band} type="readiness" />}
+            {lead.age_range && (
+              <span className="font-mono text-[10px] text-[rgba(248,246,242,0.35)] px-2 py-0.5 rounded-md bg-[rgba(248,246,242,0.03)]">
+                {lead.age_range}
+              </span>
+            )}
+            {lead.phone && (
+              <span className="font-mono text-[10px] text-[rgba(248,246,242,0.35)]">{lead.phone}</span>
+            )}
           </div>
+          <p className="font-body text-[11px] text-[rgba(248,246,242,0.25)] mt-1">{formatDateTime(lead.created_at)}</p>
         </div>
 
-        <select
-          value={lead.status}
-          onChange={(e) => {
-            const newStatus = e.target.value as LeadStatus
-            updateLeadStatus(lead.id, newStatus)
-            logAuditEvent('lead_status_changed', { lead_id: lead.id, status: newStatus })
-            // Persist status change to Supabase
-            try {
-              const sessionId = sbLead
-                ? lead.id
-                : ((useClinicStore.getState().currentLead as Record<string, unknown> | null)?._supabase_session_id as string | undefined) ?? lead.id
-              const sb = createClient()
-              updateSession(sb, sessionId, { status: newStatus }).catch(() => {})
-            } catch { /* best-effort */ }
-          }}
-          className="field-input field-input-sm"
-        >
-          {([
-            { value: 'new', label: 'Yeni' },
-            { value: 'consented', label: 'Rıza Verildi' },
-            { value: 'analysis_ready', label: 'Analiz Hazır' },
-            { value: 'doctor_reviewed', label: 'İncelendi' },
-            { value: 'contacted', label: 'İletişime Geçildi' },
-            { value: 'booked', label: 'Randevu Alındı' },
-            { value: 'archived', label: 'Arşivlendi' },
-          ] as { value: LeadStatus; label: string }[]).map(({ value, label }) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
+        <div className="flex gap-2">
+          <button
+            onClick={handleGenerateReport}
+            className="px-4 py-2 rounded-lg bg-[rgba(214,185,140,0.08)] border border-[rgba(214,185,140,0.15)] font-body text-[10px] tracking-[0.1em] uppercase text-[#D6B98C] hover:bg-[rgba(214,185,140,0.12)] transition-colors"
+          >
+            Rapor
+          </button>
+          {lead.report_url && (
+            <Link
+              href={lead.report_url}
+              className="px-4 py-2 rounded-lg bg-[rgba(61,155,122,0.08)] border border-[rgba(61,155,122,0.15)] font-body text-[10px] tracking-[0.1em] uppercase text-[#4AE3A7] hover:bg-[rgba(61,155,122,0.12)] transition-colors"
+            >
+              Raporu Aç
+            </Link>
+          )}
+        </div>
       </div>
 
-      <CollapsibleSection title="Hasta Özeti">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-          <InfoRow label="Ad Soyad" value={lead.full_name} />
-          <InfoRow label="Cinsiyet" value={lead.gender === 'female' ? 'Kadın' : lead.gender === 'male' ? 'Erkek' : 'Diğer'} />
-          <InfoRow label="Yaş Aralığı" value={lead.age_range} />
-          <InfoRow label="Telefon" value={lead.phone} />
-          <InfoRow label="Şehir" value={lead.city ?? 'Belirtilmedi'} />
-          <InfoRow label="Kaynak" value={sourceLabels[lead.source]} />
-          <InfoRow label="İlgi Alanı" value={concernAreaLabels[lead.concern_area]} />
-          <InfoRow label="Sonuç Beklentisi" value={desiredResultLabels[lead.desired_result_style]} />
-          <InfoRow label="Zamanlama" value={consultationTimingLabels[lead.consultation_timing]} />
-          <InfoRow label="Önceki İşlem" value={lead.prior_treatment ? 'Evet' : 'Hayır'} />
-          <InfoRow label="Başvuru Tarihi" value={formatDateTime(lead.created_at)} />
-          <InfoRow
-            label="Rıza"
-            value={lead.consent_given ? `✓ ${formatDateTime(lead.consent_timestamp)} · v${lead.consent_text_version}` : 'Verilmedi'}
+      {/* ── 1. Analysis Hero Summary ── */}
+      {(overallScore != null || radarAnalysis) && (
+        <Section title="Analiz Özeti">
+          <AnalysisHeroSummary
+            overallScore={overallScore}
+            confidence={lead.analysis_confidence}
+            captureQuality={lead.capture_quality_score != null ? (lead.capture_quality_score >= 80 ? 'high' : lead.capture_quality_score >= 50 ? 'medium' : 'low') : undefined}
+            reliabilityBand={lead.overall_reliability_band}
+            evidenceCoverage={lead.evidence_coverage_score}
+            suppressionCount={lead.suppression_count}
+            limitedRegions={lead.limited_regions_count}
+            summaryText={patientSummary?.summary_text ?? radarAnalysis?.derivedInsights?.summaryText}
+            estimatedAge={ageEstimation?.pointEstimate ?? lead.estimated_age}
+            estimatedGender={lead.estimated_gender}
+            recaptureRecommended={lead.recapture_recommended}
           />
-          {lead.expectation_note && (
-            <div className="col-span-full">
-              <InfoRow label="Beklenti Notu" value={lead.expectation_note} />
-            </div>
-          )}
-        </div>
-      </CollapsibleSection>
+        </Section>
+      )}
 
-      <CollapsibleSection title="Medya İnceleme">
-        <div className="flex flex-col gap-6">
-          {/* Front / Left / Right capture thumbnails */}
+      {/* ── 2. Quality Badges ── */}
+      <QualityBadges
+        captureConfidence={lead.capture_confidence}
+        captureQualityScore={lead.capture_quality_score}
+        analysisInputQuality={lead.analysis_input_quality_score}
+        reportConfidence={lead.report_confidence}
+        livenessStatus={lead.liveness_status}
+        livenessConfidence={lead.liveness_confidence}
+        livenessPassed={lead.liveness_passed}
+        outputDegraded={lead.output_degraded}
+        qualityScore={lead.quality_score}
+      />
+
+      {/* ── 3. Face Images ── */}
+      <Section title="Çekim Görselleri">
+        <PatientImageReview
+          frontPhoto={lead.doctor_frontal_photos?.[0] ?? lead.patient_photo_url}
+          leftPhoto={lead.doctor_frontal_photos?.[1]}
+          rightPhoto={lead.doctor_frontal_photos?.[2]}
+        />
+      </Section>
+
+      {/* ── 4. Radar Analysis ── */}
+      {radarAnalysis?.radarScores && (
+        <Section title="Radar Analizi">
+          <DoctorRadarSection radarAnalysis={radarAnalysis} />
+        </Section>
+      )}
+
+      {/* ── 5. Region Analysis Grid ── */}
+      <Section title="Bölgesel Değerlendirme">
+        <RegionAnalysisGrid
+          radarScores={radarAnalysis?.radarScores}
+          focusAreas={focusAreas}
+          wrinkleScores={wrinkleScores}
+        />
+      </Section>
+
+      {/* ── 6. AI Scores (if available) ── */}
+      {lead.ai_scores && (
+        <Section title="AI Geometrik Analiz">
+          <AIScoresPanel aiScores={lead.ai_scores as Record<string, unknown>} />
+        </Section>
+      )}
+
+      {/* ── 7. Intake & Context ── */}
+      <Section title="Hasta Bilgileri & Form">
+        <IntakeContextPanel lead={lead} />
+      </Section>
+
+      {/* ── 8. Doctor Actions ── */}
+      <Section title="Doktor Aksiyonları">
+        <DoctorActionPanel
+          lead={lead}
+          onStatusChange={handleStatusChange}
+          onSaveNotes={handleSaveNotes}
+        />
+      </Section>
+    </div>
+  )
+}
+
+// ── AI Scores Sub-panel ──
+function AIScoresPanel({ aiScores }: { aiScores: Record<string, unknown> }) {
+  const symmetry = aiScores.symmetry as number | undefined
+  const proportion = aiScores.proportion as number | undefined
+  const metrics = aiScores.metrics as Record<string, number> | undefined
+  const suggestions = aiScores.suggestions as string[] | undefined
+
+  return (
+    <div className="rounded-xl border border-[rgba(248,246,242,0.04)] bg-[rgba(248,246,242,0.02)] p-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+        {symmetry != null && (
           <div>
-            <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)] mb-3">
-              Çekim Seti (Ön / Sol / Sağ)
+            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.3)] mb-1">Simetri</p>
+            <p className="font-mono text-[20px] font-light text-[#F8F6F2]">{symmetry}<span className="text-[11px] text-[rgba(248,246,242,0.3)]">%</span></p>
+          </div>
+        )}
+        {proportion != null && (
+          <div>
+            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.3)] mb-1">Altın Oran</p>
+            <p className="font-mono text-[20px] font-light text-[#F8F6F2]">{proportion}<span className="text-[11px] text-[rgba(248,246,242,0.3)]">%</span></p>
+          </div>
+        )}
+        {metrics && Object.entries(metrics).slice(0, 4).map(([key, val]) => (
+          <div key={key}>
+            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.3)] mb-1">
+              {key === 'faceRatio' ? 'Yüz Oranı' : key === 'eyeDistanceRatio' ? 'Göz Mesafesi' : key === 'noseToFaceWidth' ? 'Burun/Yüz' : key === 'symmetryRatio' ? 'Simetri Oranı' : key}
             </p>
-            {lead.doctor_frontal_photos.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-xl">
-                {(['Ön', 'Sol', 'Sağ'] as const).map((label, i) => {
-                  const rawPath = lead.doctor_frontal_photos[i]
-                  const src = resolvePhotoSrc(rawPath, signedUrlMap)
-                  return (
-                    <div key={label} className="flex flex-col gap-1.5">
-                      <p className="font-body text-[9px] tracking-[0.15em] uppercase text-[rgba(26,26,46,0.4)] text-center">
-                        {label}
-                      </p>
-                      {src ? (
-                        <button
-                          type="button"
-                          onClick={() => setPreviewUrl(src)}
-                          className="rounded-[14px] overflow-hidden border border-[rgba(196,163,90,0.16)] hover:border-[rgba(196,163,90,0.4)] transition-colors cursor-pointer"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={src} alt={`${lead.full_name} ${label}`} className="w-full h-44 object-cover" />
-                        </button>
-                      ) : rawPath ? (
-                        <div className="h-44 rounded-[14px] border border-[rgba(196,163,90,0.16)] bg-[rgba(196,163,90,0.04)] flex items-center justify-center">
-                          <p className="font-body text-[10px] text-[rgba(26,26,46,0.35)] animate-pulse">Yükleniyor...</p>
-                        </div>
-                      ) : (
-                        <PlaceholderImage variant="media" className="h-44" label="Yok" />
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <PlaceholderImage variant="upload" className="h-48 max-w-sm" label="Çekim fotoğrafları henüz yüklenmedi" />
-            )}
+            <p className="font-mono text-[14px] text-[rgba(248,246,242,0.6)]">{typeof val === 'number' ? val.toFixed(3) : String(val)}</p>
           </div>
+        ))}
+      </div>
 
-          {/* Mimic photos if any */}
-          {lead.doctor_mimic_photos.length > 0 && (
-            <MediaGrid title="Mimik Fotoğrafları" items={lead.doctor_mimic_photos} signedUrls={signedUrlMap} />
-          )}
-        </div>
-      </CollapsibleSection>
-
-      {/* Fullscreen preview modal */}
-      {previewUrl && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setPreviewUrl(null)}
-        >
-          <div className="relative max-w-3xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => setPreviewUrl(null)}
-              className="absolute -top-10 right-0 font-body text-[12px] text-white/70 hover:text-white transition-colors"
-            >
-              Kapat ✕
-            </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewUrl}
-              alt="Büyük önizleme"
-              className="max-w-full max-h-[85vh] object-contain rounded-lg"
-            />
-          </div>
-        </div>
-      )}
-
-      {doctorAnalysis && (
-        <CollapsibleSection title="Bölgesel Değerlendirme">
-          <div className="flex flex-col gap-6">
-            {[
-              { title: 'Üst Yüz', keys: upperFace },
-              { title: 'Orta Yüz', keys: midFace },
-              { title: 'Alt Yüz', keys: lowerFace },
-              { title: 'Genel', keys: general },
-            ].map(({ title, keys }) => (
-              <div key={title}>
-                <p className="font-display text-[15px] font-light text-[#1A1A2E] mb-3">{title}</p>
-                <div className="flex flex-col gap-3">
-                  {keys.filter((key) => doctorAnalysis.region_scores[key] != null).map((key) => (
-                    <RegionBar key={key} label={key} score={doctorAnalysis.region_scores[key]} />
-                  ))}
-                </div>
-              </div>
+      {suggestions && suggestions.length > 0 && (
+        <div className="pt-3 border-t border-[rgba(248,246,242,0.04)]">
+          <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.25)] mb-2">Bulgular</p>
+          <ul className="flex flex-col gap-1">
+            {suggestions.map((s, i) => (
+              <li key={i} className="font-body text-[11px] text-[rgba(248,246,242,0.45)] flex items-start gap-2">
+                <span className="text-[#D6B98C] mt-0.5">·</span>
+                {s}
+              </li>
             ))}
-
-            <div className="flex flex-wrap gap-4 pt-2 border-t border-[rgba(196,163,90,0.12)]">
-              <span className="font-body text-[11px] text-[rgba(26,26,46,0.5)]">
-                Görsel kalite: <strong>{photoQualityLabels[doctorAnalysis.quality_checks.frontal_quality]}</strong>
-              </span>
-              <span className="font-body text-[11px] text-[rgba(26,26,46,0.5)]">
-                Mimik seti: <strong>{doctorAnalysis.quality_checks.mimic_set_complete ? 'Tam' : 'Eksik'}</strong>
-              </span>
-              <span className="font-body text-[11px] text-[rgba(26,26,46,0.5)]">
-                Video: <strong>{doctorAnalysis.quality_checks.video_present ? 'Var' : 'Yok'}</strong>
-              </span>
-            </div>
-          </div>
-        </CollapsibleSection>
-      )}
-
-      {doctorAnalysis && (
-        <CollapsibleSection title="Risk ve Doz Kılavuzu">
-          <div className="flex flex-col gap-5">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <GlassCard padding="sm">
-                <p className="font-body text-[9px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)] mb-1.5">Risk Seviyesi</p>
-                <StatusBadge status={doctorAnalysis.dose_recommendation.risk_level} type="risk" />
-              </GlassCard>
-              <GlassCard padding="sm">
-                <p className="font-body text-[9px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)] mb-1.5">Doz Aralığı</p>
-                <p className="font-mono text-[18px] font-medium text-[#1A1A2E]">{doctorAnalysis.dose_recommendation.range_cc}</p>
-              </GlassCard>
-              <GlassCard padding="sm">
-                <p className="font-body text-[9px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)] mb-1.5">Üst Limit</p>
-                <p className="font-mono text-[18px] font-medium text-[#A05252]">{doctorAnalysis.dose_recommendation.upper_limit_cc}</p>
-              </GlassCard>
-            </div>
-
-            <div className="border border-[rgba(196,163,90,0.15)] rounded-[10px] px-4 py-3 bg-[rgba(196,163,90,0.04)]">
-              <p className="font-body text-[11px] text-[rgba(26,26,46,0.55)] italic leading-relaxed">
-                Bu çıktı doktor karar desteği içindir. Final uygulama kararı klinik değerlendirme sonrasında verilir.
-              </p>
-            </div>
-          </div>
-        </CollapsibleSection>
-      )}
-
-      {readiness && (
-        <CollapsibleSection title="Konsültasyon Hazırlığı">
-          <GlassCard strong>
-            <div className="flex flex-col gap-5">
-              <div className="flex items-center gap-5">
-                <div className="text-center">
-                  <p className="font-mono text-[48px] font-medium leading-none" style={{ color: readinessConfig?.color }}>
-                    {readiness.readiness_score}
-                  </p>
-                  <p className="font-body text-[9px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)] mt-1">Skor</p>
-                </div>
-                <div>
-                  <StatusBadge status={readiness.readiness_band} type="readiness" />
-                  <p className="font-body text-[12px] text-[rgba(26,26,46,0.65)] mt-2">{readinessConfig?.action}</p>
-                </div>
-              </div>
-
-              <ThinLine />
-
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-                <InfoRow label="Motivasyon" value={readiness.primary_motivation} />
-                <InfoRow label="Hedef Netliği" value={goalClarityLabels[readiness.goal_clarity]} />
-                <InfoRow label="Zamanlama Niyeti" value={timeIntentLabels[readiness.time_intent]} />
-                <InfoRow label="Önceki Deneyim" value={readiness.prior_experience ? 'Evet' : 'Hayır'} />
-                <InfoRow label="İletişim Tercihi" value={communicationPreferenceLabels[readiness.communication_preference]} />
-                <InfoRow label="Ek İşlem Potansiyeli" value={upsellPotentialLabels[readiness.upsell_potential]} />
-                <div className="col-span-full">
-                  <InfoRow label="Önerilen Takip" value={readiness.recommended_followup} />
-                </div>
-              </div>
-            </div>
-          </GlassCard>
-        </CollapsibleSection>
-      )}
-
-      <CollapsibleSection title="Doktor Notları">
-        <div className="flex flex-col gap-4">
-          <div className="relative">
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={5}
-              maxLength={2000}
-              placeholder="Klinik notlarınızı buraya ekleyin..."
-              className="field-input resize-none"
-            />
-            <span className="absolute bottom-2 right-3 font-mono text-[10px] text-[rgba(26,26,46,0.25)]">
-              {notes.length}/2000
-            </span>
-          </div>
-          <div className="flex items-center gap-4">
-            <PremiumButton onClick={handleSaveNotes} size="sm">
-              Kaydet
-            </PremiumButton>
-            {notesSaved && <p className="font-body text-[11px] text-[#3D7A5F]">Kaydedildi</p>}
-            {notesSaveError && <p className="font-body text-[11px] text-[#A05252]">Kaydetme hatasi — tekrar deneyin</p>}
-            {lead.doctor_notes_updated_at && (
-              <p className="font-body text-[10px] text-[rgba(26,26,46,0.4)]">Son: {formatDateTime(lead.doctor_notes_updated_at)}</p>
-            )}
-          </div>
+          </ul>
         </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Before / After">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-          <div className="flex flex-col gap-3">
-            <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)]">Öncesi</p>
-            {lead.before_media.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                {lead.before_media.map((item, index) => {
-                  const src = resolvePhotoSrc(item, signedUrlMap)
-                  return (
-                    <div key={`before-${index}`} className="rounded-[14px] overflow-hidden border border-[rgba(196,163,90,0.16)]">
-                      {src ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={src} alt={`Öncesi ${index + 1}`} className="w-full h-32 object-cover" />
-                      ) : (
-                        <div className="w-full h-32 flex items-center justify-center bg-[rgba(196,163,90,0.04)]">
-                          <p className="font-body text-[10px] text-[rgba(26,26,46,0.35)] animate-pulse">Yükleniyor...</p>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <PlaceholderImage variant="before-after" className="h-40" label="Henüz öncesi görseli eklenmedi" />
-            )}
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)]">Sonrası</p>
-            {lead.after_media.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                {lead.after_media.map((item, index) => {
-                  const src = resolvePhotoSrc(item, signedUrlMap)
-                  return (
-                    <div key={`after-${index}`} className="rounded-[14px] overflow-hidden border border-[rgba(196,163,90,0.16)]">
-                      {src ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={src} alt={`Sonrası ${index + 1}`} className="w-full h-32 object-cover" />
-                      ) : (
-                        <div className="w-full h-32 flex items-center justify-center bg-[rgba(196,163,90,0.04)]">
-                          <p className="font-body text-[10px] text-[rgba(26,26,46,0.35)] animate-pulse">Yükleniyor...</p>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <PlaceholderImage variant="before-after" className="h-40" label="Henüz sonrası görseli eklenmedi" />
-            )}
-          </div>
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Rapor">
-        <div className="flex flex-col gap-4">
-          <PremiumButton onClick={handleGenerateReport} size="md">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-            </svg>
-            Rapor Sayfasını Oluştur
-          </PremiumButton>
-
-          {lead.report_generated_at && lead.report_url && (
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <p className="font-body text-[12px] text-[rgba(26,26,46,0.5)]">✓ Rapor hazırlandı: {formatDateTime(lead.report_generated_at)}</p>
-              <Link href={lead.report_url} className="font-body text-[11px] tracking-[0.1em] uppercase text-[#2D5F5D] hover:underline">
-                Raporu Aç
-              </Link>
-            </div>
-          )}
-        </div>
-      </CollapsibleSection>
+      )}
     </div>
   )
 }

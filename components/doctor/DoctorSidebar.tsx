@@ -29,8 +29,8 @@ export function DoctorSidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="hidden lg:flex flex-col w-56 bg-[var(--glass-bg-strong)] border-r border-[var(--color-border-gold)] min-h-screen pt-8 px-4">
-      <nav className="flex flex-col gap-1">
+    <aside className="hidden lg:flex flex-col w-52 bg-[rgba(14,11,9,0.6)] border-r border-[rgba(248,246,242,0.04)] min-h-[calc(100vh-3.5rem)] pt-6 px-3">
+      <nav className="flex flex-col gap-0.5">
         {navItems.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + '/')
           return (
@@ -38,10 +38,10 @@ export function DoctorSidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-sm font-body text-[13px] transition-all',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg font-body text-[12px] tracking-[0.02em] transition-all',
                 active
-                  ? 'text-medical-trust bg-[rgba(45,95,93,0.06)] border-l-2 border-medical-trust -ml-0.5'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-gold-glow)]'
+                  ? 'text-[#D6B98C] bg-[rgba(214,185,140,0.08)] border-l-2 border-[#D6B98C] -ml-0.5'
+                  : 'text-[rgba(248,246,242,0.4)] hover:text-[rgba(248,246,242,0.7)] hover:bg-[rgba(248,246,242,0.03)]'
               )}
             >
               {item.icon}
@@ -51,8 +51,8 @@ export function DoctorSidebar() {
         })}
       </nav>
 
-      <div className="mt-auto pb-8 pt-4 border-t border-[var(--color-border-gold)]">
-        <p className="font-mono text-[9px] text-[var(--color-text-muted)] tracking-[0.12em] uppercase">
+      <div className="mt-auto pb-6 pt-4 border-t border-[rgba(248,246,242,0.04)]">
+        <p className="font-mono text-[8px] text-[rgba(248,246,242,0.2)] tracking-[0.12em] uppercase px-3">
           Antigravity Clinic
         </p>
       </div>

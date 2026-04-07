@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { createClient, isSupabaseConfigured } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 export function DoctorTopNav() {
@@ -9,8 +9,10 @@ export function DoctorTopNav() {
 
   const handleLogout = async () => {
     try {
-      const sb = createClient()
-      await sb.auth.signOut()
+      if (isSupabaseConfigured()) {
+        const sb = createClient()
+        await sb.auth.signOut()
+      }
     } catch (e) {
       console.error('[Auth] Logout error:', e)
     } finally {
@@ -19,26 +21,25 @@ export function DoctorTopNav() {
   }
 
   return (
-    <header className="bg-[var(--glass-bg-strong)] backdrop-blur-sm border-b border-[var(--color-border-gold)] px-6 h-16 flex items-center justify-between sticky top-0 z-40">
-      <Link href="/doctor/dashboard" className="font-display text-lg font-light tracking-[0.05em] text-[var(--color-text)]">
-        Dr. Müjde Ocak <span className="text-gradient-gold">Aesthetic Clinic</span>
-        <span className="font-body text-[11px] tracking-[0.15em] uppercase text-[var(--color-text-muted)] ml-3">
-          · Doktor Paneli
+    <header className="bg-[rgba(14,11,9,0.92)] backdrop-blur-md border-b border-[rgba(248,246,242,0.06)] px-6 h-14 flex items-center justify-between sticky top-0 z-40">
+      <Link href="/doctor/dashboard" className="font-display text-[17px] font-light tracking-[0.04em] text-[#F8F6F2]">
+        Dr. Müjde Ocak <span className="text-[#D6B98C]">Clinic</span>
+        <span className="font-body text-[10px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.35)] ml-3">
+          Doktor Paneli
         </span>
       </Link>
 
       <div className="flex items-center gap-4">
-        {/* Lead Listesi — only visible on mobile where sidebar is hidden */}
         <Link
           href="/doctor/leads"
-          className="lg:hidden font-body text-[11px] tracking-[0.12em] uppercase text-medical-trust hover:text-[var(--color-text)] transition-colors"
+          className="lg:hidden font-body text-[10px] tracking-[0.12em] uppercase text-[#D6B98C] hover:text-[#F8F6F2] transition-colors"
         >
           Leads
         </Link>
-        <span className="hidden sm:inline font-body text-[12px] text-[var(--color-text-muted)]">Dr. Müjde Ocak</span>
+        <span className="hidden sm:inline font-body text-[11px] text-[rgba(248,246,242,0.4)]">Dr. Müjde Ocak</span>
         <button
           onClick={handleLogout}
-          className="font-body text-[11px] tracking-[0.12em] uppercase text-medical-danger/70 hover:text-[var(--color-text)] transition-colors"
+          className="font-body text-[10px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.3)] hover:text-[#C47A7A] transition-colors"
         >
           Çıkış
         </button>
