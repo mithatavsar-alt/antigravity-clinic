@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client'
+import Link from 'next/link'
 import { GlassCard } from '@/components/design-system/GlassCard'
 import { PremiumButton } from '@/components/design-system/PremiumButton'
 import { ThinLine } from '@/components/design-system/ThinLine'
@@ -133,6 +134,15 @@ export default function LoginPage() {
             Doktor girişi
           </p>
         </GlassCard>
+
+        <div className="text-center mt-6">
+          <Link
+            href="/"
+            className="font-body text-[11px] text-[rgba(26,26,46,0.35)] hover:text-[#C4A35A] transition-colors tracking-[0.04em]"
+          >
+            ← Hasta sayfasına dön
+          </Link>
+        </div>
       </div>
     </div>
   )
