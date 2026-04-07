@@ -42,6 +42,9 @@ export const RIGHT_NOSTRIL_INDICES = [460, 294, 278, 344, 440] as const
 export const FOREHEAD_EXTENSION_RATIO = 0.08
 
 // ─── Region Definitions (18 regions) ─────────────────────
+// NOTE: Region weights are RELATIVE, not normalized to sum to 1.0.
+// The scoring engine divides by the sum of effective weights, so the
+// absolute values don't matter — only the ratios between them.
 
 export const REGION_DEFINITIONS: Record<AnalysisRegionId, RegionDefinition> = {
   forehead: {

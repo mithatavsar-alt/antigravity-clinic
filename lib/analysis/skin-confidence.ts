@@ -410,7 +410,7 @@ export function getRegionSkinConfidence(
     if (!cells[row]) continue
     for (let col = startCol; col <= endCol; col++) {
       const cell = cells[row][col]
-      if (!cell || cell.confidence === 0 && cell.rejectReasons.length === 0) {
+      if (!cell || (cell.confidence === 0 && cell.rejectReasons.length === 0)) {
         // Cell outside face mask — skip
         continue
       }

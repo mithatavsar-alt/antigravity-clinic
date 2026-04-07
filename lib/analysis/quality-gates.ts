@@ -13,9 +13,9 @@ import type {
   RegionQualityGate,
   RegionReasonCode,
   RegionVisibility,
-} from '../analysis/types'
+} from './types'
 import type { ImageQualityAssessment, Landmark } from '../ai/types'
-import { QUALITY_THRESHOLDS } from '../analysis/constants'
+import { QUALITY_THRESHOLDS } from './constants'
 
 // ─── Turkish Reason Labels ──────────────────────────────
 

@@ -181,15 +181,10 @@ export function runRegionAnalysis(input: RunRegionAnalysisInput): AnalysisOutput
     }
   }
 
-  // 5. Feature extraction
+  // 5. Feature extraction (skin confidence applied inside if provided)
   const featureMap = extractAllRegionFeatures(
     source, landmarks, regions, qualityGates, regionSkinConfidences.length > 0 ? regionSkinConfidences : undefined,
   )
-
-  // 6. Apply skin confidence to features (if computed separately)
-  if (regionSkinConfidences.length > 0) {
-    applySkinConfidence(featureMap, regionSkinConfidences)
-  }
 
   // 7. Scoring
   let scores = computeScores(featureMap, regions, qualityGates, sourceViews)
