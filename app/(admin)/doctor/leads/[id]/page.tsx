@@ -10,8 +10,6 @@ import { insertDoctorNote, updateSession, sessionToLead } from '@/lib/supabase/q
 import { StatusBadge } from '@/components/design-system/StatusBadge'
 import type { LeadStatus } from '@/types/lead'
 import { formatDateTime } from '@/lib/utils'
-
-// Doctor analysis components
 import { AnalysisHeroSummary } from '@/components/doctor/analysis/AnalysisHeroSummary'
 import { RegionAnalysisGrid } from '@/components/doctor/analysis/RegionAnalysisGrid'
 import { PatientImageReview } from '@/components/doctor/analysis/PatientImageReview'
@@ -20,13 +18,20 @@ import { DoctorRadarSection } from '@/components/doctor/analysis/DoctorRadarSect
 import { IntakeContextPanel } from '@/components/doctor/analysis/IntakeContextPanel'
 import { DoctorActionPanel } from '@/components/doctor/analysis/DoctorActionPanel'
 
-// ── Section wrapper ──
-function Section({ title, children, badge }: { title: string; children: React.ReactNode; badge?: React.ReactNode }) {
+function Section({
+  title,
+  children,
+  badge,
+}: {
+  title: string
+  children: React.ReactNode
+  badge?: React.ReactNode
+}) {
   return (
     <section>
       <div className="flex items-center gap-3 mb-4">
-        <h3 className="font-display text-[18px] font-light text-[#F8F6F2]">{title}</h3>
-        <div className="flex-1 h-px bg-[rgba(18,16,13,0.55)]" />
+        <h3 className="font-display text-[26px] font-light text-[#1A1A2E]">{title}</h3>
+        <div className="flex-1 h-px bg-gradient-to-r from-[rgba(196,163,90,0.24)] to-transparent" />
         {badge}
       </div>
       {children}
@@ -59,24 +64,26 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   }, [id, zustandLead])
 
   useEffect(() => {
-    if (lead) logAuditEvent('lead_viewed', { lead_id: lead.id })
+    if (lead) {
+      logAuditEvent('lead_viewed', { lead_id: lead.id })
+    }
   }, [lead])
 
   if (!lead) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <div className="w-16 h-16 rounded-full bg-[rgba(20,18,14,0.55)] flex items-center justify-center">
+        <div className="doctor-card-soft w-16 h-16 rounded-full flex items-center justify-center">
           {fetchError ? (
             <svg className="w-6 h-6 text-[#C47A7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
             </svg>
           ) : (
-            <div className="w-5 h-5 rounded-full border-2 border-[rgba(248,246,242,0.1)] border-t-[#D6B98C] animate-spin" />
+            <div className="w-5 h-5 rounded-full border-2 border-[rgba(196,163,90,0.18)] border-t-[#C4A35A] animate-spin" />
           )}
         </div>
-        <p className="font-display text-[20px] font-light text-[#F8F6F2]">{fetchError ?? 'Yükleniyor...'}</p>
+        <p className="font-display text-[28px] font-light text-[#1A1A2E]">{fetchError ?? 'Yükleniyor...'}</p>
         {fetchError && (
-          <button onClick={() => window.location.reload()} className="font-body text-[11px] text-[#D6B98C] hover:underline">
+          <button onClick={() => window.location.reload()} className="font-body text-[12px] text-[#C4A35A] hover:underline">
             Tekrar Dene
           </button>
         )}
@@ -84,31 +91,58 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     )
   }
 
-  // Extract analysis data safely
-  const radarAnalysis = lead.radar_analysis as { radarScores?: Array<{ key: string; label: string; score: number; confidence?: number; category?: string; insight?: string }>; derivedInsights?: { strongestAreas?: string[]; improvementAreas?: string[]; summaryText?: string } } | undefined
-  const focusAreas = lead.focus_areas as Array<{ region: string; label: string; score: number; insight?: string; doctorReviewRecommended?: boolean }> | undefined
-  const wrinkleScores = lead.wrinkle_scores as { regions?: Array<{ region: string; label: string; score: number; level?: string; confidence?: number; insight?: string; evidenceStrength?: string }>; overallScore?: number } | undefined
+  const radarAnalysis = lead.radar_analysis as
+    | {
+        radarScores?: Array<{ key: string; label: string; score: number; confidence?: number; category?: string; insight?: string }>
+        derivedInsights?: { strongestAreas?: string[]; improvementAreas?: string[]; summaryText?: string }
+      }
+    | undefined
+  const focusAreas = lead.focus_areas as
+    | Array<{ region: string; label: string; score: number; insight?: string; doctorReviewRecommended?: boolean }>
+    | undefined
+  const wrinkleScores = lead.wrinkle_scores as
+    | {
+        regions?: Array<{
+          region: string
+          label: string
+          score: number
+          level?: string
+          confidence?: number
+          insight?: string
+          evidenceStrength?: string
+        }>
+        overallScore?: number
+      }
+    | undefined
   const ageEstimation = lead.age_estimation as { pointEstimate?: number; estimatedRange?: [number, number]; confidence?: string } | undefined
   const patientSummary = lead.patient_summary as { summary_text?: string } | undefined
 
-  const overallScore = wrinkleScores?.overallScore ?? (radarAnalysis?.radarScores ? Math.round(radarAnalysis.radarScores.reduce((s, r) => s + r.score, 0) / radarAnalysis.radarScores.length) : undefined)
+  const overallScore =
+    wrinkleScores?.overallScore ??
+    (radarAnalysis?.radarScores
+      ? Math.round(radarAnalysis.radarScores.reduce((sum, region) => sum + region.score, 0) / radarAnalysis.radarScores.length)
+      : undefined)
 
   const handleStatusChange = (status: LeadStatus) => {
     updateLeadStatus(lead.id, status)
     logAuditEvent('lead_status_changed', { lead_id: lead.id, status })
+
     if (isSupabaseConfigured()) {
       try {
-        const sessionId = sbLead ? lead.id : lead.id
         const sb = createClient()
-        updateSession(sb, sessionId, { status }).catch(() => {})
-      } catch { /* best-effort */ }
+        updateSession(sb, lead.id, { status }).catch(() => {})
+      } catch {
+        // Best-effort sync.
+      }
     }
   }
 
   const handleSaveNotes = async (notes: string): Promise<boolean> => {
     updateDoctorNotes(lead.id, notes)
     logAuditEvent('doctor_note_added', { lead_id: lead.id })
+
     if (!isSupabaseConfigured()) return true
+
     try {
       const sb = createClient()
       const { error } = await insertDoctorNote(sb, lead.id, notes)
@@ -128,49 +162,47 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   return (
-    <div className="flex flex-col gap-8 max-w-5xl">
-      {/* ── Breadcrumb ── */}
+    <div className="flex flex-col gap-8 max-w-5xl pb-6">
       <div className="flex items-center gap-2">
         <button
           onClick={() => router.push('/doctor/leads')}
-          className="font-body text-[10px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)] hover:text-[#D6B98C] transition-colors"
+          className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.55)] hover:text-[#C4A35A] transition-colors"
         >
           ← Lead Listesi
         </button>
-        <span className="text-[rgba(248,246,242,0.20)]">/</span>
-        <span className="font-mono text-[10px] text-[rgba(248,246,242,0.38)]">{lead.id.slice(0, 8)}</span>
+        <span className="text-[rgba(26,26,46,0.22)]">/</span>
+        <span className="font-mono text-[12px] text-[rgba(26,26,46,0.40)]">{lead.id.slice(0, 8)}</span>
       </div>
 
-      {/* ── Patient Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-[32px] font-light text-[#F8F6F2] mb-2">{lead.full_name}</h1>
+          <h1 className="font-display text-[44px] font-light text-[#1A1A2E] mb-2">{lead.full_name}</h1>
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={lead.status} type="lead" />
             {lead.readiness_band && <StatusBadge status={lead.readiness_band} type="readiness" />}
             {lead.age_range && (
-              <span className="font-mono text-[10px] text-[rgba(248,246,242,0.52)] px-2 py-0.5 rounded-md bg-[rgba(20,18,14,0.55)]">
+              <span className="doctor-card-soft font-mono text-[12px] text-[rgba(26,26,46,0.60)] px-2 py-0.5 rounded-md">
                 {lead.age_range}
               </span>
             )}
             {lead.phone && (
-              <span className="font-mono text-[10px] text-[rgba(248,246,242,0.52)]">{lead.phone}</span>
+              <span className="font-mono text-[12px] text-[rgba(26,26,46,0.50)]">{lead.phone}</span>
             )}
           </div>
-          <p className="font-body text-[11px] text-[rgba(248,246,242,0.42)] mt-1">{formatDateTime(lead.created_at)}</p>
+          <p className="font-body text-[14px] text-[rgba(26,26,46,0.45)] mt-1">{formatDateTime(lead.created_at)}</p>
         </div>
 
         <div className="flex gap-2">
           <button
             onClick={handleGenerateReport}
-            className="px-4 py-2 rounded-lg bg-[rgba(214,185,140,0.08)] border border-[rgba(214,185,140,0.22)] font-body text-[10px] tracking-[0.1em] uppercase text-[#D6B98C] hover:bg-[rgba(214,185,140,0.18)] transition-colors"
+            className="doctor-card-soft px-4 py-2 rounded-lg font-body text-[12px] tracking-[0.1em] uppercase text-[#C4A35A] hover:bg-[rgba(196,163,90,0.10)] transition-colors"
           >
             Rapor
           </button>
           {lead.report_url && (
             <Link
               href={lead.report_url}
-              className="px-4 py-2 rounded-lg bg-[rgba(61,155,122,0.08)] border border-[rgba(61,155,122,0.15)] font-body text-[10px] tracking-[0.1em] uppercase text-[#4AE3A7] hover:bg-[rgba(61,155,122,0.12)] transition-colors"
+              className="doctor-card-soft px-4 py-2 rounded-lg font-body text-[12px] tracking-[0.1em] uppercase text-[#2D5F5D] hover:bg-[rgba(45,95,93,0.10)] transition-colors"
             >
               Raporu Aç
             </Link>
@@ -178,13 +210,20 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      {/* ── 1. Analysis Hero Summary ── */}
       {(overallScore != null || radarAnalysis) && (
         <Section title="Analiz Özeti">
           <AnalysisHeroSummary
             overallScore={overallScore}
             confidence={lead.analysis_confidence}
-            captureQuality={lead.capture_quality_score != null ? (lead.capture_quality_score >= 80 ? 'high' : lead.capture_quality_score >= 50 ? 'medium' : 'low') : undefined}
+            captureQuality={
+              lead.capture_quality_score != null
+                ? lead.capture_quality_score >= 80
+                  ? 'high'
+                  : lead.capture_quality_score >= 50
+                    ? 'medium'
+                    : 'low'
+                : undefined
+            }
             reliabilityBand={lead.overall_reliability_band}
             evidenceCoverage={lead.evidence_coverage_score}
             suppressionCount={lead.suppression_count}
@@ -197,7 +236,6 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </Section>
       )}
 
-      {/* ── 2. Quality Badges ── */}
       <QualityBadges
         captureConfidence={lead.capture_confidence}
         captureQualityScore={lead.capture_quality_score}
@@ -210,7 +248,6 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         qualityScore={lead.quality_score}
       />
 
-      {/* ── 3. Face Images ── */}
       <Section title="Çekim Görselleri">
         <PatientImageReview
           frontPhoto={lead.doctor_frontal_photos?.[0] ?? lead.patient_photo_url}
@@ -219,47 +256,33 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         />
       </Section>
 
-      {/* ── 4. Radar Analysis ── */}
       {radarAnalysis?.radarScores && (
         <Section title="Radar Analizi">
           <DoctorRadarSection radarAnalysis={radarAnalysis} />
         </Section>
       )}
 
-      {/* ── 5. Region Analysis Grid ── */}
       <Section title="Bölgesel Değerlendirme">
-        <RegionAnalysisGrid
-          radarScores={radarAnalysis?.radarScores}
-          focusAreas={focusAreas}
-          wrinkleScores={wrinkleScores}
-        />
+        <RegionAnalysisGrid radarScores={radarAnalysis?.radarScores} focusAreas={focusAreas} wrinkleScores={wrinkleScores} />
       </Section>
 
-      {/* ── 6. AI Scores (if available) ── */}
       {lead.ai_scores && (
         <Section title="AI Geometrik Analiz">
           <AIScoresPanel aiScores={lead.ai_scores as Record<string, unknown>} />
         </Section>
       )}
 
-      {/* ── 7. Intake & Context ── */}
       <Section title="Hasta Bilgileri & Form">
         <IntakeContextPanel lead={lead} />
       </Section>
 
-      {/* ── 8. Doctor Actions ── */}
       <Section title="Doktor Aksiyonları">
-        <DoctorActionPanel
-          lead={lead}
-          onStatusChange={handleStatusChange}
-          onSaveNotes={handleSaveNotes}
-        />
+        <DoctorActionPanel lead={lead} onStatusChange={handleStatusChange} onSaveNotes={handleSaveNotes} />
       </Section>
     </div>
   )
 }
 
-// ── AI Scores Sub-panel ──
 function AIScoresPanel({ aiScores }: { aiScores: Record<string, unknown> }) {
   const symmetry = aiScores.symmetry as number | undefined
   const proportion = aiScores.proportion as number | undefined
@@ -267,38 +290,59 @@ function AIScoresPanel({ aiScores }: { aiScores: Record<string, unknown> }) {
   const suggestions = aiScores.suggestions as string[] | undefined
 
   return (
-    <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-5">
+    <div className="doctor-card-strong relative rounded-xl p-5 overflow-hidden">
+      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[rgba(196,163,90,0.24)] to-transparent" />
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
         {symmetry != null && (
           <div>
-            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)] mb-1">Simetri</p>
-            <p className="font-mono text-[20px] font-light text-[#F8F6F2]">{symmetry}<span className="text-[11px] text-[rgba(248,246,242,0.48)]">%</span></p>
+            <p className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-1">Simetri</p>
+            <p className="font-mono text-[26px] font-light text-[#1A1A2E]">
+              {symmetry}
+              <span className="text-[13px] text-[rgba(26,26,46,0.42)]">%</span>
+            </p>
           </div>
         )}
         {proportion != null && (
           <div>
-            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)] mb-1">Altın Oran</p>
-            <p className="font-mono text-[20px] font-light text-[#F8F6F2]">{proportion}<span className="text-[11px] text-[rgba(248,246,242,0.48)]">%</span></p>
+            <p className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-1">Altın Oran</p>
+            <p className="font-mono text-[26px] font-light text-[#1A1A2E]">
+              {proportion}
+              <span className="text-[13px] text-[rgba(26,26,46,0.42)]">%</span>
+            </p>
           </div>
         )}
-        {metrics && Object.entries(metrics).slice(0, 4).map(([key, val]) => (
-          <div key={key}>
-            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)] mb-1">
-              {key === 'faceRatio' ? 'Yüz Oranı' : key === 'eyeDistanceRatio' ? 'Göz Mesafesi' : key === 'noseToFaceWidth' ? 'Burun/Yüz' : key === 'symmetryRatio' ? 'Simetri Oranı' : key}
-            </p>
-            <p className="font-mono text-[14px] text-[rgba(248,246,242,0.72)]">{typeof val === 'number' ? val.toFixed(3) : String(val)}</p>
-          </div>
-        ))}
+        {metrics &&
+          Object.entries(metrics)
+            .slice(0, 4)
+            .map(([key, value]) => (
+              <div key={key}>
+                <p className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-1">
+                  {key === 'faceRatio'
+                    ? 'Yüz Oranı'
+                    : key === 'eyeDistanceRatio'
+                      ? 'Göz Mesafesi'
+                      : key === 'noseToFaceWidth'
+                        ? 'Burun/Yüz'
+                        : key === 'symmetryRatio'
+                          ? 'Simetri Oranı'
+                          : key}
+                </p>
+                <p className="font-mono text-[17px] text-[rgba(26,26,46,0.72)]">
+                  {typeof value === 'number' ? value.toFixed(3) : String(value)}
+                </p>
+              </div>
+            ))}
       </div>
 
       {suggestions && suggestions.length > 0 && (
-        <div className="pt-3 border-t border-[rgba(214,185,140,0.08)]">
-          <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.42)] mb-2">Bulgular</p>
+        <div className="pt-3 border-t border-[rgba(196,163,90,0.12)]">
+          <p className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-2">Bulgular</p>
           <ul className="flex flex-col gap-1">
-            {suggestions.map((s, i) => (
-              <li key={i} className="font-body text-[11px] text-[rgba(248,246,242,0.62)] flex items-start gap-2">
-                <span className="text-[#D6B98C] mt-0.5">·</span>
-                {s}
+            {suggestions.map((suggestion, index) => (
+              <li key={index} className="font-body text-[14px] text-[rgba(26,26,46,0.72)] flex items-start gap-2">
+                <span className="text-[#C4A35A] mt-0.5">·</span>
+                {suggestion}
               </li>
             ))}
           </ul>

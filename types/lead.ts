@@ -132,6 +132,79 @@ export const sourceLabels: Record<LeadSource, string> = {
   whatsapp: 'WhatsApp',
 }
 
+// ─── Region Analysis (from lib/analysis/) ─────────────────
+
+export interface RegionAnalysisLead {
+  /** ISO timestamp of when analysis ran */
+  timestamp: string
+  /** Overall composite score 0-100 */
+  overallScore: number
+  /** Overall confidence 0-1 */
+  overallConfidence: number
+  /** Number of regions that passed quality gates */
+  usableRegionsCount: number
+  /** Number of regions skipped due to quality issues */
+  skippedRegionsCount: number
+  /** Top concern regions (lowest scoring) */
+  topConcerns: Array<{
+    regionId: string
+    label: string
+    score: number
+    confidence: number
+    severity: string
+    explanation: string
+  }>
+  /** Strongest regions (highest scoring) */
+  strongestAreas: Array<{
+    regionId: string
+    label: string
+    score: number
+    confidence: number
+    severity: string
+    explanation: string
+  }>
+  /** Per-group aggregate scores */
+  groupScores: Array<{
+    group: string
+    label: string
+    score: number
+    confidence: number
+  }>
+  /** Per-region scores (all 18 regions, scored or skipped) */
+  regionScores: Array<{
+    regionId: string
+    label: string
+    score: number
+    confidence: number
+    severity: string
+    summaryLabel: string
+    drivers: string[]
+  }>
+  /** Turkish explanations per region */
+  explanations: Array<{
+    regionId: string
+    label: string
+    explanation: string
+    confidenceLevel: 'high' | 'medium' | 'low'
+    evidenceBasis: 'direct' | 'indirect' | 'insufficient'
+  }>
+  /** Confidence UI summary */
+  confidenceSummary: {
+    band: string
+    patientMessage: string
+    showInsufficientWarning: boolean
+    insufficientRegions: string[]
+  }
+  /** Caution flags from scoring engine */
+  cautionFlags: string[]
+  /** Whether skin confidence map was computed */
+  skinConfidenceComputed: boolean
+  /** Overall skin confidence 0-1 (if computed) */
+  overallSkinConfidence: number | null
+  /** Quality gate global reason codes */
+  globalQualityIssues: string[]
+}
+
 export interface Lead {
   id: string
   full_name: string
@@ -283,6 +356,9 @@ export interface Lead {
 
   /** Stable canonical payload for future backend reruns / audit */
   canonical_analysis?: CanonicalAnalysisPayload
+
+  /** Region-aware facial analysis (18 regions, confidence-weighted scoring) */
+  region_analysis?: RegionAnalysisLead
 
   /** Tracks where the analysis data came from */
   analysis_source?: {

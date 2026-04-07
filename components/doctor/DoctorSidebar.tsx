@@ -29,7 +29,7 @@ export function DoctorSidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="hidden lg:flex flex-col w-52 bg-[rgba(16,14,11,0.55)] border-r border-[rgba(214,185,140,0.08)] min-h-[calc(100vh-3.5rem)] pt-6 px-3">
+    <aside className="hidden lg:flex flex-col w-56 doctor-card border-y-0 border-l-0 rounded-none min-h-[calc(100vh-4rem)] pt-6 px-3">
       <nav className="flex flex-col gap-0.5">
         {navItems.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + '/')
@@ -40,8 +40,8 @@ export function DoctorSidebar() {
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg font-body text-[12px] tracking-[0.02em] transition-all',
                 active
-                  ? 'text-[#D6B98C] bg-[rgba(214,185,140,0.08)] border-l-2 border-[#D6B98C] -ml-0.5'
-                  : 'text-[rgba(248,246,242,0.58)] hover:text-[rgba(248,246,242,0.80)] hover:bg-[rgba(20,18,14,0.50)]'
+                  ? 'text-[#C4A35A] bg-[rgba(255,255,255,0.75)] border border-[rgba(196,163,90,0.18)]'
+                  : 'text-[rgba(26,26,46,0.62)] hover:text-[#1A1A2E] hover:bg-[rgba(255,255,255,0.62)]'
               )}
             >
               {item.icon}
@@ -51,8 +51,8 @@ export function DoctorSidebar() {
         })}
       </nav>
 
-      <div className="mt-auto pb-6 pt-4 border-t border-[rgba(214,185,140,0.08)]">
-        <p className="font-mono text-[8px] text-[rgba(248,246,242,0.38)] tracking-[0.12em] uppercase px-3">
+      <div className="mt-auto pb-6 pt-4 border-t border-[rgba(196,163,90,0.12)]">
+        <p className="font-mono text-[8px] text-[rgba(26,26,46,0.38)] tracking-[0.12em] uppercase px-3">
           Antigravity Clinic
         </p>
       </div>

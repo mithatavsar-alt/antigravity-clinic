@@ -10,13 +10,13 @@ interface FormFieldProps {
 
 export function FormField({ label, required, error, children, className }: FormFieldProps) {
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      <label className="font-body text-[10px] tracking-[0.2em] uppercase text-[var(--color-text-muted)]">
+    <div className={cn('flex flex-col gap-2', className)}>
+      <label className="font-body text-[11px] tracking-[0.18em] uppercase text-[var(--color-text-muted)] font-medium">
         {label}{required && ' *'}
       </label>
       {children}
       {error && (
-        <p className="font-body text-[11px] text-medical-danger">{error}</p>
+        <p className="font-body text-[12px] text-medical-danger">{error}</p>
       )}
     </div>
   )

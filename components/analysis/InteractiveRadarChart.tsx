@@ -18,6 +18,7 @@ interface Props {
   regions: ShowcaseRegion[]
   currentIndex: number
   onSelect: (index: number) => void
+  variant?: 'dark' | 'light'
 }
 
 // ─── Proportional sizing ──────────────────────────────────────
@@ -85,7 +86,7 @@ function useAnimatedNumber(target: number, duration = 600): number {
 
 // ─── Component ────────────────────────────────────────────────
 
-export default function InteractiveRadarChart({ regions, currentIndex, onSelect }: Props) {
+export default function InteractiveRadarChart({ regions, currentIndex, onSelect, variant = 'dark' }: Props) {
   const [mounted, setMounted] = useState(false)
   const [prevIndex, setPrevIndex] = useState(currentIndex)
 
@@ -104,6 +105,42 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
   const currentRegion = regions[currentIndex]
   const centerScore = useAnimatedNumber(currentRegion?.score ?? 0, 600)
   const centerColor = scoreColor(currentRegion?.score ?? 50)
+  const palette =
+    variant === 'light'
+      ? {
+          gridOuter: 'rgba(26,26,46,0.10)',
+          gridInner: 'rgba(26,26,46,0.05)',
+          axis: 'rgba(26,26,46,0.04)',
+          fillStart: 'rgba(196,163,90,0.16)',
+          fillMid: 'rgba(45,95,93,0.08)',
+          fillEnd: 'rgba(45,95,93,0)',
+          strokeStart: '#2D5F5D',
+          strokeMid: '#C4A35A',
+          strokeEnd: '#2D5F5D',
+          dotStroke: 'rgba(255,255,255,0.92)',
+          label: 'rgba(26,26,46,0.64)',
+          labelMuted: 'rgba(26,26,46,0.42)',
+          labelSuppressed: 'rgba(26,26,46,0.30)',
+          activeScoreSuppressed: 'rgba(26,26,46,0.26)',
+          centerLabel: 'rgba(26,26,46,0.32)',
+        }
+      : {
+          gridOuter: 'rgba(248,246,242,0.07)',
+          gridInner: 'rgba(248,246,242,0.03)',
+          axis: 'rgba(248,246,242,0.015)',
+          fillStart: 'rgba(214,185,140,0.12)',
+          fillMid: 'rgba(61,155,122,0.06)',
+          fillEnd: 'rgba(61,155,122,0)',
+          strokeStart: '#4AE3A7',
+          strokeMid: '#D6B98C',
+          strokeEnd: '#4AE3A7',
+          dotStroke: 'rgba(10,8,6,0.6)',
+          label: 'rgba(248,246,242,0.58)',
+          labelMuted: 'rgba(248,246,242,0.42)',
+          labelSuppressed: 'rgba(248,246,242,0.30)',
+          activeScoreSuppressed: 'rgba(248,246,242,0.22)',
+          centerLabel: 'rgba(248,246,242,0.28)',
+        }
 
   if (n === 0) return null
 
@@ -132,15 +169,15 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
         </filter>
 
         <radialGradient id="irFill" cx="50%" cy="45%" r="60%">
-          <stop offset="0%" stopColor="rgba(214,185,140,0.12)" />
-          <stop offset="50%" stopColor="rgba(61,155,122,0.06)" />
-          <stop offset="100%" stopColor="rgba(61,155,122,0)" />
+          <stop offset="0%" stopColor={palette.fillStart} />
+          <stop offset="50%" stopColor={palette.fillMid} />
+          <stop offset="100%" stopColor={palette.fillEnd} />
         </radialGradient>
 
         <linearGradient id="irStroke" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#4AE3A7" stopOpacity="0.75" />
-          <stop offset="50%" stopColor="#D6B98C" stopOpacity="0.85" />
-          <stop offset="100%" stopColor="#4AE3A7" stopOpacity="0.75" />
+          <stop offset="0%" stopColor={palette.strokeStart} stopOpacity="0.75" />
+          <stop offset="50%" stopColor={palette.strokeMid} stopOpacity="0.85" />
+          <stop offset="100%" stopColor={palette.strokeEnd} stopOpacity="0.75" />
         </linearGradient>
 
         <radialGradient id="irOrb">
@@ -167,7 +204,7 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
           key={lv}
           points={polyPts(n, R * lv)}
           fill="none"
-          stroke={lv === 1 ? 'rgba(248,246,242,0.07)' : `rgba(248,246,242,${0.01 + lv * 0.01})`}
+          stroke={lv === 1 ? palette.gridOuter : palette.gridInner}
           strokeWidth={lv === 1 ? 0.8 : 0.35}
           strokeDasharray={lv === 1 ? 'none' : '2 5'}
         />
@@ -181,7 +218,7 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
           <line
             key={`ax-${i}`}
             x1={CX} y1={CY} x2={ox} y2={oy}
-            stroke={active ? `url(#axGrad-${i})` : 'rgba(248,246,242,0.015)'}
+            stroke={active ? `url(#axGrad-${i})` : palette.axis}
             strokeWidth={active ? 0.7 : 0.35}
             style={{ transition: 'stroke-width 0.4s, stroke 0.4s' }}
           />
@@ -225,7 +262,7 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
         {/* Interactive dots */}
         {regions.map((r, i) => {
           const [x, y] = polar(i, n, vis(r.score))
-          const c = r.status === 'suppressed' ? 'rgba(248,246,242,0.18)' : scoreColor(r.score)
+          const c = r.status === 'suppressed' ? (variant === 'light' ? 'rgba(26,26,46,0.18)' : 'rgba(248,246,242,0.18)') : scoreColor(r.score)
           const active = currentIndex === i
           const dr = active ? DOT_R_ACTIVE : DOT_R
           const suppressed = r.status === 'suppressed'
@@ -262,7 +299,7 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
               <circle
                 cx={x} cy={y} r={dr}
                 fill={c}
-                stroke="rgba(10,8,6,0.6)"
+                stroke={palette.dotStroke}
                 strokeWidth={STROKE_W * 0.8}
                 opacity={suppressed ? 0.35 : muted ? 0.72 : 1}
                 style={{ transition: 'r 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}
@@ -309,12 +346,12 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
               textAnchor={anchor}
               fill={
                 suppressed
-                  ? 'rgba(248,246,242,0.30)'
+                  ? palette.labelSuppressed
                   : active
                     ? scoreColor(r.score)
                     : muted
-                      ? 'rgba(248,246,242,0.42)'
-                      : 'rgba(248,246,242,0.58)'
+                      ? palette.labelMuted
+                      : palette.label
               }
               style={{
                 fontSize: `${active ? LABEL_FONT_ACTIVE : LABEL_FONT}px`,
@@ -342,7 +379,7 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
             <text
               x={lx} y={ly + dy + (isMultiWord ? lineHeight + 10 : 16) + lift + (isMultiWord && sin < -0.3 ? -lineHeight * 0.4 : 0)}
               textAnchor={anchor}
-              fill={suppressed ? 'rgba(248,246,242,0.22)' : scoreColor(r.score)}
+              fill={suppressed ? palette.activeScoreSuppressed : scoreColor(r.score)}
               style={{
                 fontSize: `${VB * 0.026}px`,
                 fontFamily: "'JetBrains Mono', monospace",
@@ -404,7 +441,7 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
             <text
               x={CX} y={CY + VB * 0.062}
               textAnchor="middle"
-              fill="rgba(248,246,242,0.28)"
+              fill={palette.centerLabel}
               style={{
                 fontSize: `${VB * 0.024}px`,
                 fontFamily: "'Outfit', system-ui, sans-serif",
@@ -422,7 +459,7 @@ export default function InteractiveRadarChart({ regions, currentIndex, onSelect 
             key={currentIndex}
             x={CX} y={CY + VB * 0.062}
             textAnchor="middle"
-            fill="rgba(248,246,242,0.28)"
+            fill={palette.centerLabel}
             style={{
               fontSize: `${VB * 0.024}px`,
               fontFamily: "'Outfit', system-ui, sans-serif",

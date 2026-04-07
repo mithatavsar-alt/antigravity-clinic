@@ -28,9 +28,9 @@ const variants = {
   primary: [
     'bg-gradient-to-br from-medical-trust to-[#3A7F6A]',
     'text-white border-transparent',
-    'shadow-[0_4px_16px_rgba(45,95,93,0.20)]',
-    'hover:shadow-[0_12px_32px_rgba(45,95,93,0.35)] hover:-translate-y-1',
-    'active:translate-y-0 active:shadow-[0_4px_12px_rgba(45,95,93,0.25)]',
+    'shadow-[0_4px_20px_rgba(45,95,93,0.25)]',
+    'hover:shadow-[0_12px_36px_rgba(45,95,93,0.40)] hover:-translate-y-1',
+    'active:translate-y-0 active:shadow-[0_4px_16px_rgba(45,95,93,0.30)]',
   ].join(' '),
   secondary: [
     'bg-transparent border',
@@ -49,14 +49,14 @@ const variants = {
     'btn-ghost bg-transparent border',
     'text-[var(--color-text-muted)] border-[var(--color-border)]',
     'hover:text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]',
-    'hover:bg-[rgba(248,246,242,0.03)]',
+    'hover:bg-[rgba(237,234,230,0.03)]',
   ].join(' '),
 }
 
 const sizes = {
-  sm: 'px-5 py-2.5 text-[10px] rounded-sm min-h-[36px]',
-  md: 'px-7 py-3.5 text-[11px] rounded min-h-[44px]',
-  lg: 'px-8 py-3.5 text-[12px] rounded-md min-h-[46px]',
+  sm: 'px-5 py-2.5 text-[11px] rounded-[10px] min-h-[38px]',
+  md: 'px-7 py-3 text-[12px] rounded-xl min-h-[46px]',
+  lg: 'px-9 py-4 text-[13px] rounded-xl min-h-[50px]',
 }
 
 export function PremiumButton({
@@ -74,9 +74,9 @@ export function PremiumButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'font-body font-medium tracking-[0.15em] uppercase',
+        'font-body font-medium tracking-[0.14em] uppercase',
         'transition-all duration-300 ease-out',
-        'inline-flex items-center gap-2.5',
+        'inline-flex items-center justify-center gap-2.5',
         variants[variant],
         sizes[size],
         disabled && 'opacity-40 cursor-not-allowed hover:translate-y-0 hover:shadow-none',

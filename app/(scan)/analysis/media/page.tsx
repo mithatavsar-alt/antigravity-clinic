@@ -1,32 +1,62 @@
 'use client'
 
-import { useEffect, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useCallback, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useClinicStore } from '@/lib/store'
 import { FaceGuideCapture, type CaptureMetadata, type MultiCaptureResult } from '@/components/analysis/FaceGuideCapture'
 
 export default function AnalysisMediaPage() {
+  return (
+    <Suspense fallback={null}>
+      <MediaContent />
+    </Suspense>
+  )
+}
+
+function MediaContent() {
   const router = useRouter()
-  const { currentLead, setCurrentLead } = useClinicStore()
+  const searchParams = useSearchParams()
+  const recaptureId = searchParams.get('id')
+  const { currentLead, setCurrentLead, leads } = useClinicStore()
   const navigatingRef = useRef(false)
+
+  // Recapture: if arriving with ?id=, restore the lead into currentLead
+  // so the capture flow resumes without restarting the wizard.
+  useEffect(() => {
+    if (recaptureId && !currentLead?.full_name) {
+      const existingLead = leads.find((l) => l.id === recaptureId)
+      if (existingLead) {
+        setCurrentLead({
+          id: existingLead.id,
+          full_name: existingLead.full_name,
+          age_range: existingLead.age_range,
+          gender: existingLead.gender,
+          phone: existingLead.phone,
+          concern_area: existingLead.concern_area,
+        })
+      }
+    }
+  }, [recaptureId, currentLead?.full_name, leads, setCurrentLead])
 
   // Step guard: must have completed step 1 (personal info)
   useEffect(() => {
     if (!currentLead?.full_name) {
+      // If recaptureId exists, wait for the restore effect above
+      if (recaptureId) return
       router.replace('/analysis')
       return
     }
 
     // Workflow: entering capture phase.
     const { scanWorkflow, transitionWorkflow, resetWorkflow } = useClinicStore.getState()
-    if (scanWorkflow.phase === 'result') {
+    if (scanWorkflow.phase === 'result' || scanWorkflow.phase === 'recapture') {
       transitionWorkflow('start_recapture')
       transitionWorkflow('start_capture')
     } else if (scanWorkflow.phase !== 'capture') {
       resetWorkflow()
       transitionWorkflow('start_capture')
     }
-  }, [currentLead, router])
+  }, [currentLead, router, recaptureId])
 
   const handleMultiCapture = useCallback((photos: MultiCaptureResult, meta?: CaptureMetadata) => {
     if (navigatingRef.current) return

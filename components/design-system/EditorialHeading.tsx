@@ -20,9 +20,9 @@ export function EditorialHeading({
   light = false,
 }: EditorialHeadingProps) {
   const sizeMap = {
-    h1: 'text-[clamp(2.5rem,5.5vw,4.5rem)] tracking-[-0.03em] leading-[1.0]',
-    h2: 'text-[clamp(2rem,4.5vw,3.5rem)] tracking-[-0.02em] leading-[1.08]',
-    h3: 'text-[clamp(1.5rem,3vw,2.25rem)] tracking-[-0.01em] leading-[1.15]',
+    h1: 'text-[clamp(2.75rem,5.5vw,4.75rem)] tracking-[-0.03em] leading-[1.0]',
+    h2: 'text-[clamp(2.125rem,4.5vw,3.625rem)] tracking-[-0.02em] leading-[1.08]',
+    h3: 'text-[clamp(1.625rem,3vw,2.375rem)] tracking-[-0.01em] leading-[1.15]',
   }
 
   return (
@@ -30,7 +30,7 @@ export function EditorialHeading({
       className={cn(
         'font-display font-light',
         sizeMap[Tag],
-        light ? 'text-[var(--color-text,#F8F6F2)]' : 'text-[var(--color-text)]',
+        light ? 'text-[var(--color-text,#EDEAE6)]' : 'text-[var(--color-text)]',
         className
       )}
     >

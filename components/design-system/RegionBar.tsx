@@ -52,21 +52,21 @@ export function RegionBar({ label, score, className, showScore = true }: RegionB
   }, [])
 
   return (
-    <div ref={ref} className={cn('flex flex-col gap-1.5', className)}>
+    <div ref={ref} className={cn('flex flex-col gap-2', className)}>
       <div className="flex justify-between items-center">
-        <span className="font-body text-[12px] text-[var(--color-text-muted)]">
+        <span className="font-body text-[13px] text-[var(--color-text-muted)]">
           {regionLabels[label] ?? label}
         </span>
         {showScore && (
           <span
-            className="font-mono text-[11px] font-medium"
+            className="font-mono text-[12px] font-medium tabular-nums"
             style={{ color }}
           >
             {pct}
           </span>
         )}
       </div>
-      <div className="h-1 bg-[var(--color-gold-glow)] rounded-full overflow-hidden">
+      <div className="h-1.5 bg-[var(--color-gold-glow)] rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-[1500ms] ease-[cubic-bezier(0.16,1,0.3,1)]"
           style={{

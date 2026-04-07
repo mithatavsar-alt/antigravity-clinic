@@ -130,19 +130,15 @@ export default function LoginPage() {
             </PremiumButton>
           </form>
 
-          <p className="font-mono text-[9px] text-[rgba(26,26,46,0.3)] text-center mt-5 tracking-[0.1em]">
-            Doktor girişi
-          </p>
+          <div className="flex justify-center mt-5">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-[rgba(26,26,46,0.03)] border border-[rgba(26,26,46,0.08)] font-body text-[12px] font-medium tracking-[0.06em] text-[rgba(26,26,46,0.48)] hover:text-[#C4A35A] hover:border-[rgba(196,163,90,0.2)] hover:bg-[rgba(196,163,90,0.06)] transition-all duration-200"
+            >
+              ← Hasta Girişi
+            </Link>
+          </div>
         </GlassCard>
-
-        <div className="text-center mt-6">
-          <Link
-            href="/"
-            className="font-body text-[11px] text-[rgba(26,26,46,0.35)] hover:text-[#C4A35A] transition-colors tracking-[0.04em]"
-          >
-            ← Hasta sayfasına dön
-          </Link>
-        </div>
       </div>
     </div>
   )

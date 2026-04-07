@@ -31,18 +31,20 @@ export const colors = {
 
   // ── Dark surfaces ──
   dark: {
-    /** Page base — rich charcoal, NOT pure black */
-    bg: '#0A0908',
-    /** Slightly lighter dark */
-    bgSoft: '#0E0B09',
+    /** Page base — deep charcoal, refined & rich */
+    bg: '#0B0F14',
+    /** Slightly lighter dark — section alternation */
+    bgSoft: '#0E1218',
     /** Elevated dark — panels, cards */
-    bgElevated: '#14110E',
+    bgElevated: '#11161C',
+    /** Card surface — subtle lift from bg */
+    card: '#141A22',
     /** Glass dark surface */
-    glass: 'rgba(10, 9, 8, 0.85)',
-    glassStrong: 'rgba(14, 11, 9, 0.92)',
+    glass: 'rgba(11, 15, 20, 0.82)',
+    glassStrong: 'rgba(14, 18, 24, 0.90)',
     /** Panel/overlay dark */
-    panel: '#1A1A2E',
-    panelSoft: '#2A2A4A',
+    panel: '#161C26',
+    panelSoft: '#1E2530',
   },
 
   // ── Text ──
@@ -53,12 +55,12 @@ export const colors = {
     secondary: 'rgba(26, 26, 46, 0.65)',
     /** Muted/caption on light bg */
     muted: 'rgba(26, 26, 46, 0.40)',
-    /** Primary text on dark bg */
-    inverse: '#F8F6F2',
+    /** Primary text on dark bg — slightly warmer white */
+    inverse: '#EDEAE6',
     /** Secondary text on dark bg */
-    inverseSoft: 'rgba(248, 246, 242, 0.60)',
+    inverseSoft: 'rgba(237, 234, 230, 0.55)',
     /** Muted text on dark bg */
-    inverseMuted: 'rgba(248, 246, 242, 0.35)',
+    inverseMuted: 'rgba(237, 234, 230, 0.35)',
     /** Gold accent text */
     gold: '#C4A35A',
     /** Dark-theme gold (warmer) */
@@ -87,9 +89,18 @@ export const colors = {
     tealLight: '#3A7F6A',
     /** Emerald — dark theme success accent */
     emerald: '#3D9B7A',
-    /** Purple — AI association, very limited use */
+    /** Purple — AI association, subtle accent */
     purple: '#8B7FA8',
     purpleSoft: '#A89BC4',
+    /** Electric blue — modern SaaS accent */
+    blue: '#5B8DEF',
+    blueLight: '#7AA4F7',
+    blueSoft: 'rgba(91, 141, 239, 0.15)',
+    blueGlow: 'rgba(91, 141, 239, 0.25)',
+    /** Violet — premium AI glow */
+    violet: '#8B6CC1',
+    violetSoft: 'rgba(139, 108, 193, 0.15)',
+    violetGlow: 'rgba(139, 108, 193, 0.20)',
   },
 
   // ── Borders ──
@@ -99,12 +110,15 @@ export const colors = {
     /** Light theme visible border */
     medium: 'rgba(26, 26, 46, 0.12)',
     /** Dark theme subtle border */
-    darkSoft: 'rgba(248, 246, 242, 0.06)',
+    darkSoft: 'rgba(237, 234, 230, 0.06)',
     /** Dark theme visible border */
-    darkMedium: 'rgba(248, 246, 242, 0.12)',
+    darkMedium: 'rgba(237, 234, 230, 0.10)',
     /** Gold accent border */
     gold: 'rgba(196, 163, 90, 0.15)',
     goldStrong: 'rgba(196, 163, 90, 0.30)',
+    /** Blue accent border (dark theme) */
+    blue: 'rgba(91, 141, 239, 0.12)',
+    blueStrong: 'rgba(91, 141, 239, 0.25)',
   },
 
   // ── Semantic states ──
@@ -115,8 +129,8 @@ export const colors = {
     warningSoft: 'rgba(196, 136, 58, 0.10)',
     error: '#A05252',
     errorSoft: 'rgba(160, 82, 82, 0.10)',
-    info: '#5B7FA8',
-    infoSoft: 'rgba(91, 127, 168, 0.10)',
+    info: '#5B8DEF',
+    infoSoft: 'rgba(91, 141, 239, 0.10)',
   },
 
   // ── Stone scale (neutral grays) ──
@@ -141,24 +155,24 @@ export const typography = {
   fontMono: 'var(--font-mono)',
 
   size: {
-    /** Hero headline: clamp(40px, 5.5vw, 72px) */
-    hero: 'clamp(2.5rem, 5.5vw, 4.5rem)',
-    /** Section H2: clamp(32px, 4.5vw, 56px) */
-    h1: 'clamp(2rem, 4.5vw, 3.5rem)',
-    /** Sub-section heading: clamp(24px, 3vw, 36px) */
-    h2: 'clamp(1.5rem, 3vw, 2.25rem)',
+    /** Hero headline: clamp(44px, 5.5vw, 76px) */
+    hero: 'clamp(2.75rem, 5.5vw, 4.75rem)',
+    /** Section H2: clamp(34px, 4.5vw, 58px) */
+    h1: 'clamp(2.125rem, 4.5vw, 3.625rem)',
+    /** Sub-section heading: clamp(26px, 3vw, 38px) */
+    h2: 'clamp(1.625rem, 3vw, 2.375rem)',
     /** Card/panel title */
-    h3: '1.375rem', // 22px
+    h3: '1.5rem',     // 24px (was 22px)
     /** Large body — section descriptions */
-    bodyLg: '1.0625rem', // 17px
+    bodyLg: '1.125rem', // 18px (was 17px)
     /** Default body */
-    body: '0.9375rem', // 15px
+    body: '1rem',       // 16px (was 15px)
     /** Small body — captions, secondary */
     bodySm: '0.875rem', // 14px
     /** Micro text — badges, labels */
-    micro: '0.6875rem', // 11px
+    micro: '0.75rem',   // 12px (was 11px)
     /** Tiny — score labels, metadata */
-    tiny: '0.5625rem', // 9px
+    tiny: '0.625rem',   // 10px (was 9px)
   },
 
   leading: {
@@ -180,9 +194,9 @@ export const typography = {
     /** Normal body */
     normal: '0',
     /** Micro labels, overlines */
-    wide: '0.15em',
+    wide: '0.12em',
     /** Section labels — widest */
-    widest: '0.20em',
+    widest: '0.18em',
   },
 
   weight: {
@@ -194,7 +208,7 @@ export const typography = {
   },
 } as const
 
-// ─── Spacing (4px base) ────────────────────────────────────────
+// ─── Spacing (8px base grid) ──────────────────────────────────
 
 export const spacing = {
   /** 4px */
@@ -267,10 +281,16 @@ export const shadows = {
   float: '0 20px 60px rgba(26, 26, 46, 0.08)',
   /** Gold glow — premium emphasis only */
   glowGold: '0 4px 20px rgba(196, 163, 90, 0.18)',
-  /** Dark panel shadow */
-  dark: '0 8px 40px rgba(0, 0, 0, 0.30)',
+  /** Blue glow — modern accent */
+  glowBlue: '0 4px 24px rgba(91, 141, 239, 0.20)',
+  /** Violet glow — AI emphasis */
+  glowViolet: '0 4px 24px rgba(139, 108, 193, 0.18)',
+  /** Dark panel shadow — deeper, richer */
+  dark: '0 8px 40px rgba(0, 0, 0, 0.40)',
   /** Dark hover */
-  darkHover: '0 20px 60px rgba(0, 0, 0, 0.40)',
+  darkHover: '0 20px 60px rgba(0, 0, 0, 0.50)',
+  /** Dark card — subtle ring + deep shadow */
+  darkCard: '0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 40px rgba(0,0,0,0.35)',
   /** Subtle inner shadow for inputs */
   inner: 'inset 0 1px 2px rgba(26, 26, 46, 0.06)',
 } as const
@@ -319,14 +339,18 @@ export const motion = {
 export const gradients = {
   /** Light hero background */
   heroLight: 'linear-gradient(160deg, #FAF6F1 0%, #F5EDE2 35%, #F0E6DA 65%, #EDE4DB 100%)',
-  /** Dark premium background */
-  heroDark: 'linear-gradient(160deg, #0A0908 0%, #14110E 20%, #0F1214 50%, #0A0B0D 100%)',
+  /** Dark premium background — deep charcoal with subtle blue undertone */
+  heroDark: 'linear-gradient(160deg, #0B0F14 0%, #0E1319 20%, #101620 50%, #0B0F14 100%)',
   /** Gold accent */
   gold: 'linear-gradient(135deg, #C4A35A 0%, #D4B96A 50%, #C4A35A 100%)',
   /** Teal CTA */
   teal: 'linear-gradient(135deg, #2D5F5D 0%, #3A7F6A 100%)',
-  /** Dark CTA panel */
-  ctaDark: 'linear-gradient(135deg, #1A1A2E 0%, #2A2A4A 50%, #1A1A2E 100%)',
+  /** Dark CTA panel — richer with subtle blue undertone */
+  ctaDark: 'linear-gradient(135deg, #111620 0%, #161C28 50%, #111620 100%)',
+  /** Blue-violet accent gradient */
+  accent: 'linear-gradient(135deg, #5B8DEF 0%, #8B6CC1 100%)',
+  /** Subtle ambient glow (for backgrounds) */
+  ambientGlow: 'radial-gradient(ellipse at 50% 0%, rgba(91,141,239,0.06) 0%, transparent 70%)',
   /** Platinum subtle */
   platinum: 'linear-gradient(135deg, #E8E4EF 0%, #D4C4E8 50%, #C4B8D8 100%)',
   /** Portrait warm */

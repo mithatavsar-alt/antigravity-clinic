@@ -22,22 +22,27 @@ const statusOptions: { value: LeadStatus; label: string }[] = [
 
 function deriveInsights(lead: Lead) {
   const insights: Array<{ label: string; color: string; icon: string }> = []
-  const rs = lead.readiness_score ?? 0
-  const conf = lead.analysis_confidence ?? 0
+  const readinessScore = lead.readiness_score ?? 0
+  const confidence = lead.analysis_confidence ?? 0
 
-  if (rs >= 80) insights.push({ label: 'İlk görüşme için uygun', color: '#4AE3A7', icon: '✓' })
-  else if (rs >= 60) insights.push({ label: 'İletişime hazır', color: '#3D9B7A', icon: '→' })
+  if (readinessScore >= 80) insights.push({ label: 'İlk görüşme için uygun', color: '#3D7A5F', icon: 'OK' })
+  else if (readinessScore >= 60) insights.push({ label: 'İletişime hazır', color: '#2D5F5D', icon: 'GO' })
 
-  if (lead.capture_confidence === 'low' || conf < 0.5) insights.push({ label: 'Düşük güven uyarısı', color: '#C4883A', icon: '!' })
-  if (lead.recapture_recommended) insights.push({ label: 'Yeniden çekim önerilir', color: '#C4883A', icon: '↻' })
+  if (lead.capture_confidence === 'low' || confidence < 0.5) {
+    insights.push({ label: 'Düşük güven uyarısı', color: '#C4883A', icon: '!' })
+  }
 
-  const focus = lead.focus_areas as Array<{ doctorReviewRecommended?: boolean }> | undefined
-  if (focus?.some((f) => f.doctorReviewRecommended)) {
-    insights.push({ label: 'Detaylı değerlendirme önerilir', color: '#D6B98C', icon: '◉' })
+  if (lead.recapture_recommended) {
+    insights.push({ label: 'Yeniden çekim önerilir', color: '#C4883A', icon: 'RE' })
+  }
+
+  const focusAreas = lead.focus_areas as Array<{ doctorReviewRecommended?: boolean }> | undefined
+  if (focusAreas?.some((item) => item.doctorReviewRecommended)) {
+    insights.push({ label: 'Detaylı değerlendirme önerilir', color: '#C4A35A', icon: 'MD' })
   }
 
   if (lead.consultation_timing === 'asap' || lead.consultation_timing === 'iki_hafta') {
-    insights.push({ label: 'Öncelikli takip', color: '#C47A7A', icon: '⚡' })
+    insights.push({ label: 'Öncelikli takip', color: '#C47A7A', icon: 'UP' })
   }
 
   return insights
@@ -50,7 +55,7 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
   const [saveError, setSaveError] = useState(false)
 
   const insights = deriveInsights(lead)
-  const rs = lead.readiness_score ?? 0
+  const readinessScore = lead.readiness_score ?? 0
 
   const handleSave = async () => {
     if (!onSaveNotes) return
@@ -68,54 +73,55 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* Status + Insights */}
-      <div className="rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-5">
-        <h4 className="font-body text-[10px] tracking-[0.15em] uppercase text-[#D6B98C] mb-4">Durum & Aksiyon</h4>
+      <div className="doctor-card-strong relative rounded-xl p-5 overflow-hidden">
+        <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[rgba(196,163,90,0.22)] to-transparent" />
+        <h4 className="font-body text-[13px] tracking-[0.15em] uppercase text-[#C4A35A] mb-4">Durum & Aksiyon</h4>
 
-        {/* Status selector */}
         <div className="mb-4">
-          <label className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)] mb-1.5 block">Lead Durumu</label>
-          <select
-            value={lead.status}
-            onChange={(e) => onStatusChange?.(e.target.value as LeadStatus)}
-            className="w-full bg-[rgba(18,16,13,0.55)] border border-[rgba(214,185,140,0.12)] rounded-lg px-3 py-2 font-body text-[12px] text-[#F8F6F2] focus:outline-none focus:border-[rgba(214,185,140,0.40)]"
-          >
-            {statusOptions.map((s) => (
-              <option key={s.value} value={s.value} className="bg-[#14110E]">{s.label}</option>
+          <label className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)] mb-1.5 block">Lead Durumu</label>
+          <select value={lead.status} onChange={(event) => onStatusChange?.(event.target.value as LeadStatus)} className="doctor-control">
+            {statusOptions.map((status) => (
+              <option key={status.value} value={status.value}>
+                {status.label}
+              </option>
             ))}
           </select>
         </div>
 
-        {/* Readiness score */}
-        {rs > 0 && (
-          <div className="mb-4 p-3 rounded-lg bg-[rgba(16,14,11,0.55)] backdrop-blur-lg">
-            <p className="font-body text-[9px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.48)] mb-1">Hazırlık Skoru</p>
+        {readinessScore > 0 && (
+          <div className="doctor-card-soft mb-4 p-3 rounded-lg">
+            <p className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)] mb-1">Hazırlık Skoru</p>
             <div className="flex items-baseline gap-2">
-              <span className="font-mono text-[22px] font-light" style={{ color: scoreColor(rs) }}>{rs}</span>
-              <span className="font-body text-[10px] text-[rgba(248,246,242,0.48)]">/ 100</span>
+              <span className="font-mono text-[28px] font-light" style={{ color: scoreColor(readinessScore) }}>
+                {readinessScore}
+              </span>
+              <span className="font-body text-[13px] text-[rgba(26,26,46,0.38)]">/ 100</span>
             </div>
           </div>
         )}
 
-        {/* Derived insights */}
         {insights.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            {insights.map((ins) => (
-              <div key={ins.label} className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-[rgba(16,14,11,0.55)] backdrop-blur-lg">
-                <span className="text-[10px]" style={{ color: ins.color }}>{ins.icon}</span>
-                <span className="font-body text-[11px]" style={{ color: ins.color }}>{ins.label}</span>
+            {insights.map((insight) => (
+              <div key={insight.label} className="doctor-card-soft flex items-center gap-2 px-2.5 py-1.5 rounded-md">
+                <span className="font-mono text-[11px]" style={{ color: insight.color }}>
+                  {insight.icon}
+                </span>
+                <span className="font-body text-[13px]" style={{ color: insight.color }}>
+                  {insight.label}
+                </span>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Doctor Notes */}
-      <div className="lg:col-span-2 rounded-xl border border-[rgba(214,185,140,0.08)] bg-[rgba(16,14,11,0.55)] backdrop-blur-lg p-5">
+      <div className="doctor-card-strong relative lg:col-span-2 rounded-xl p-5 overflow-hidden">
+        <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[rgba(196,163,90,0.22)] to-transparent" />
         <div className="flex items-center justify-between mb-4">
-          <h4 className="font-body text-[10px] tracking-[0.15em] uppercase text-[#D6B98C]">Doktor Notları</h4>
+          <h4 className="font-body text-[13px] tracking-[0.15em] uppercase text-[#C4A35A]">Doktor Notları</h4>
           {lead.doctor_notes_updated_at && (
-            <span className="font-mono text-[9px] text-[rgba(248,246,242,0.38)]">
+            <span className="font-mono text-[11px] text-[rgba(26,26,46,0.38)]">
               Son güncelleme: {new Date(lead.doctor_notes_updated_at).toLocaleDateString('tr-TR')}
             </span>
           )}
@@ -123,22 +129,22 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
 
         <textarea
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(event) => setNotes(event.target.value)}
           maxLength={2000}
           rows={5}
           placeholder="Hastaya özel klinik notlarınızı buraya ekleyin..."
-          className="w-full bg-[rgba(20,18,14,0.55)] border border-[rgba(214,185,140,0.10)] rounded-lg px-4 py-3 font-body text-[13px] text-[rgba(248,246,242,0.80)] placeholder:text-[rgba(248,246,242,0.28)] focus:outline-none focus:border-[rgba(214,185,140,0.35)] resize-none leading-relaxed"
+          className="doctor-control min-h-[148px] resize-none text-[15px] leading-relaxed"
         />
 
         <div className="flex items-center justify-between mt-3">
-          <span className="font-mono text-[9px] text-[rgba(248,246,242,0.38)]">{notes.length} / 2000</span>
+          <span className="font-mono text-[11px] text-[rgba(26,26,46,0.38)]">{notes.length} / 2000</span>
           <div className="flex items-center gap-3">
-            {saved && <span className="font-body text-[11px] text-[#4AE3A7]">Kaydedildi</span>}
-            {saveError && <span className="font-body text-[11px] text-[#C47A7A]">Kayıt başarısız</span>}
+            {saved && <span className="font-body text-[13px] text-[#3D7A5F]">Kaydedildi</span>}
+            {saveError && <span className="font-body text-[13px] text-[#C47A7A]">Kayıt başarısız</span>}
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 rounded-lg bg-[rgba(214,185,140,0.1)] border border-[rgba(214,185,140,0.2)] font-body text-[11px] tracking-[0.08em] uppercase text-[#D6B98C] hover:bg-[rgba(214,185,140,0.15)] transition-colors disabled:opacity-50"
+              className="doctor-card-soft px-4 py-2 rounded-lg font-body text-[13px] tracking-[0.08em] uppercase text-[#C4A35A] hover:bg-[rgba(196,163,90,0.12)] transition-colors disabled:opacity-50"
             >
               {saving ? 'Kaydediliyor...' : 'Kaydet'}
             </button>
