@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient, isSupabaseConfigured } from '@/lib/supabase/client'
 import { GlassCard } from '@/components/design-system/GlassCard'
 import { PremiumButton } from '@/components/design-system/PremiumButton'
 import { ThinLine } from '@/components/design-system/ThinLine'
@@ -16,13 +16,16 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  const configured = isSupabaseConfigured()
+
   // If already authenticated, redirect
   useEffect(() => {
+    if (!configured) return
     const sb = createClient()
     sb.auth.getSession().then(({ data }) => {
       if (data.session) router.replace('/doctor/dashboard')
     })
-  }, [router])
+  }, [router, configured])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,6 +33,12 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      if (!configured) {
+        setError('Sistem yapılandırması eksik. Lütfen yönetici ile iletişime geçin.')
+        setLoading(false)
+        return
+      }
+
       const sb = createClient()
 
       // Authenticate with Supabase Auth
