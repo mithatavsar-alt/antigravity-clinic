@@ -58,10 +58,10 @@ function RadialGauge({ score, label, color }: { score: number; label: string; co
             className="font-mono text-[28px] sm:text-[26px] font-normal leading-none"
             style={{ color, animation: mounted ? 'numberBloom 0.5s ease-out both' : 'none' }}
           >{score}</span>
-          <span className="font-body text-[11px] text-[rgba(248,246,242,0.40)] tracking-wider uppercase">/ 100</span>
+          <span className="font-body text-[13px] text-[rgba(248,246,242,0.40)] tracking-wider uppercase">/ 100</span>
         </div>
       </div>
-      <span className="font-body text-[11px] sm:text-[16px] tracking-[0.16em] sm:tracking-[0.18em] uppercase text-center text-[rgba(248,246,242,0.60)] sm:text-[rgba(248,246,242,0.55)]">{label}</span>
+      <span className="font-body text-[13px] sm:text-[16px] tracking-[0.16em] sm:tracking-[0.18em] uppercase text-center text-[rgba(248,246,242,0.60)] sm:text-[rgba(248,246,242,0.55)]">{label}</span>
     </div>
   )
 }
@@ -265,7 +265,7 @@ function AnalysisPhoto({ src, onClick, hasAI, wrinkleRegions }: { src: string; o
           </div>
           {/* Bottom gradient with status label */}
           <div className="absolute bottom-0 inset-x-0 z-[3] bg-gradient-to-t from-[rgba(10,10,15,0.7)] to-transparent pt-10 pb-4 px-4">
-            <p className="font-body text-[12px] tracking-[0.18em] uppercase text-white/90 flex items-center gap-2">
+            <p className="font-body text-[14px] tracking-[0.18em] uppercase text-white/90 flex items-center gap-2">
               {hasAI ? (
                 <>
                   <svg className="w-3.5 h-3.5 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -291,7 +291,7 @@ function AnalysisPhoto({ src, onClick, hasAI, wrinkleRegions }: { src: string; o
           <button
             type="button"
             onClick={handleToggle}
-            className={`absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[10px] font-medium tracking-[0.08em] uppercase border backdrop-blur-md transition-all duration-300 active:scale-95 ${
+            className={`absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12px] font-medium tracking-[0.08em] uppercase border backdrop-blur-md transition-all duration-300 active:scale-95 ${
               isActive
                 ? 'bg-[rgba(0,255,102,0.12)] text-[#4AE3A7] border-[rgba(0,255,102,0.25)] shadow-[0_0_12px_rgba(74,227,167,0.15)]'
                 : isLoading
@@ -332,7 +332,7 @@ function PhotoPlaceholder() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
         </svg>
       </div>
-      <p className="font-body text-[13px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.45)]">Fotoğraf yüklenmedi</p>
+      <p className="font-body text-[15px] tracking-[0.15em] uppercase text-[rgba(248,246,242,0.45)]">Fotoğraf yüklenmedi</p>
     </div>
   )
 }
@@ -352,7 +352,7 @@ function ViewQualityBadge({ quality }: { quality: { view: string; score: number;
   return (
     <div className="flex items-center gap-1.5">
       <div className="w-1.5 h-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 4px ${color}50` }} />
-      <span className="font-body text-[10px] tracking-[0.1em] uppercase" style={{ color: `${color}CC` }}>
+      <span className="font-body text-[12px] tracking-[0.1em] uppercase" style={{ color: `${color}CC` }}>
         {label} {quality.usable && <span className="font-mono text-[9px]">%{quality.score}</span>}
       </span>
     </div>
@@ -375,7 +375,7 @@ function ThreeViewGallery({ photos, viewQualities, onPhotoClick }: {
           <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
         </svg>
-        <p className="font-body text-[11px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Çoklu Açı Çekimleri</p>
+        <p className="font-body text-[15px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Çoklu Açı Çekimleri</p>
       </div>
 
       <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
@@ -400,7 +400,7 @@ function ThreeViewGallery({ photos, viewQualities, onPhotoClick }: {
                   <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[rgba(10,10,15,0.75)] to-transparent pt-8 pb-2.5 px-2.5">
                     <div className="flex items-center gap-1.5">
                       <span className="font-body text-[11px] text-[rgba(248,246,242,0.50)]">{VIEW_ICONS[view]}</span>
-                      <span className="font-body text-[10px] tracking-[0.14em] uppercase text-[rgba(248,246,242,0.65)]">
+                      <span className="font-body text-[12px] tracking-[0.14em] uppercase text-[rgba(248,246,242,0.65)]">
                         {VIEW_LABELS[view]}
                       </span>
                     </div>
@@ -417,7 +417,7 @@ function ThreeViewGallery({ photos, viewQualities, onPhotoClick }: {
               ) : (
                 <div className="aspect-[3/4] w-full rounded-xl bg-[rgba(20,18,15,0.4)] border border-[rgba(248,246,242,0.04)] flex flex-col items-center justify-center gap-1.5">
                   <span className="font-body text-[11px] text-[rgba(248,246,242,0.50)]">{VIEW_ICONS[view]}</span>
-                  <span className="font-body text-[10px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.45)]">
+                  <span className="font-body text-[12px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.45)]">
                     Çekilmedi
                   </span>
                 </div>
@@ -452,7 +452,7 @@ function MultiViewSynthesisSummary({ multiView }: { multiView: NonNullable<Lead[
           <svg className="w-4 h-4 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75H6A2.25 2.25 0 003.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0120.25 6v1.5m0 9V18A2.25 2.25 0 0118 20.25h-1.5m-9 0H6A2.25 2.25 0 013.75 18v-1.5M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <p className="font-body text-[13px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.65)] font-medium">
+          <p className="font-body text-[15px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.65)] font-medium">
             Çoklu Açı Sentezi
           </p>
         </div>
@@ -464,7 +464,7 @@ function MultiViewSynthesisSummary({ multiView }: { multiView: NonNullable<Lead[
           <span className="font-mono text-[14px] font-medium" style={{ color: confColor }}>
             %{multiView.globalConfidence}
           </span>
-          <span className="font-body text-[11px] tracking-[0.08em] uppercase text-[rgba(248,246,242,0.50)]">
+          <span className="font-body text-[13px] tracking-[0.08em] uppercase text-[rgba(248,246,242,0.50)]">
             güven
           </span>
         </div>
@@ -482,7 +482,7 @@ function MultiViewSynthesisSummary({ multiView }: { multiView: NonNullable<Lead[
       {/* Strongest areas — full-width, 2-col card grid */}
       {synthesis.strongestAreas.length > 0 && (
         <div className="flex flex-col gap-2.5">
-          <span className="font-body text-[12px] tracking-[0.16em] uppercase text-[rgba(61,155,122,0.75)] font-medium flex items-center gap-1.5">
+          <span className="font-body text-[14px] tracking-[0.16em] uppercase text-[rgba(61,155,122,0.75)] font-medium flex items-center gap-1.5">
             <span className="text-[11px]">✦</span> Güçlü Alanlar
           </span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -502,7 +502,7 @@ function MultiViewSynthesisSummary({ multiView }: { multiView: NonNullable<Lead[
       {/* Bilateral comparisons */}
       {synthesis.bilateralComparisons.length > 0 && (
         <div className="flex flex-col gap-2.5">
-          <span className="font-body text-[12px] tracking-[0.16em] uppercase text-[rgba(248,246,242,0.55)] font-medium flex items-center gap-1.5">
+          <span className="font-body text-[14px] tracking-[0.16em] uppercase text-[rgba(248,246,242,0.55)] font-medium flex items-center gap-1.5">
             <span className="text-[11px]">↔</span> Sol–Sağ Karşılaştırma
           </span>
           {synthesis.bilateralComparisons.map(bc => {
@@ -515,7 +515,7 @@ function MultiViewSynthesisSummary({ multiView }: { multiView: NonNullable<Lead[
               <div key={bc.regionBase} className="rounded-lg border border-[rgba(248,246,242,0.07)] bg-[rgba(248,246,242,0.025)] px-4 py-3.5">
                 <div className="flex items-center justify-between mb-2.5">
                   <span className="font-body text-[14px] font-medium text-[rgba(248,246,242,0.78)]">{bc.label}</span>
-                  <span className="font-body text-[10px] tracking-[0.1em] uppercase px-2.5 py-0.5 rounded-full font-medium"
+                  <span className="font-body text-[12px] tracking-[0.1em] uppercase px-2.5 py-0.5 rounded-full font-medium"
                     style={{ background: `${lvlColor}18`, color: lvlColor }}>
                     {lvlLabel}
                   </span>
@@ -546,7 +546,7 @@ function MultiViewSynthesisSummary({ multiView }: { multiView: NonNullable<Lead[
       {/* Confidence notes */}
       {synthesis.confidenceNotes.length > 0 && (
         <div className="flex flex-col gap-2.5">
-          <span className="font-body text-[12px] tracking-[0.16em] uppercase text-[rgba(248,246,242,0.50)] font-medium flex items-center gap-1.5">
+          <span className="font-body text-[14px] tracking-[0.16em] uppercase text-[rgba(248,246,242,0.50)] font-medium flex items-center gap-1.5">
             <span className="text-[11px]">◈</span> Güven Notları
           </span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -586,11 +586,11 @@ function ScoresPanel({ aiScores, qualityScore }: {
           <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
           </svg>
-          <p className="font-body text-[13px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.65)] font-medium">Yüz Geometrisi</p>
+          <p className="font-body text-[15px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.65)] font-medium">Yüz Geometrisi</p>
         </div>
         {qualityScore != null && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[rgba(214,185,140,0.08)] border border-[rgba(214,185,140,0.16)]">
-            <span className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.55)]">Çekim</span>
+            <span className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.55)]">Çekim</span>
             <span className="font-mono text-[14px] font-medium text-[#D6B98C]">{qualityScore}%</span>
           </div>
         )}
@@ -607,7 +607,7 @@ function ScoresPanel({ aiScores, qualityScore }: {
 
       {/* Measurements table */}
       <div>
-        <p className="font-body text-[11px] sm:text-[16px] tracking-[0.20em] sm:tracking-[0.22em] uppercase text-[rgba(248,246,242,0.55)] sm:text-[rgba(248,246,242,0.50)] font-medium mb-3">Ölçümler</p>
+        <p className="font-body text-[13px] sm:text-[16px] tracking-[0.20em] sm:tracking-[0.22em] uppercase text-[rgba(248,246,242,0.55)] sm:text-[rgba(248,246,242,0.50)] font-medium mb-3">Ölçümler</p>
         <MetricRow label="Yüz Genişlik / Uzunluk" value={aiScores.metrics.faceRatio.toFixed(2)} />
         <MetricRow label="Göz Mesafesi Oranı"      value={aiScores.metrics.eyeDistanceRatio.toFixed(2)} />
         <MetricRow label="Burun Genişliği Oranı"   value={aiScores.metrics.noseToFaceWidth.toFixed(2)} />
@@ -633,7 +633,7 @@ function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence
   if (ageValue == null && !hasGender) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="font-body text-[12px] tracking-[0.20em] uppercase text-[rgba(248,246,242,0.60)] font-medium">Yaş Tahmini</p>
+        <p className="font-body text-[14px] tracking-[0.20em] uppercase text-[rgba(248,246,242,0.60)] font-medium">Yaş Tahmini</p>
         <p className="font-body text-[13px] text-[rgba(248,246,242,0.50)] italic">Bu görüntüde yaş tahmini sınırlı güvenle değerlendirilememiştir.</p>
       </div>
     )
@@ -642,7 +642,7 @@ function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence
   return (
     <div className="flex flex-col gap-4">
       {/* Section label */}
-      <p className="font-body text-[12px] tracking-[0.20em] uppercase text-[rgba(248,246,242,0.60)] font-medium">Yaş Tahmini</p>
+      <p className="font-body text-[14px] tracking-[0.20em] uppercase text-[rgba(248,246,242,0.60)] font-medium">Yaş Tahmini</p>
 
       {/* Content row */}
       <div className="flex items-center justify-between">
@@ -652,7 +652,7 @@ function AgeEstimationPanel({ estimatedAge, confidence, gender, genderConfidence
             <span className="font-display text-[48px] sm:text-[56px] font-semibold text-[#F8F6F2] leading-none tracking-tight">
               {ageValue}
             </span>
-            <span className="font-body text-[11px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.50)]">
+            <span className="font-body text-[13px] tracking-[0.12em] uppercase text-[rgba(248,246,242,0.50)]">
               AI tahmini
             </span>
           </div>
@@ -698,7 +698,7 @@ function FocusAreasPanel({ focusAreas }: { focusAreas: NonNullable<Lead['focus_a
         <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
         </svg>
-        <p className="font-body text-[13px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.65)] font-medium">Odak Bölgeleri</p>
+        <p className="font-body text-[15px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.65)] font-medium">Odak Bölgeleri</p>
       </div>
 
       <div className="flex flex-col gap-2.5">
@@ -724,7 +724,7 @@ function FocusAreasPanel({ focusAreas }: { focusAreas: NonNullable<Lead['focus_a
                 <span className="font-body text-[15px] font-medium text-[#F8F6F2] pr-3 leading-snug">{area.label}</span>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {area.doctorReviewRecommended && (
-                    <span className="font-body text-[10px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(214,185,140,0.08)] text-[#D6B98C] border border-[rgba(214,185,140,0.15)]">
+                    <span className="font-body text-[12px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(214,185,140,0.08)] text-[#D6B98C] border border-[rgba(214,185,140,0.15)]">
                       Doktor
                     </span>
                   )}
@@ -785,7 +785,7 @@ function WrinkleAnalysisPanel({ wrinkleScores }: { wrinkleScores: NonNullable<Le
           <svg className="w-4 h-4 text-[#D6B98C]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
           </svg>
-          <p className="font-body text-[13px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.65)] font-medium">Bölgesel Cilt & Çizgi Analizi</p>
+          <p className="font-body text-[15px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.65)] font-medium">Bölgesel Cilt & Çizgi Analizi</p>
         </div>
         {/* Overall level badge */}
         <div
@@ -795,11 +795,11 @@ function WrinkleAnalysisPanel({ wrinkleScores }: { wrinkleScores: NonNullable<Le
             borderColor: `${levelColor[wrinkleScores.overallLevel] ?? '#D6B98C'}35`,
           }}
         >
-          <span className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.55)]">Genel</span>
+          <span className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(248,246,242,0.55)]">Genel</span>
           <span className="font-mono text-[14px] font-medium" style={{ color: levelColor[wrinkleScores.overallLevel] ?? '#D6B98C' }}>
             {wrinkleScores.overallScore}
           </span>
-          <span className="font-body text-[11px] uppercase font-medium" style={{ color: levelColor[wrinkleScores.overallLevel] ?? '#D6B98C' }}>
+          <span className="font-body text-[13px] uppercase font-medium" style={{ color: levelColor[wrinkleScores.overallLevel] ?? '#D6B98C' }}>
             {levelLabel[wrinkleScores.overallLevel] ?? wrinkleScores.overallLevel}
           </span>
         </div>
@@ -811,7 +811,7 @@ function WrinkleAnalysisPanel({ wrinkleScores }: { wrinkleScores: NonNullable<Le
         if (groupRegions.length === 0) return null
         return (
           <div key={group.title} className="flex flex-col gap-2">
-            <p className="font-body text-[12px] tracking-[0.18em] uppercase text-[rgba(248,246,242,0.50)] font-medium mt-1">{group.title}</p>
+            <p className="font-body text-[14px] tracking-[0.18em] uppercase text-[rgba(248,246,242,0.50)] font-medium mt-1">{group.title}</p>
             {groupRegions.map((region, idx) => {
               const color = levelColor[region.level] ?? '#D6B98C'
               const stripGrad = region.level === 'minimal' || region.level === 'low'
@@ -830,12 +830,12 @@ function WrinkleAnalysisPanel({ wrinkleScores }: { wrinkleScores: NonNullable<Le
                     <span className="font-body text-[15px] font-medium text-[#F8F6F2] pr-3 leading-snug">{region.label}</span>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {region.confidence < 0.5 && (
-                        <span className="font-body text-[10px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(200,120,60,0.10)] text-[rgba(248,200,140,0.65)] border border-[rgba(200,120,60,0.18)]">
+                        <span className="font-body text-[12px] tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(200,120,60,0.10)] text-[rgba(248,200,140,0.65)] border border-[rgba(200,120,60,0.18)]">
                           Sınırlı
                         </span>
                       )}
                       <span
-                        className="font-body text-[10px] tracking-[0.12em] uppercase px-2.5 py-0.5 rounded-full border font-medium"
+                        className="font-body text-[12px] tracking-[0.12em] uppercase px-2.5 py-0.5 rounded-full border font-medium"
                         style={{ color, backgroundColor: `${color}14`, borderColor: `${color}30` }}
                       >
                         {levelLabel[region.level] ?? region.level}
@@ -954,7 +954,7 @@ function SkinScoresPanel({ skinScores }: { skinScores: NonNullable<Lead['skin_sc
         <svg className="w-4 h-4 text-[#3D9B7A]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
         </svg>
-        <p className="font-body text-[11px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Cilt Analizi</p>
+        <p className="font-body text-[15px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.45)]">Cilt Analizi</p>
       </div>
 
       {hasAnySkin && (
@@ -972,7 +972,7 @@ function SkinScoresPanel({ skinScores }: { skinScores: NonNullable<Lead['skin_sc
 
       {hasAnyFace && (
         <div>
-          <p className="font-body text-[11px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.55)] font-medium mb-3">Yüz Uyumu</p>
+          <p className="font-body text-[15px] tracking-[0.2em] uppercase text-[rgba(248,246,242,0.55)] font-medium mb-3">Yüz Uyumu</p>
           <SkinScoreRow label="Yüz Simetrisi" value={skinScores.face_symmetry} />
           <SkinScoreRow label="Yüz Harmonisi" value={skinScores.face_harmony} />
         </div>
@@ -1240,7 +1240,7 @@ function ResultContent() {
 
           {/* Overline Ã¯¿½?" premium label */}
           <span
-            className="relative font-body text-[10px] sm:text-[16px] tracking-[0.22em] uppercase mb-5 sm:mb-6"
+            className="relative font-body text-[12px] sm:text-[16px] tracking-[0.22em] uppercase mb-5 sm:mb-6"
             style={{ color: 'rgba(61,155,122,0.65)' }}
           >
             {hasMultiView ? 'Çoklu Açı AI Analizi Tamamlandı' : isHumanLocal || isCombined || hasAI || hasSkin ? 'AI Analizi Tamamlandı' : 'Ön Değerlendirme Tamamlandı'}
@@ -1294,7 +1294,7 @@ function ResultContent() {
               {/* Capture quality score */}
               {captureQualityScore != null && (
                 <div className="flex flex-col items-center gap-1">
-                  <span className="font-body text-[9px] sm:text-[16px] tracking-[0.14em] uppercase" style={{ color: 'rgba(214,185,140,0.62)' }}>
+                  <span className="font-body text-[13px] sm:text-[16px] tracking-[0.14em] uppercase" style={{ color: 'rgba(214,185,140,0.62)' }}>
                     Çekim
                   </span>
                   <span className="font-mono text-[20px] sm:text-[24px] font-light tabular-nums text-[rgba(248,246,242,0.75)]">
@@ -1311,7 +1311,7 @@ function ResultContent() {
               {analysisInputQualityScore != null && (
                 <>
                   <div className="flex flex-col items-center gap-1">
-                    <span className="font-body text-[9px] sm:text-[16px] tracking-[0.14em] uppercase" style={{ color: 'rgba(214,185,140,0.62)' }}>
+                    <span className="font-body text-[13px] sm:text-[16px] tracking-[0.14em] uppercase" style={{ color: 'rgba(214,185,140,0.62)' }}>
                       Analiz
                     </span>
                     <span className="font-mono text-[20px] sm:text-[24px] font-light tabular-nums text-[rgba(248,246,242,0.72)]">
@@ -1324,7 +1324,7 @@ function ResultContent() {
 
               {/* Confidence level */}
               <div className="flex flex-col items-center gap-1">
-                <span className="font-body text-[9px] sm:text-[16px] tracking-[0.14em] uppercase" style={{ color: 'rgba(214,185,140,0.62)' }}>
+                <span className="font-body text-[13px] sm:text-[16px] tracking-[0.14em] uppercase" style={{ color: 'rgba(214,185,140,0.62)' }}>
                   Güven
                 </span>
                 <div className="flex items-center gap-2">
@@ -1346,7 +1346,7 @@ function ResultContent() {
                 <>
                   <div className="w-px h-8 sm:h-9" style={{ background: 'rgba(214,185,140,0.10)' }} />
                   <div className="flex flex-col items-center gap-1">
-                    <span className="font-body text-[9px] sm:text-[16px] tracking-[0.14em] uppercase" style={{ color: 'rgba(214,185,140,0.62)' }}>
+                    <span className="font-body text-[13px] sm:text-[16px] tracking-[0.14em] uppercase" style={{ color: 'rgba(214,185,140,0.62)' }}>
                       Profil
                     </span>
                     <span className="font-body text-[13px] sm:text-[16px] text-[rgba(248,246,242,0.70)]">
@@ -1366,19 +1366,19 @@ function ResultContent() {
             </p>
             <div className="flex flex-wrap items-center justify-center gap-2 max-w-2xl">
               {overallReliabilityBand && (
-                <span className="px-3 py-1.5 rounded-full text-[11px] tracking-[0.12em] uppercase border"
+                <span className="px-3 py-1.5 rounded-full text-[13px] tracking-[0.12em] uppercase border"
                   style={{ color: 'rgba(248,246,242,0.58)', borderColor: 'rgba(248,246,242,0.08)', background: 'rgba(248,246,242,0.02)' }}>
                   Güven Bandı {overallReliabilityBand}
                 </span>
               )}
               {typeof evidenceCoverageScore === 'number' && (
-                <span className="px-3 py-1.5 rounded-full text-[11px] tracking-[0.12em] uppercase border"
+                <span className="px-3 py-1.5 rounded-full text-[13px] tracking-[0.12em] uppercase border"
                   style={{ color: 'rgba(74,227,167,0.72)', borderColor: 'rgba(74,227,167,0.10)', background: 'rgba(74,227,167,0.03)' }}>
                   Kanıt Kapsamı %{evidenceCoverageScore}
                 </span>
               )}
               {livenessRequired && (
-                <span className="px-3 py-1.5 rounded-full text-[11px] tracking-[0.12em] uppercase border"
+                <span className="px-3 py-1.5 rounded-full text-[13px] tracking-[0.12em] uppercase border"
                   style={{
                     color: livenessPassed ? 'rgba(74,227,167,0.72)' : 'rgba(229,168,59,0.80)',
                     borderColor: livenessPassed ? 'rgba(74,227,167,0.10)' : 'rgba(229,168,59,0.12)',
@@ -1388,13 +1388,13 @@ function ResultContent() {
                 </span>
               )}
               {suppressionCount > 0 && (
-                <span className="px-3 py-1.5 rounded-full text-[11px] tracking-[0.12em] uppercase border"
+                <span className="px-3 py-1.5 rounded-full text-[13px] tracking-[0.12em] uppercase border"
                   style={{ color: 'rgba(200,120,90,0.74)', borderColor: 'rgba(200,120,90,0.10)', background: 'rgba(200,120,90,0.03)' }}>
                   Bastırılan Bölge {suppressionCount}
                 </span>
               )}
               {limitedRegionsCount > 0 && (
-                <span className="px-3 py-1.5 rounded-full text-[11px] tracking-[0.12em] uppercase border"
+                <span className="px-3 py-1.5 rounded-full text-[13px] tracking-[0.12em] uppercase border"
                   style={{ color: 'rgba(214,185,140,0.72)', borderColor: 'rgba(214,185,140,0.10)', background: 'rgba(214,185,140,0.03)' }}>
                   Sınırlı Bölge {limitedRegionsCount}
                 </span>
@@ -1644,7 +1644,7 @@ function ResultContent() {
                 <div className="rounded-xl border border-[rgba(61,155,122,0.10)] bg-[rgba(61,155,122,0.02)] px-5 py-4">
                   <div className="flex items-center gap-2.5 mb-2.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-[rgba(61,155,122,0.50)]" />
-                    <span className="font-body text-[10px] sm:text-[16px] tracking-[0.16em] uppercase text-[rgba(61,155,122,0.55)]">
+                    <span className="font-body text-[12px] sm:text-[16px] tracking-[0.16em] uppercase text-[rgba(61,155,122,0.55)]">
                       Uzman Değerlendirmesi
                     </span>
                   </div>

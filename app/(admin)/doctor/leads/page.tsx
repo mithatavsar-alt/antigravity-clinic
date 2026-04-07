@@ -99,7 +99,7 @@ export default function LeadsPage() {
       <section className="doctor-card-strong rounded-[36px] px-6 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_320px] lg:gap-10">
           <div className="max-w-4xl">
-            <p className="font-body text-[12px] uppercase tracking-[0.28em] text-[#C4A35A]">Kişiselleştirilmiş Analiz</p>
+            <p className="font-body text-[14px] uppercase tracking-[0.28em] text-[#C4A35A]">Kişiselleştirilmiş Analiz</p>
 
             <div className="mt-5">
               <EditorialHeading as="h1" className="!text-[clamp(3rem,5.4vw,5rem)] !leading-[0.92] !tracking-[-0.045em]">
@@ -133,7 +133,7 @@ export default function LeadsPage() {
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="font-body text-[12px] uppercase tracking-[0.22em] text-[#C4A35A]">Filtreler</p>
+              <p className="font-body text-[14px] uppercase tracking-[0.22em] text-[#C4A35A]">Filtreler</p>
               <h2 className="mt-2 font-display text-[38px] font-light tracking-[-0.03em] text-[#1A1A2E]">
                 Lead portföyünü rafine edin
               </h2>
@@ -144,7 +144,7 @@ export default function LeadsPage() {
 
             <div className="flex items-center gap-3">
               <div className="doctor-card-soft rounded-full px-4 py-2.5">
-                <span className="font-body text-[12px] uppercase tracking-[0.16em] text-[rgba(26,26,46,0.40)]">
+                <span className="font-body text-[14px] uppercase tracking-[0.16em] text-[rgba(26,26,46,0.40)]">
                   {activeFilterCount} aktif filtre
                 </span>
               </div>
@@ -153,7 +153,7 @@ export default function LeadsPage() {
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="inline-flex items-center gap-2 rounded-full border border-[rgba(196,163,90,0.14)] bg-[rgba(255,255,255,0.52)] px-4 py-2.5 font-body text-[12px] uppercase tracking-[0.16em] text-[rgba(26,26,46,0.56)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[rgba(196,163,90,0.24)] hover:text-[#1A1A2E]"
+                  className="inline-flex items-center gap-2 rounded-full border border-[rgba(196,163,90,0.14)] bg-[rgba(255,255,255,0.52)] px-4 py-2.5 font-body text-[14px] uppercase tracking-[0.16em] text-[rgba(26,26,46,0.56)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[rgba(196,163,90,0.24)] hover:text-[#1A1A2E]"
                 >
                   <FunnelX className="h-3.5 w-3.5" />
                   Filtreleri Temizle
@@ -219,13 +219,13 @@ export default function LeadsPage() {
       <section className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="font-body text-[12px] uppercase tracking-[0.22em] text-[#C4A35A]">Lead Portföyü</p>
+            <p className="font-body text-[14px] uppercase tracking-[0.22em] text-[#C4A35A]">Lead Portföyü</p>
             <h2 className="mt-2 font-display text-[40px] font-light tracking-[-0.03em] text-[#1A1A2E]">
               Premium lead görünümü
             </h2>
           </div>
           <div className="doctor-card-soft rounded-full px-4 py-2.5">
-            <span className="font-body text-[12px] uppercase tracking-[0.16em] text-[rgba(26,26,46,0.40)]">
+            <span className="font-body text-[14px] uppercase tracking-[0.16em] text-[rgba(26,26,46,0.40)]">
               {filtered.length} sonuç gösteriliyor
             </span>
           </div>
@@ -256,7 +256,7 @@ export default function LeadsPage() {
 function HeaderStat({ label, value, detail }: { label: string; value: number; detail: string }) {
   return (
     <div className="doctor-card-soft rounded-[24px] px-5 py-5">
-      <p className="font-body text-[12px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">{label}</p>
+      <p className="font-body text-[14px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">{label}</p>
       <p className="mt-3 font-mono text-[38px] tracking-[-0.05em] text-[#1A1A2E]">{value}</p>
       <p className="mt-2 font-body text-[14px] leading-7 text-[rgba(26,26,46,0.50)]">{detail}</p>
     </div>
@@ -291,7 +291,7 @@ function LeadRow({ lead }: { lead: Lead }) {
             </div>
 
             <div className="min-w-0">
-              <p className="font-body text-[12px] uppercase tracking-[0.24em] text-[#C4A35A]">{concernLabel}</p>
+              <p className="font-body text-[14px] uppercase tracking-[0.24em] text-[#C4A35A]">{concernLabel}</p>
               <h3 className="mt-2 font-display text-[38px] font-light leading-[0.94] tracking-[-0.035em] text-[#1A1A2E] sm:text-[44px]">
                 {lead.full_name}
               </h3>
@@ -318,7 +318,7 @@ function LeadRow({ lead }: { lead: Lead }) {
           <div className="mt-5 grid gap-3 border-t border-[rgba(196,163,90,0.11)] pt-4 sm:grid-cols-2 xl:grid-cols-[220px_minmax(0,1fr)]">
             <LeadMetaCard label="Telefon" value={lead.phone} mono />
             <div className="doctor-card-soft rounded-[18px] px-4 py-3">
-              <p className="font-body text-[11px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">Klinik Notu</p>
+              <p className="font-body text-[13px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">Klinik Notu</p>
               <p className="mt-2 font-body text-[14px] leading-7 text-[rgba(26,26,46,0.54)]">
                 {lead.readiness_band === 'very_high' || lead.readiness_band === 'high'
                   ? 'Hızlı dönüş için güçlü aday. Detay görünümünde analizi derinleştirin.'
@@ -330,7 +330,7 @@ function LeadRow({ lead }: { lead: Lead }) {
 
         <div className="flex flex-row items-center justify-between gap-4 lg:w-[190px] lg:flex-col lg:items-stretch">
           <div className="doctor-card-soft rounded-[24px] px-4 py-4">
-            <p className="font-body text-[11px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">Hazırlık Skoru</p>
+            <p className="font-body text-[13px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">Hazırlık Skoru</p>
             <div className="mt-3 flex items-center gap-3 lg:flex-col lg:items-center">
               <LeadScoreDial score={score} />
               <div className="text-left lg:text-center">
@@ -340,7 +340,7 @@ function LeadRow({ lead }: { lead: Lead }) {
           </div>
 
           <div className="inline-flex items-center justify-between gap-3 rounded-full border border-[rgba(196,163,90,0.14)] bg-[rgba(255,255,255,0.55)] px-4 py-3 transition-all duration-300 group-hover:border-[rgba(196,163,90,0.24)] group-hover:bg-[rgba(255,255,255,0.72)] lg:w-full">
-            <span className="font-body text-[11px] uppercase tracking-[0.16em] text-[rgba(26,26,46,0.52)] group-hover:text-[#1A1A2E]">
+            <span className="font-body text-[13px] uppercase tracking-[0.16em] text-[rgba(26,26,46,0.52)] group-hover:text-[#1A1A2E]">
               Detayı Aç
             </span>
             <span className="doctor-card-soft flex h-9 w-9 items-center justify-center rounded-full text-[#C4A35A] transition-colors duration-300 group-hover:text-[#1A1A2E]">
@@ -356,7 +356,7 @@ function LeadRow({ lead }: { lead: Lead }) {
 function LeadMetaCard({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="doctor-card-soft rounded-[18px] px-4 py-3">
-      <p className="font-body text-[11px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">{label}</p>
+      <p className="font-body text-[13px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">{label}</p>
       <p className={`mt-2 text-[15px] text-[#1A1A2E] ${mono ? 'font-mono tracking-[-0.02em]' : 'font-body'}`}>{value}</p>
     </div>
   )

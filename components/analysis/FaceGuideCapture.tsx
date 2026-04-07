@@ -2367,7 +2367,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
             </svg>
           </button>
 
-          <span className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(214,185,140,0.5)]">
+          <span className="font-body text-[12px] tracking-[0.2em] uppercase text-[rgba(214,185,140,0.5)]">
             AI Yüz Tarama
           </span>
 
@@ -2423,7 +2423,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 </svg>
               </div>
               <p className="font-body text-[11px] sm:text-[12px] text-white/60 text-center leading-relaxed">{initError}</p>
-              <button type="button" onClick={onClose} className="mt-1 font-body text-[10px] tracking-[0.15em] uppercase text-[#C4A35A] hover:text-[#D4B96A] transition-colors">
+              <button type="button" onClick={onClose} className="mt-1 font-body text-[12px] tracking-[0.15em] uppercase text-[#C4A35A] hover:text-[#D4B96A] transition-colors">
                 Kapat
               </button>
             </div>
@@ -2567,13 +2567,13 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
               {isMulti && (
                 <div className="absolute top-3 left-0 right-0 flex justify-center">
-                  <span className="px-3 py-1 rounded-full bg-[rgba(0,0,0,0.5)] backdrop-blur-md text-[9px] sm:text-[10px] font-medium tracking-[0.15em] uppercase text-white/80">
+                  <span className="px-3 py-1 rounded-full bg-[rgba(0,0,0,0.5)] backdrop-blur-md text-[11px] sm:text-[12px] font-medium tracking-[0.15em] uppercase text-white/80">
                     {currentStepLabel} — Adım {stepNumber}/{totalSteps}
                   </span>
                 </div>
               )}
               <div className="absolute bottom-3 left-3 right-3 flex justify-center pointer-events-none">
-                <span className="px-3.5 py-1.5 rounded-full bg-[rgba(0,255,180,0.15)] backdrop-blur-md border border-[rgba(0,255,180,0.3)] text-[9px] sm:text-[10px] font-medium tracking-[0.1em] uppercase text-[#7CE8B2] whitespace-nowrap">
+                <span className="px-3.5 py-1.5 rounded-full bg-[rgba(0,255,180,0.15)] backdrop-blur-md border border-[rgba(0,255,180,0.3)] text-[11px] sm:text-[14px] font-medium tracking-[0.1em] uppercase text-[#7CE8B2] whitespace-nowrap">
                   ✓ Çekim tamamlandı
                 </span>
               </div>
@@ -2631,7 +2631,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
             }}
           >
             {isMulti && (
-              <span className="text-[9px] font-medium tracking-[0.16em] uppercase text-[#D4B96A]/60">
+              <span className="text-[11px] font-medium tracking-[0.16em] uppercase text-[#D4B96A]/60">
                 {currentStepLabel} — {stepNumber}/{totalSteps}
               </span>
             )}
@@ -2662,7 +2662,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                   {stepTurnHint.arrow}
                 </span>
                 <span
-                  className="font-body text-[10px] tracking-[0.08em] uppercase"
+                  className="font-body text-[12px] tracking-[0.08em] uppercase"
                   style={{
                     color: stepTurnHint.tone === 'good'
                       ? 'rgba(74,227,167,0.80)'
@@ -2772,7 +2772,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                       }}
                     >
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone }} />
-                      <span className="font-body text-[9px] tracking-[0.12em] uppercase" style={{ color: tone }}>
+                      <span className="font-body text-[11px] tracking-[0.12em] uppercase" style={{ color: tone }}>
                         {label}
                       </span>
                     </span>
@@ -2791,7 +2791,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
             <>
               {/* Quality bar + capture button */}
               {phase === 'validated' || phase === 'advancing' ? (
-                <p className="font-body text-[11px] text-[#00FFB4] tracking-[0.1em] uppercase py-2">Çekim tamamlandı</p>
+                <p className="font-body text-[13px] text-[#00FFB4] tracking-[0.1em] uppercase py-2">Çekim tamamlandı</p>
               ) : (
                 <div className="flex items-center gap-5">
                   {/* Quality bar — left of shutter */}
@@ -2840,15 +2840,15 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                   {/* Status hint — right of shutter */}
                   <div className="w-[76px] sm:w-[86px]">
                     {manualCaptureEnabled ? (
-                      <p className="font-body text-[9px] text-[rgba(0,255,180,0.5)] tracking-[0.08em] uppercase leading-tight text-center">
+                      <p className="font-body text-[11px] text-[rgba(0,255,180,0.5)] tracking-[0.08em] uppercase leading-tight text-center">
                         Çekim hazır
                       </p>
                     ) : status.faceDetected ? (
-                      <p className="font-body text-[9px] text-white/40 tracking-[0.08em] uppercase leading-tight text-center">
+                      <p className="font-body text-[11px] text-white/40 tracking-[0.08em] uppercase leading-tight text-center">
                         {phase === 'stabilizing' ? 'Taranıyor…' : 'Konumlanıyor…'}
                       </p>
                     ) : (
-                      <p className="font-body text-[9px] text-white/35 tracking-[0.08em] uppercase leading-tight text-center">
+                      <p className="font-body text-[11px] text-white/35 tracking-[0.08em] uppercase leading-tight text-center">
                         Otomatik tarama
                       </p>
                     )}
@@ -2862,7 +2862,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               <button
                 type="button"
                 onClick={isMulti ? confirmMulti : confirmSingle}
-                className="w-full font-body text-[12px] font-medium tracking-[0.1em] uppercase py-3 sm:py-3.5 rounded-[14px] bg-gradient-to-br from-[#00905A] to-[#00B864] text-white hover:shadow-[0_4px_24px_rgba(0,184,100,0.35)] transition-all active:scale-[0.98]"
+                className="w-full font-body text-[14px] font-medium tracking-[0.1em] uppercase py-3 sm:py-3.5 rounded-[14px] bg-gradient-to-br from-[#00905A] to-[#00B864] text-white hover:shadow-[0_4px_24px_rgba(0,184,100,0.35)] transition-all active:scale-[0.98]"
               >
                 {isMulti
                   ? multiStep === 'right' ? 'Analizi Başlat'
@@ -2872,7 +2872,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
               <button
                 type="button"
                 onClick={retake}
-                className="w-full font-body text-[11px] font-medium tracking-[0.1em] uppercase py-2.5 sm:py-3 rounded-[12px] border border-white/10 text-white/40 hover:text-white/70 hover:border-white/20 transition-all active:scale-[0.98]"
+                className="w-full font-body text-[13px] font-medium tracking-[0.1em] uppercase py-2.5 sm:py-3 rounded-[12px] border border-white/10 text-white/40 hover:text-white/70 hover:border-white/20 transition-all active:scale-[0.98]"
               >
                 Yeniden Çek
               </button>

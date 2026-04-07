@@ -271,13 +271,13 @@ export function DoctorRadarSection({ radarAnalysis }: DoctorRadarSectionProps) {
           <div className="doctor-card-soft rounded-xl p-4">
             {radarAnalysis.derivedInsights.strongestAreas && radarAnalysis.derivedInsights.strongestAreas.length > 0 && (
               <div className="mb-2">
-                <span className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)]">Güçlü: </span>
+                <span className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)]">Güçlü: </span>
                 <span className="font-body text-[13px] text-[#3D7A5F]">{radarAnalysis.derivedInsights.strongestAreas.join(', ')}</span>
               </div>
             )}
             {radarAnalysis.derivedInsights.improvementAreas && radarAnalysis.derivedInsights.improvementAreas.length > 0 && (
               <div>
-                <span className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)]">İyileştirme: </span>
+                <span className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)]">İyileştirme: </span>
                 <span className="font-body text-[13px] text-[#C4A35A]">{radarAnalysis.derivedInsights.improvementAreas.join(', ')}</span>
               </div>
             )}

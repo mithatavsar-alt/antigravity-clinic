@@ -208,7 +208,7 @@ export default function AnalysisConsentPage() {
     <div className="theme-dark min-h-screen py-28 px-5" style={{ background: 'linear-gradient(160deg, #0E0B09 0%, #14110E 40%, #0B0E10 100%)' }}>
       <div className="max-w-xl mx-auto">
         <div className="text-center mb-10">
-          <p className="font-body text-[10px] tracking-[0.25em] uppercase text-[var(--color-gold)] mb-3">Adım 3 / 3</p>
+          <p className="font-body text-[12px] tracking-[0.25em] uppercase text-[var(--color-gold)] mb-3">Adım 3 / 3</p>
           <EditorialHeading as="h1" light>Onay</EditorialHeading>
           <div className="flex justify-center mt-4">
             <ThinLine width={48} />

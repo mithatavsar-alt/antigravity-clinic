@@ -292,14 +292,14 @@ export function LandmarkOverlay({
       {isAnalyzing && visible && (
         <div className="absolute bottom-3 right-3 flex items-center gap-2 px-3 py-1.5 rounded-full bg-[rgba(0,0,0,0.5)] backdrop-blur-md">
           <span className="w-2.5 h-2.5 rounded-full border-2 border-[#4AE3A7] border-t-transparent animate-spin" />
-          <span className="font-body text-[9px] tracking-[0.1em] uppercase text-white/70">AI Haritalanıyor…</span>
+          <span className="font-body text-[11px] tracking-[0.1em] uppercase text-white/70">AI Haritalanıyor…</span>
         </div>
       )}
 
       {/* Error message — ONLY when error AND visible */}
       {isError && visible && (
         <div className="absolute bottom-3 right-3 flex items-center gap-2 px-3 py-1.5 rounded-full bg-[rgba(0,0,0,0.5)] backdrop-blur-md">
-          <span className="font-body text-[9px] tracking-[0.1em] uppercase text-white/40">Harita oluşturulamadı</span>
+          <span className="font-body text-[11px] tracking-[0.1em] uppercase text-white/40">Harita oluşturulamadı</span>
         </div>
       )}
     </div>

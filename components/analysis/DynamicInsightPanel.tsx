@@ -88,7 +88,7 @@ export default function DynamicInsightPanel({ insight, score, regionIndex, confi
                 {insight.title}
               </h3>
               <span
-                className="font-body text-[9px] tracking-[0.14em] uppercase px-2.5 py-[3px] rounded-full border flex-shrink-0"
+                className="font-body text-[11px] tracking-[0.14em] uppercase px-2.5 py-[3px] rounded-full border flex-shrink-0"
                 style={{
                   color: c,
                   backgroundColor: `${c}0A`,

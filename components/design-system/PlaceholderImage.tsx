@@ -26,7 +26,7 @@ export function PlaceholderImage({
             <div className="absolute inset-0 rounded-[50%_50%_45%_45%_/_35%_35%_42%_42%] ring-1 ring-[rgba(196,163,90,0.3)]" />
           </div>
           <div className="w-16 h-px bg-[rgba(196,163,90,0.4)]" />
-          <p className="font-body text-[9px] tracking-[0.25em] uppercase text-[rgba(26,26,46,0.35)]">
+          <p className="font-body text-[11px] tracking-[0.25em] uppercase text-[rgba(26,26,46,0.35)]">
             Portrait
           </p>
         </div>
@@ -62,7 +62,7 @@ export function PlaceholderImage({
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <p className="font-body text-[9px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.3)]">
+          <p className="font-body text-[11px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.3)]">
             {label ?? 'Fotoğraf bekleniyor'}
           </p>
         </div>
@@ -89,7 +89,7 @@ export function PlaceholderImage({
             Fotoğraf yüklemek için tıklayın<br/>
             <span className="text-[10px] text-[rgba(26,26,46,0.35)]">veya sürükleyip bırakın</span>
           </p>
-          <p className="font-body text-[9px] text-[rgba(26,26,46,0.3)] tracking-[0.1em] uppercase">
+          <p className="font-body text-[11px] text-[rgba(26,26,46,0.3)] tracking-[0.1em] uppercase">
             JPEG · PNG · WebP · Maks 5MB
           </p>
         </div>

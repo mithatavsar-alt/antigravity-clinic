@@ -59,7 +59,7 @@ export function TrustSection() {
             transition={{ duration: 0.7, ease }}
             viewport={{ once: true }}
           >
-            <p className="font-body text-[10px] font-medium tracking-[0.22em] uppercase text-[var(--color-gold)] mb-4">
+            <p className="font-body text-[12px] font-medium tracking-[0.22em] uppercase text-[var(--color-gold)] mb-4">
               Güven & Kalite
             </p>
             <h2 className="font-display font-light text-[clamp(2rem,4.5vw,3.5rem)] tracking-[-0.02em] leading-[1.08] text-[var(--color-text)]">

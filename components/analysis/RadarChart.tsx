@@ -274,25 +274,25 @@ export default function RadarChartSection({
 
             <div className="flex flex-wrap items-center gap-2">
               {overallReliabilityBand && (
-                <span className="px-2.5 py-1 rounded-full text-[10px] tracking-[0.12em] uppercase border"
+                <span className="px-2.5 py-1 rounded-full text-[12px] tracking-[0.12em] uppercase border"
                   style={{ color: 'rgba(248,246,242,0.55)', borderColor: 'rgba(248,246,242,0.08)', background: 'rgba(248,246,242,0.02)' }}>
                   Güven Bandı {overallReliabilityBand}
                 </span>
               )}
               {typeof reportConfidence === 'number' && (
-                <span className="px-2.5 py-1 rounded-full text-[10px] tracking-[0.10em] uppercase border"
+                <span className="px-2.5 py-1 rounded-full text-[12px] tracking-[0.10em] uppercase border"
                   style={{ color: 'rgba(214,185,140,0.62)', borderColor: 'rgba(214,185,140,0.10)', background: 'rgba(214,185,140,0.03)' }}>
                   Rapor %{reportConfidence}
                 </span>
               )}
               {typeof evidenceCoverageScore === 'number' && (
-                <span className="px-2.5 py-1 rounded-full text-[10px] tracking-[0.10em] uppercase border"
+                <span className="px-2.5 py-1 rounded-full text-[12px] tracking-[0.10em] uppercase border"
                   style={{ color: 'rgba(74,227,167,0.62)', borderColor: 'rgba(74,227,167,0.10)', background: 'rgba(74,227,167,0.03)' }}>
                   Kanıt %{evidenceCoverageScore}
                 </span>
               )}
               {livenessStatus && livenessStatus !== 'not_required' && (
-                <span className="px-2.5 py-1 rounded-full text-[10px] tracking-[0.10em] uppercase border"
+                <span className="px-2.5 py-1 rounded-full text-[12px] tracking-[0.10em] uppercase border"
                   style={{
                     color: livenessStatus === 'passed' ? 'rgba(74,227,167,0.72)' : 'rgba(229,168,59,0.75)',
                     borderColor: livenessStatus === 'passed' ? 'rgba(74,227,167,0.12)' : 'rgba(229,168,59,0.12)',

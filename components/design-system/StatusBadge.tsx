@@ -52,7 +52,7 @@ export function StatusBadge({ status, type = 'lead', className }: StatusBadgePro
     <span
       className={cn(
         'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border',
-        'font-body text-[10px] font-medium tracking-[0.12em] uppercase',
+        'font-body text-[12px] font-medium tracking-[0.12em] uppercase',
         'backdrop-blur-sm transition-colors duration-200',
         className
       )}

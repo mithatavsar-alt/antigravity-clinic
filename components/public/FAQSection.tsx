@@ -154,7 +154,7 @@ export function FAQSection() {
           viewport={{ once: true }}
           className="text-center mb-14 sm:mb-16"
         >
-          <p className="font-body text-[10px] font-medium tracking-[0.22em] uppercase text-[#C4A35A] mb-4">
+          <p className="font-body text-[12px] font-medium tracking-[0.22em] uppercase text-[#C4A35A] mb-4">
             Sık Sorulanlar
           </p>
           <h2 className="font-display font-light text-[clamp(2rem,4.5vw,3.25rem)] tracking-[-0.02em] leading-[1.08] text-[#1A1A2E] mb-5">

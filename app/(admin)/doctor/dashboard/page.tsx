@@ -171,7 +171,7 @@ export default function DashboardPage() {
 
             <div className="absolute left-4 top-4 right-4 sm:left-6 sm:top-6 sm:right-auto">
               <div className="doctor-card-soft rounded-[22px] px-4 py-3 sm:px-5 sm:py-4">
-                <p className="font-body text-[11px] uppercase tracking-[0.22em] text-[rgba(26,26,46,0.42)]">Canlı Klinik Görünümü</p>
+                <p className="font-body text-[13px] uppercase tracking-[0.22em] text-[rgba(26,26,46,0.42)]">Canlı Klinik Görünümü</p>
                 <p className="mt-2 max-w-[250px] font-body text-[14px] leading-7 text-[rgba(26,26,46,0.64)]">
                   Lead yoğunluğu, hazırlık seviyesi ve inceleme kuyruğu tek bir sakin hero yüzeyinde okunuyor.
                 </p>
@@ -181,11 +181,11 @@ export default function DashboardPage() {
             <div className="absolute bottom-4 left-4 right-4 sm:bottom-6 sm:left-6 sm:right-6">
               <div className="flex flex-wrap gap-3">
                 <div className="doctor-card-soft min-w-[150px] rounded-[22px] px-4 py-3">
-                  <p className="font-body text-[11px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">Öncelikli Lead</p>
+                  <p className="font-body text-[13px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">Öncelikli Lead</p>
                   <p className="mt-2 font-mono text-[28px] tracking-[-0.04em] text-[#1A1A2E]">{highPriorityCount}</p>
                 </div>
                 <div className="doctor-card-soft min-w-[150px] rounded-[22px] px-4 py-3">
-                  <p className="font-body text-[11px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">İnceleme Kuyruğu</p>
+                  <p className="font-body text-[13px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">İnceleme Kuyruğu</p>
                   <p className="mt-2 font-mono text-[28px] tracking-[-0.04em] text-[#1A1A2E]">{reviewQueueCount}</p>
                 </div>
               </div>
@@ -193,7 +193,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="doctor-leads-hero-copy flex flex-col justify-center px-6 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
-            <p className="font-body text-[12px] uppercase tracking-[0.28em] text-[#C4A35A]">Kişiselleştirilmiş Analiz</p>
+            <p className="font-body text-[14px] uppercase tracking-[0.28em] text-[#C4A35A]">Kişiselleştirilmiş Analiz</p>
 
             <div className="mt-5">
               <EditorialHeading as="h1" className="!text-[clamp(2.7rem,5vw,4.4rem)] !leading-[0.94] !tracking-[-0.04em]">
@@ -234,14 +234,14 @@ export default function DashboardPage() {
 
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
               <div className="doctor-card-soft rounded-[22px] px-4 py-4">
-                <p className="font-body text-[11px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">Bugün</p>
+                <p className="font-body text-[13px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">Bugün</p>
                 <p className="mt-3 font-mono text-[32px] tracking-[-0.05em] text-[#1A1A2E]">{latestLeads.length}</p>
                 <p className="mt-1 font-body text-[14px] leading-6 text-[rgba(26,26,46,0.48)]">
                   {latestLeads.length > 0 ? 'Yeni hareket var' : 'Sistem sakin görünüyor'}
                 </p>
               </div>
               <div className="doctor-card-soft rounded-[22px] px-4 py-4">
-                <p className="font-body text-[11px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">Toplam Lead</p>
+                <p className="font-body text-[13px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.38)]">Toplam Lead</p>
                 <p className="mt-3 font-mono text-[32px] tracking-[-0.05em] text-[#1A1A2E]">{leads.length}</p>
                 <p className="mt-1 font-body text-[14px] leading-6 text-[rgba(26,26,46,0.48)]">Aktif değerlendirme havuzu</p>
               </div>
@@ -259,7 +259,7 @@ export default function DashboardPage() {
       <section id="dashboard-latest">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <p className="font-body text-[12px] uppercase tracking-[0.22em] text-[#C4A35A]">Son Başvurular</p>
+            <p className="font-body text-[14px] uppercase tracking-[0.22em] text-[#C4A35A]">Son Başvurular</p>
             <h2 className="mt-2 font-display text-[34px] font-light tracking-[-0.02em] text-[#1A1A2E]">
               En yeni klinik akışı
             </h2>
@@ -270,7 +270,7 @@ export default function DashboardPage() {
 
           <Link
             href="/doctor/leads"
-            className="inline-flex items-center gap-2 font-body text-[12px] uppercase tracking-[0.14em] text-[#C4A35A] transition-colors hover:text-[#1A1A2E]"
+            className="inline-flex items-center gap-2 font-body text-[14px] uppercase tracking-[0.14em] text-[#C4A35A] transition-colors hover:text-[#1A1A2E]"
           >
             Tümünü Gör
             <ArrowRight className="h-4 w-4" />
@@ -333,11 +333,11 @@ function MetricCard({ stat }: { stat: MetricCardData }) {
         >
           <Icon className="h-4.5 w-4.5" />
         </div>
-        <span className="font-body text-[12px] uppercase tracking-[0.12em] text-[rgba(26,26,46,0.34)]">{stat.note}</span>
+        <span className="font-body text-[14px] uppercase tracking-[0.12em] text-[rgba(26,26,46,0.34)]">{stat.note}</span>
       </div>
 
       <div className="mt-8">
-        <p className="font-body text-[12px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.42)]">{stat.label}</p>
+        <p className="font-body text-[14px] uppercase tracking-[0.18em] text-[rgba(26,26,46,0.42)]">{stat.label}</p>
         <div className="mt-3 flex items-end justify-between gap-3">
           <p className="font-mono text-[48px] leading-none tracking-[-0.04em]" style={{ color: stat.color }}>
             {stat.value}
@@ -405,7 +405,7 @@ function LeadCard({ lead }: { lead: Lead }) {
       <div className="mt-5 border-t border-[rgba(196,163,90,0.10)] pt-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="mb-1 font-body text-[12px] uppercase tracking-[0.14em] text-[rgba(26,26,46,0.36)]">Odak Alanı</p>
+            <p className="mb-1 font-body text-[14px] uppercase tracking-[0.14em] text-[rgba(26,26,46,0.36)]">Odak Alanı</p>
             <p className="truncate font-body text-[14px] text-[rgba(26,26,46,0.64)]">
               {concernAreaLabels[lead.concern_area as keyof typeof concernAreaLabels] ?? lead.concern_area}
             </p>
@@ -413,7 +413,7 @@ function LeadCard({ lead }: { lead: Lead }) {
 
           <div className="flex items-center gap-2">
             {confidenceLabel && (
-              <span className="doctor-card-soft rounded-full px-3 py-1.5 font-mono text-[11px] uppercase text-[rgba(26,26,46,0.46)]">
+              <span className="doctor-card-soft rounded-full px-3 py-1.5 font-mono text-[13px] uppercase text-[rgba(26,26,46,0.46)]">
                 {confidenceLabel === 'high' ? 'Yüksek güven' : confidenceLabel === 'medium' ? 'Orta güven' : 'Düşük güven'}
               </span>
 

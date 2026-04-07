@@ -170,9 +170,9 @@ export const typography = {
     /** Small body — captions, secondary */
     bodySm: '0.875rem', // 14px
     /** Micro text — badges, labels */
-    micro: '0.75rem',   // 12px (was 11px)
+    micro: '0.875rem',  // 14px (was 12px)
     /** Tiny — score labels, metadata */
-    tiny: '0.625rem',   // 10px (was 9px)
+    tiny: '0.75rem',    // 12px (was 10px)
   },
 
   leading: {

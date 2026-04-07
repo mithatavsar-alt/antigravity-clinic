@@ -108,7 +108,7 @@ export function FormStepReadiness() {
       {/* ── Desired result ── */}
       <div className="flex flex-col gap-3">
         <label
-          className="font-body text-[10px] tracking-[0.18em] uppercase font-medium"
+          className="font-body text-[12px] tracking-[0.18em] uppercase font-medium"
           style={{ color: 'rgba(248, 246, 242, 0.45)' }}
         >
           Nasıl bir sonuç bekliyorsunuz? <span style={{ color: 'rgba(214, 185, 140, 0.5)' }}>*</span>
@@ -138,7 +138,7 @@ export function FormStepReadiness() {
       {/* ── Prior treatment ── */}
       <div className="flex flex-col gap-3">
         <label
-          className="font-body text-[10px] tracking-[0.18em] uppercase font-medium"
+          className="font-body text-[12px] tracking-[0.18em] uppercase font-medium"
           style={{ color: 'rgba(248, 246, 242, 0.45)' }}
         >
           Daha önce estetik işlem yaptırdınız mı? <span style={{ color: 'rgba(214, 185, 140, 0.5)' }}>*</span>
@@ -160,7 +160,7 @@ export function FormStepReadiness() {
       {/* ── Consultation timing ── */}
       <div className="flex flex-col gap-3">
         <label
-          className="font-body text-[10px] tracking-[0.18em] uppercase font-medium"
+          className="font-body text-[12px] tracking-[0.18em] uppercase font-medium"
           style={{ color: 'rgba(248, 246, 242, 0.45)' }}
         >
           Doktor görüşmesini ne zaman düşünüyorsunuz? <span style={{ color: 'rgba(214, 185, 140, 0.5)' }}>*</span>

@@ -61,7 +61,7 @@ export default function ConsentPage() {
             Açık Rıza Metni
           </h1>
           <div className="flex flex-wrap items-center gap-3">
-            <span className="font-mono text-[10px] tracking-[0.12em] text-[rgba(26,26,46,0.4)] bg-[rgba(196,163,90,0.08)] border border-[rgba(196,163,90,0.2)] rounded-full px-3 py-1">
+            <span className="font-mono text-[12px] tracking-[0.12em] text-[rgba(26,26,46,0.4)] bg-[rgba(196,163,90,0.08)] border border-[rgba(196,163,90,0.2)] rounded-full px-3 py-1">
               v{version.version}
             </span>
             <span className="font-mono text-[10px] tracking-[0.1em] text-[rgba(26,26,46,0.35)]">
@@ -77,7 +77,7 @@ export default function ConsentPage() {
         <GlassCard strong padding="lg" rounded="xl">
           <div className="flex flex-col gap-5">
             <div>
-              <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)] mb-3">
+              <p className="font-body text-[12px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)] mb-3">
                 Bu Metni Onayladığınızda İzin Vermiş Olursunuz
               </p>
               <ul className="flex flex-col gap-2.5">
@@ -114,7 +114,7 @@ export default function ConsentPage() {
         {/* Full consent text */}
         <GlassCard padding="lg" rounded="xl">
           <div className="flex flex-col gap-5">
-            <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)]">
+            <p className="font-body text-[12px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)]">
               Tam Metin
             </p>
             <div className="flex flex-col gap-4">

@@ -30,7 +30,7 @@ export function AnalysisStepBar({
         {labels.map((label, i) => (
           <span
             key={label}
-            className="font-body text-[10px] tracking-[0.12em] uppercase transition-colors"
+            className="font-body text-[12px] tracking-[0.12em] uppercase transition-colors"
             style={{ color: currentStep >= i + 1 ? '#D6B98C' : 'rgba(248,246,242,0.25)' }}
           >
             {label}

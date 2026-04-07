@@ -34,7 +34,7 @@ export function IntakeContextPanel({ lead }: IntakeContextPanelProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div className="doctor-card rounded-xl p-5">
-        <h4 className="font-body text-[12px] tracking-[0.15em] uppercase text-[#C4A35A] mb-4">Hasta Bilgileri</h4>
+        <h4 className="font-body text-[14px] tracking-[0.15em] uppercase text-[#C4A35A] mb-4">Hasta Bilgileri</h4>
         <div className="flex flex-col">
           <InfoRow label="Ad Soyad" value={lead.full_name} />
           <InfoRow label="Cinsiyet" value={lead.gender === 'female' ? 'Kadın' : lead.gender === 'male' ? 'Erkek' : lead.gender} />
@@ -47,7 +47,7 @@ export function IntakeContextPanel({ lead }: IntakeContextPanelProps) {
       </div>
 
       <div className="doctor-card rounded-xl p-5">
-        <h4 className="font-body text-[12px] tracking-[0.15em] uppercase text-[#C4A35A] mb-4">Form & Tercihler</h4>
+        <h4 className="font-body text-[14px] tracking-[0.15em] uppercase text-[#C4A35A] mb-4">Form & Tercihler</h4>
         <div className="flex flex-col">
           <InfoRow label="İlgi Alanı" value={concernAreaLabels[lead.concern_area as keyof typeof concernAreaLabels] ?? lead.concern_area} />
           <InfoRow label="Beklenen Sonuç" value={desiredResultLabels[lead.desired_result_style as keyof typeof desiredResultLabels] ?? lead.desired_result_style} />
@@ -59,7 +59,7 @@ export function IntakeContextPanel({ lead }: IntakeContextPanelProps) {
 
         {lead.expectation_note && (
           <div className="doctor-card-soft mt-4 p-3 rounded-lg">
-            <p className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)] mb-1">Beklenti Notu</p>
+            <p className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)] mb-1">Beklenti Notu</p>
             <p className="font-body text-[14px] text-[rgba(26,26,46,0.72)] leading-relaxed">{lead.expectation_note}</p>
           </div>
         )}
@@ -67,7 +67,7 @@ export function IntakeContextPanel({ lead }: IntakeContextPanelProps) {
 
       {readiness && (
         <div className="doctor-card lg:col-span-2 rounded-xl p-5">
-          <h4 className="font-body text-[12px] tracking-[0.15em] uppercase text-[#C4A35A] mb-4">Konsültasyon Hazırlığı</h4>
+          <h4 className="font-body text-[14px] tracking-[0.15em] uppercase text-[#C4A35A] mb-4">Konsültasyon Hazırlığı</h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {readiness.primary_motivation != null && <MiniStat label="Motivasyon" value={String(readiness.primary_motivation)} />}
             {readiness.goal_clarity != null && (
@@ -96,7 +96,7 @@ export function IntakeContextPanel({ lead }: IntakeContextPanelProps) {
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="doctor-card-soft px-3 py-2.5 rounded-lg">
-      <p className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)] mb-1">{label}</p>
+      <p className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)] mb-1">{label}</p>
       <p className="font-body text-[13px] text-[rgba(26,26,46,0.72)]">{value}</p>
     </div>
   )

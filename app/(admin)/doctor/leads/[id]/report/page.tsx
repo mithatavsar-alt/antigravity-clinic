@@ -26,7 +26,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="font-body text-[12px] font-medium text-[#C4A35A] tracking-[0.15em] uppercase mb-4 print:text-[#1A1A2E]">
+    <h2 className="font-body text-[14px] font-medium text-[#C4A35A] tracking-[0.15em] uppercase mb-4 print:text-[#1A1A2E]">
       {children}
     </h2>
   )
@@ -96,7 +96,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         </button>
         <button
           onClick={() => window.print()}
-          className="doctor-card-soft flex items-center gap-2 px-4 py-2 rounded-lg font-body text-[11px] tracking-[0.08em] uppercase text-[#C4A35A] hover:bg-[rgba(196,163,90,0.12)] transition-colors"
+          className="doctor-card-soft flex items-center gap-2 px-4 py-2 rounded-lg font-body text-[13px] tracking-[0.08em] uppercase text-[#C4A35A] hover:bg-[rgba(196,163,90,0.12)] transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
@@ -109,7 +109,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         <div className="flex justify-between items-start mb-8 pb-6 border-b-2 border-[rgba(196,163,90,0.12)] print:border-[#1A1A2E]">
           <div>
             <h1 className="font-display text-[24px] font-light tracking-tight text-[#1A1A2E]">Dr. Müjde Ocak Aesthetic Clinic</h1>
-            <p className="font-body text-[10px] text-[#C4A35A] tracking-[0.2em] uppercase mt-1 print:text-[rgba(0,0,0,0.5)]">
+            <p className="font-body text-[12px] text-[#C4A35A] tracking-[0.2em] uppercase mt-1 print:text-[rgba(0,0,0,0.5)]">
               AI Destekli Yüz Analiz Raporu
             </p>
           </div>
@@ -139,7 +139,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
               <span className="absolute inset-0 flex items-center justify-center font-mono text-[18px] font-light text-[#1A1A2E]">{overallScore}</span>
             </div>
             <div>
-              <p className="font-body text-[9px] tracking-[0.15em] uppercase text-[rgba(26,26,46,0.35)] mb-1 print:text-[rgba(0,0,0,0.4)]">Genel Skor</p>
+              <p className="font-body text-[11px] tracking-[0.15em] uppercase text-[rgba(26,26,46,0.35)] mb-1 print:text-[rgba(0,0,0,0.4)]">Genel Skor</p>
               <p className="font-body text-[13px] text-[rgba(26,26,46,0.70)] print:text-[rgba(0,0,0,0.6)]">
                 {overallScore >= 70
                   ? 'Belirgin bulgular, klinik değerlendirme önerilir.'
@@ -167,7 +167,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
           </div>
           {lead.expectation_note && (
             <div className="doctor-card-soft mt-3 p-3 rounded-lg print:bg-[rgba(0,0,0,0.02)] print:border-[rgba(0,0,0,0.08)]">
-              <p className="font-body text-[9px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-1 print:text-[rgba(0,0,0,0.4)]">Beklenti Notu</p>
+              <p className="font-body text-[11px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-1 print:text-[rgba(0,0,0,0.4)]">Beklenti Notu</p>
               <p className="font-body text-[12px] text-[rgba(26,26,46,0.72)] leading-relaxed print:text-[rgba(0,0,0,0.7)]">{lead.expectation_note}</p>
             </div>
           )}
@@ -178,14 +178,14 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
             <SectionTitle>AI Analiz Skorları</SectionTitle>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div className="doctor-card rounded-xl p-4 print:border-[rgba(0,0,0,0.1)] print:bg-transparent">
-                <p className="font-body text-[9px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-2 print:text-[rgba(0,0,0,0.4)]">Simetri Skoru</p>
+                <p className="font-body text-[11px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-2 print:text-[rgba(0,0,0,0.4)]">Simetri Skoru</p>
                 <p className="font-mono text-[32px] font-light text-[#1A1A2E]">
                   {aiScores.symmetry}
                   <span className="text-[14px] text-[rgba(26,26,46,0.35)] print:text-[rgba(0,0,0,0.4)]">/100</span>
                 </p>
               </div>
               <div className="doctor-card rounded-xl p-4 print:border-[rgba(0,0,0,0.1)] print:bg-transparent">
-                <p className="font-body text-[9px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-2 print:text-[rgba(0,0,0,0.4)]">Altın Oran Uyumu</p>
+                <p className="font-body text-[11px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-2 print:text-[rgba(0,0,0,0.4)]">Altın Oran Uyumu</p>
                 <p className="font-mono text-[32px] font-light text-[#1A1A2E]">
                   {aiScores.proportion}
                   <span className="text-[14px] text-[rgba(26,26,46,0.35)] print:text-[rgba(0,0,0,0.4)]">/100</span>
@@ -203,7 +203,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
 
             {aiScores.suggestions.length > 0 && (
               <div className="mt-4">
-                <p className="font-body text-[9px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-2 print:text-[rgba(0,0,0,0.4)]">Estetik Tespitler</p>
+                <p className="font-body text-[11px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-2 print:text-[rgba(0,0,0,0.4)]">Estetik Tespitler</p>
                 <ul className="space-y-1.5">
                   {aiScores.suggestions.map((suggestion: string, index: number) => (
                     <li key={index} className="font-body text-[12px] text-[rgba(26,26,46,0.72)] leading-relaxed flex gap-2 print:text-[rgba(0,0,0,0.7)]">
@@ -278,15 +278,15 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
 
             <div className="mt-4 grid grid-cols-3 gap-3">
               <div className="doctor-card rounded-xl p-3 print:border-[rgba(0,0,0,0.1)] print:bg-transparent">
-                <p className="font-body text-[9px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-1 print:text-[rgba(0,0,0,0.4)]">Risk Seviyesi</p>
+                <p className="font-body text-[11px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-1 print:text-[rgba(0,0,0,0.4)]">Risk Seviyesi</p>
                 <p className="font-body text-[14px] font-medium text-[#1A1A2E] capitalize print:text-[#1A1A2E]">{analysis.dose_recommendation.risk_level}</p>
               </div>
               <div className="doctor-card rounded-xl p-3 print:border-[rgba(0,0,0,0.1)] print:bg-transparent">
-                <p className="font-body text-[9px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-1 print:text-[rgba(0,0,0,0.4)]">Doz Aralığı</p>
+                <p className="font-body text-[11px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-1 print:text-[rgba(0,0,0,0.4)]">Doz Aralığı</p>
                 <p className="font-body text-[14px] font-medium text-[#1A1A2E] print:text-[#1A1A2E]">{analysis.dose_recommendation.range_cc}</p>
               </div>
               <div className="doctor-card rounded-xl p-3 print:border-[rgba(0,0,0,0.1)] print:bg-transparent">
-                <p className="font-body text-[9px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-1 print:text-[rgba(0,0,0,0.4)]">Üst Limit</p>
+                <p className="font-body text-[11px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mb-1 print:text-[rgba(0,0,0,0.4)]">Üst Limit</p>
                 <p className="font-body text-[14px] font-medium text-[#A05252] print:text-[#A05252]">{analysis.dose_recommendation.upper_limit_cc}</p>
               </div>
             </div>
@@ -301,7 +301,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
                 <p className="font-mono text-[48px] font-light leading-none" style={{ color: readinessConfig?.color }}>
                   {readiness.readiness_score}
                 </p>
-                <p className="font-body text-[9px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mt-1 print:text-[rgba(0,0,0,0.4)]">Skor</p>
+                <p className="font-body text-[11px] text-[rgba(26,26,46,0.35)] uppercase tracking-[0.15em] mt-1 print:text-[rgba(0,0,0,0.4)]">Skor</p>
               </div>
               <div>
                 <p className="font-body text-[13px] font-medium text-[#1A1A2E] print:text-[#1A1A2E]">{readinessConfig?.label}</p>

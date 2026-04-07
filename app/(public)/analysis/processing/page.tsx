@@ -2215,7 +2215,7 @@ function ProcessingContent() {
                   animation: 'premiumScanPulse 2.2s ease-in-out infinite',
                 }}
               />
-              <span className="font-body text-[10px] tracking-[0.16em] uppercase" style={{ color: 'rgba(248,246,242,0.72)' }}>
+              <span className="font-body text-[12px] tracking-[0.16em] uppercase" style={{ color: 'rgba(248,246,242,0.72)' }}>
                 {STAGES[currentStage].label}
               </span>
             </div>
@@ -2266,7 +2266,7 @@ function ProcessingContent() {
               {overallProgress}%
             </span>
             {isRunning && (
-              <span className="inline-flex items-center gap-1.5 font-body text-[10px] tracking-[0.14em] uppercase text-[rgba(248,246,242,0.50)]">
+              <span className="inline-flex items-center gap-1.5 font-body text-[12px] tracking-[0.14em] uppercase text-[rgba(248,246,242,0.50)]">
                 <span className="inline-flex h-1 w-1 rounded-full bg-[rgba(210,180,138,0.7)]" />
                 Aşama {currentStage + 1}/5
               </span>

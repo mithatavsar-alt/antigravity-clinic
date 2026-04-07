@@ -47,7 +47,7 @@ export function PublicFooter() {
 
           {/* Platform links */}
           <div>
-            <h5 className="font-body text-[10px] tracking-[0.25em] uppercase text-[rgba(255,255,255,0.30)] mb-5">Platform</h5>
+            <h5 className="font-body text-[12px] tracking-[0.25em] uppercase text-[rgba(255,255,255,0.30)] mb-5">Platform</h5>
             <ul className="flex flex-col gap-3">
               {[['Ön Değerlendirme', '/analysis'], ['KVKK', '/privacy'], ['Açık Rıza', '/consent']].map(([label, href]) => (
                 <li key={label}>
@@ -61,7 +61,7 @@ export function PublicFooter() {
 
           {/* Treatments */}
           <div>
-            <h5 className="font-body text-[10px] tracking-[0.25em] uppercase text-[rgba(255,255,255,0.30)] mb-5">Tedaviler</h5>
+            <h5 className="font-body text-[12px] tracking-[0.25em] uppercase text-[rgba(255,255,255,0.30)] mb-5">Tedaviler</h5>
             <ul className="flex flex-col gap-3">
               {[['Botoks', '/treatments/botox'], ['Dolgu', '/treatments/filler'], ['Mezoterapi', '/treatments/mesotherapy']].map(([label, href]) => (
                 <li key={label}>
@@ -75,7 +75,7 @@ export function PublicFooter() {
 
           {/* Contact */}
           <div>
-            <h5 className="font-body text-[10px] tracking-[0.25em] uppercase text-[rgba(255,255,255,0.30)] mb-5">İletişim</h5>
+            <h5 className="font-body text-[12px] tracking-[0.25em] uppercase text-[rgba(255,255,255,0.30)] mb-5">İletişim</h5>
             <ul className="flex flex-col gap-3">
               <li className="font-body text-[12px] text-[rgba(255,255,255,0.35)]">info@drmujdeocak.com</li>
               <li className="font-body text-[12px] text-[rgba(255,255,255,0.35)]">İstanbul, Türkiye</li>
@@ -85,7 +85,7 @@ export function PublicFooter() {
 
         {/* Bottom bar */}
         <div className="pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <p className="font-mono text-[10px] tracking-[0.1em] text-[rgba(255,255,255,0.18)]">
+          <p className="font-mono text-[12px] tracking-[0.1em] text-[rgba(255,255,255,0.18)]">
             © 2026 Dr. Müjde Ocak Aesthetic Clinic. Tüm hakları saklıdır.
           </p>
           <div className="flex gap-6">
@@ -93,7 +93,7 @@ export function PublicFooter() {
               <Link
                 key={item}
                 href={href}
-                className="font-body text-[10px] text-[rgba(255,255,255,0.18)] tracking-[0.1em] uppercase hover:text-[rgba(255,255,255,0.40)] transition-colors duration-200"
+                className="font-body text-[12px] text-[rgba(255,255,255,0.18)] tracking-[0.1em] uppercase hover:text-[rgba(255,255,255,0.40)] transition-colors duration-200"
               >
                 {item}
               </Link>

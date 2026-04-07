@@ -229,7 +229,7 @@ export function AnalysisForm() {
           className="text-center mb-6"
         >
           <p
-            className="font-body text-[10px] font-medium tracking-[0.25em] uppercase mb-4"
+            className="font-body text-[12px] font-medium tracking-[0.25em] uppercase mb-4"
             style={{ color: 'rgba(214, 185, 140, 0.60)' }}
           >
             Adım {formStep} / 3

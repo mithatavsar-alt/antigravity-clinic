@@ -26,7 +26,7 @@ export function DoctorTopNav() {
     >
       <Link href="/doctor/dashboard" className="font-display text-[17px] font-light tracking-[0.04em] text-[#1A1A2E]">
         Dr. Müjde Ocak <span className="text-[#C4A35A]">Clinic</span>
-        <span className="font-body text-[10px] tracking-[0.15em] uppercase text-[rgba(26,26,46,0.50)] ml-3">
+        <span className="font-body text-[12px] tracking-[0.15em] uppercase text-[rgba(26,26,46,0.50)] ml-3">
           Doktor Paneli
         </span>
       </Link>
@@ -34,14 +34,14 @@ export function DoctorTopNav() {
       <div className="flex items-center gap-4">
         <Link
           href="/doctor/leads"
-          className="lg:hidden font-body text-[10px] tracking-[0.12em] uppercase text-[#C4A35A] hover:text-[#1A1A2E] transition-colors"
+          className="lg:hidden font-body text-[12px] tracking-[0.12em] uppercase text-[#C4A35A] hover:text-[#1A1A2E] transition-colors"
         >
           Leads
         </Link>
         <span className="hidden sm:inline font-body text-[11px] text-[rgba(26,26,46,0.55)]">Dr. Müjde Ocak</span>
         <button
           onClick={handleLogout}
-          className="font-body text-[10px] tracking-[0.12em] uppercase text-[rgba(26,26,46,0.45)] hover:text-[#A05252] transition-colors"
+          className="font-body text-[12px] tracking-[0.12em] uppercase text-[rgba(26,26,46,0.45)] hover:text-[#A05252] transition-colors"
         >
           Çıkış
         </button>

@@ -71,10 +71,10 @@ export function AnalysisHeroSummary({
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="font-mono text-[36px] font-light text-[#1A1A2E]">{score}</span>
-                <span className="font-body text-[11px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.35)]">Skor</span>
+                <span className="font-body text-[13px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.35)]">Skor</span>
               </div>
             </div>
-            <p className="font-body text-[12px] tracking-[0.12em] uppercase mt-2" style={{ color: scoreColor(score) }}>
+            <p className="font-body text-[14px] tracking-[0.12em] uppercase mt-2" style={{ color: scoreColor(score) }}>
               {score >= 70 ? 'Dengeli' : score >= 40 ? 'İyileştirilebilir' : 'Odaklanılmalı'}
             </p>
           </div>
@@ -134,7 +134,7 @@ export function AnalysisHeroSummary({
 function MetricTile({ label, value, color, sub }: { label: string; value: string; color: string; sub?: string }) {
   return (
     <div className="doctor-card-soft rounded-xl px-3.5 py-3">
-      <p className="font-body text-[11px] tracking-[0.15em] uppercase text-[rgba(26,26,46,0.38)] mb-1.5">{label}</p>
+      <p className="font-body text-[13px] tracking-[0.15em] uppercase text-[rgba(26,26,46,0.38)] mb-1.5">{label}</p>
       <div className="flex items-baseline gap-1.5">
         <span className="font-mono text-[20px] font-light" style={{ color }}>
           {value}

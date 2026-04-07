@@ -133,7 +133,7 @@ export default function LoginPage() {
           <div className="flex justify-center mt-5">
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-[rgba(26,26,46,0.03)] border border-[rgba(26,26,46,0.08)] font-body text-[12px] font-medium tracking-[0.06em] text-[rgba(26,26,46,0.48)] hover:text-[#C4A35A] hover:border-[rgba(196,163,90,0.2)] hover:bg-[rgba(196,163,90,0.06)] transition-all duration-200"
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-[rgba(26,26,46,0.03)] border border-[rgba(26,26,46,0.08)] font-body text-[14px] font-medium tracking-[0.06em] text-[rgba(26,26,46,0.48)] hover:text-[#C4A35A] hover:border-[rgba(196,163,90,0.2)] hover:bg-[rgba(196,163,90,0.06)] transition-all duration-200"
             >
               ← Hasta Girişi
             </Link>

@@ -75,10 +75,10 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="doctor-card-strong relative rounded-xl p-5 overflow-hidden">
         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[rgba(196,163,90,0.22)] to-transparent" />
-        <h4 className="font-body text-[13px] tracking-[0.15em] uppercase text-[#C4A35A] mb-4">Durum & Aksiyon</h4>
+        <h4 className="font-body text-[15px] tracking-[0.15em] uppercase text-[#C4A35A] mb-4">Durum & Aksiyon</h4>
 
         <div className="mb-4">
-          <label className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)] mb-1.5 block">Lead Durumu</label>
+          <label className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)] mb-1.5 block">Lead Durumu</label>
           <select value={lead.status} onChange={(event) => onStatusChange?.(event.target.value as LeadStatus)} className="doctor-control">
             {statusOptions.map((status) => (
               <option key={status.value} value={status.value}>
@@ -90,7 +90,7 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
 
         {readinessScore > 0 && (
           <div className="doctor-card-soft mb-4 p-3 rounded-lg">
-            <p className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)] mb-1">Hazırlık Skoru</p>
+            <p className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.38)] mb-1">Hazırlık Skoru</p>
             <div className="flex items-baseline gap-2">
               <span className="font-mono text-[28px] font-light" style={{ color: scoreColor(readinessScore) }}>
                 {readinessScore}
@@ -119,9 +119,9 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
       <div className="doctor-card-strong relative lg:col-span-2 rounded-xl p-5 overflow-hidden">
         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[rgba(196,163,90,0.22)] to-transparent" />
         <div className="flex items-center justify-between mb-4">
-          <h4 className="font-body text-[13px] tracking-[0.15em] uppercase text-[#C4A35A]">Doktor Notları</h4>
+          <h4 className="font-body text-[15px] tracking-[0.15em] uppercase text-[#C4A35A]">Doktor Notları</h4>
           {lead.doctor_notes_updated_at && (
-            <span className="font-mono text-[11px] text-[rgba(26,26,46,0.38)]">
+            <span className="font-mono text-[13px] text-[rgba(26,26,46,0.38)]">
               Son güncelleme: {new Date(lead.doctor_notes_updated_at).toLocaleDateString('tr-TR')}
             </span>
           )}
@@ -137,7 +137,7 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
         />
 
         <div className="flex items-center justify-between mt-3">
-          <span className="font-mono text-[11px] text-[rgba(26,26,46,0.38)]">{notes.length} / 2000</span>
+          <span className="font-mono text-[13px] text-[rgba(26,26,46,0.38)]">{notes.length} / 2000</span>
           <div className="flex items-center gap-3">
             {saved && <span className="font-body text-[13px] text-[#3D7A5F]">Kaydedildi</span>}
             {saveError && <span className="font-body text-[13px] text-[#C47A7A]">Kayıt başarısız</span>}

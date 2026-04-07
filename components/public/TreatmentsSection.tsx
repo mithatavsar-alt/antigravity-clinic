@@ -84,7 +84,7 @@ export function TreatmentsSection() {
                     {/* Title overlaid on image bottom */}
                     <div className="absolute bottom-0 left-0 right-0 p-5">
                       <p className="font-display text-[22px] font-light text-white">{title}</p>
-                      <p className="font-body text-[9px] tracking-[0.15em] uppercase text-white/50 mt-0.5">{subtitle}</p>
+                      <p className="font-body text-[11px] tracking-[0.15em] uppercase text-white/50 mt-0.5">{subtitle}</p>
                     </div>
                   </div>
 

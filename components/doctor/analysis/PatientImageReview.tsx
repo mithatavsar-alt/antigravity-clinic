@@ -65,7 +65,7 @@ export function PatientImageReview({
                 </div>
               )}
               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[rgba(26,26,46,0.78)] to-transparent px-3 py-2">
-                <span className="font-body text-[10px] tracking-[0.1em] uppercase text-white/85">{labels[key]}</span>
+                <span className="font-body text-[12px] tracking-[0.1em] uppercase text-white/85">{labels[key]}</span>
               </div>
               <div className="absolute inset-0 bg-white/8 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <svg className="w-6 h-6 text-white/70" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">

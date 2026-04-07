@@ -327,7 +327,7 @@ function ConfidenceBar({ value }: { value: number }) {
           }}
         />
       </div>
-      <span className="font-body text-[11px] sm:text-[12px] tracking-[0.08em] uppercase font-medium whitespace-nowrap" style={{ color }}>
+      <span className="font-body text-[13px] sm:text-[14px] tracking-[0.08em] uppercase font-medium whitespace-nowrap" style={{ color }}>
         {label}
       </span>
     </div>
@@ -405,14 +405,14 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
               {card.title}
             </span>
             <span
-              className="px-2.5 py-0.5 rounded-full text-[10px] font-medium tracking-[0.10em] uppercase"
+              className="px-2.5 py-0.5 rounded-full text-[12px] font-medium tracking-[0.10em] uppercase"
               style={{ background: sev.bg, color: sev.text }}
             >
               {sev.label}
             </span>
             {card.sourceView && (
               <span
-                className="px-2 py-0.5 rounded-full text-[10px] font-medium tracking-[0.08em] uppercase"
+                className="px-2 py-0.5 rounded-full text-[12px] font-medium tracking-[0.08em] uppercase"
                 style={{
                   background: 'rgba(248,246,242,0.03)',
                   color: lowConfidence ? 'rgba(200,120,90,0.78)' : 'rgba(248,246,242,0.58)',
@@ -423,7 +423,7 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
             )}
             {mediumConfidence && !lowConfidence && (
               <span
-                className="px-2 py-0.5 rounded-full text-[10px] font-medium tracking-[0.08em] uppercase"
+                className="px-2 py-0.5 rounded-full text-[12px] font-medium tracking-[0.08em] uppercase"
                 style={{ background: 'rgba(214,185,140,0.05)', color: 'rgba(214,185,140,0.62)' }}
               >
                 Orta Guven
@@ -431,7 +431,7 @@ function RegionCard({ card, idx }: { card: RegionCardData; idx: number }) {
             )}
             {lowConfidence && (
               <span
-                className="px-2 py-0.5 rounded-full text-[10px] font-medium tracking-[0.08em] uppercase"
+                className="px-2 py-0.5 rounded-full text-[12px] font-medium tracking-[0.08em] uppercase"
                 style={{ background: 'rgba(200,120,90,0.08)', color: 'rgba(200,120,90,0.72)' }}
               >
                 Dusuk Guven
@@ -469,7 +469,7 @@ function SectionHeader({ label, icon }: { label: string; icon: string }) {
   return (
     <div className="flex items-center gap-2.5 mt-4 mb-2">
       <span className="text-[14px] font-medium text-[rgba(248,246,242,0.55)]">{icon}</span>
-      <span className="font-body text-[12px] sm:text-[13px] tracking-[0.14em] uppercase font-medium text-[rgba(248,246,242,0.55)]">{label}</span>
+      <span className="font-body text-[14px] sm:text-[15px] tracking-[0.14em] uppercase font-medium text-[rgba(248,246,242,0.55)]">{label}</span>
       <div className="flex-1 h-px bg-[rgba(248,246,242,0.07)]" />
     </div>
   )
@@ -507,7 +507,7 @@ function BilateralBar({ item }: { item: BilateralComparisonData }) {
     <div className="rounded-lg border border-[rgba(248,246,242,0.08)] bg-[rgba(248,246,242,0.03)] p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
         <span className="font-body text-[14px] sm:text-[15px] font-semibold text-[rgba(248,246,242,0.82)]">{item.label}</span>
-        <span className="font-body text-[11px] sm:text-[12px] tracking-[0.10em] uppercase px-2.5 py-0.5 rounded-full font-medium"
+        <span className="font-body text-[13px] sm:text-[14px] tracking-[0.10em] uppercase px-2.5 py-0.5 rounded-full font-medium"
           style={{ background: `${levelColor}18`, color: levelColor }}>
           {levelLabel}
         </span>
@@ -648,7 +648,7 @@ export function RegionalScoreCards(props: RegionalScoreCardsProps) {
             Çoklu Açı Değerlendirmesi
           </span>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[rgba(61,155,122,0.08)] border border-[rgba(61,155,122,0.16)]">
-            <span className="font-body text-[11px] sm:text-[12px] tracking-[0.08em] uppercase text-[rgba(61,155,122,0.70)]">Güven</span>
+            <span className="font-body text-[13px] sm:text-[14px] tracking-[0.08em] uppercase text-[rgba(61,155,122,0.70)]">Güven</span>
             <span className="font-mono text-[14px] font-medium text-[#3D9B7A]">{multiViewAnalysis.globalConfidence}%</span>
           </div>
         </div>

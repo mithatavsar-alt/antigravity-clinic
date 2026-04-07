@@ -72,7 +72,7 @@ function FieldGroup({ label, required, error, children }: {
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <label className="font-body text-[10px] tracking-[0.18em] uppercase font-medium" style={{ color: 'rgba(248, 246, 242, 0.45)' }}>
+      <label className="font-body text-[12px] tracking-[0.18em] uppercase font-medium" style={{ color: 'rgba(248, 246, 242, 0.45)' }}>
         {label}{required && <span style={{ color: 'rgba(214, 185, 140, 0.5)' }}> *</span>}
       </label>
       {children}
@@ -209,7 +209,7 @@ export function FormStepPersonal() {
       {/* ═══ Concern Area — Premium Cards ═══ */}
       <div className="flex flex-col gap-3">
         <label
-          className="font-body text-[10px] tracking-[0.18em] uppercase font-medium"
+          className="font-body text-[12px] tracking-[0.18em] uppercase font-medium"
           style={{ color: 'rgba(248, 246, 242, 0.45)' }}
         >
           İlgilendiğiniz Alan <span style={{ color: 'rgba(214, 185, 140, 0.5)' }}>*</span>
@@ -298,7 +298,7 @@ export function FormStepPersonal() {
             <div className="flex flex-col gap-2.5 pt-2">
               <div className="flex items-center justify-between">
                 <span
-                  className="font-body text-[9px] tracking-[0.15em] uppercase"
+                  className="font-body text-[11px] tracking-[0.15em] uppercase"
                   style={{ color: 'rgba(248, 246, 242, 0.28)' }}
                 >
                   Detay seçin (opsiyonel, en fazla {MAX_SUB_SELECTIONS})
@@ -318,7 +318,7 @@ export function FormStepPersonal() {
                       key={sub}
                       type="button"
                       onClick={() => !isDisabled && handleSubToggle(sub)}
-                      className="px-4 py-2 rounded-full font-body text-[11px] tracking-[0.02em] transition-all duration-250 cursor-pointer"
+                      className="px-4 py-2 rounded-full font-body text-[13px] tracking-[0.02em] transition-all duration-250 cursor-pointer"
                       style={{
                         background: isSelected ? 'rgba(214, 185, 140, 0.10)' : 'transparent',
                         border: isSelected

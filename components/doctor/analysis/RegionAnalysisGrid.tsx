@@ -164,7 +164,7 @@ function RegionCard({ region }: { region: MergedRegion }) {
             {region.doctorReviewRecommended && <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-[#C4883A]" title="Doktor incelemesi önerilir" />}
           </div>
           {region.category && (
-            <span className="font-body text-[11px] tracking-[0.12em] uppercase" style={{ color: categoryColor }}>
+            <span className="font-body text-[13px] tracking-[0.12em] uppercase" style={{ color: categoryColor }}>
               {region.category}
             </span>
           )}
@@ -194,11 +194,11 @@ function RegionCard({ region }: { region: MergedRegion }) {
             <div className="w-16 h-1 rounded-full bg-[rgba(26,26,46,0.10)] overflow-hidden">
               <div className="h-full rounded-full" style={{ width: `${Math.round(region.confidence * 100)}%`, backgroundColor: color }} />
             </div>
-            <span className="font-mono text-[11px] text-[rgba(26,26,46,0.38)]">{Math.round(region.confidence * 100)}%</span>
+            <span className="font-mono text-[13px] text-[rgba(26,26,46,0.38)]">{Math.round(region.confidence * 100)}%</span>
           </div>
         )}
         {region.evidenceStrength && (
-          <span className="font-body text-[11px] tracking-[0.1em] uppercase" style={{ color: evidence.color }}>
+          <span className="font-body text-[13px] tracking-[0.1em] uppercase" style={{ color: evidence.color }}>
             {evidence.label}
           </span>
         )}
@@ -209,7 +209,7 @@ function RegionCard({ region }: { region: MergedRegion }) {
       )}
 
       {region.wrinkleLevel && (
-        <span className="doctor-card-soft inline-flex self-start px-2 py-0.5 rounded-md text-[11px] font-mono tracking-[0.05em] uppercase text-[rgba(26,26,46,0.60)]">
+        <span className="doctor-card-soft inline-flex self-start px-2 py-0.5 rounded-md text-[13px] font-mono tracking-[0.05em] uppercase text-[rgba(26,26,46,0.60)]">
           {region.wrinkleLevel === 'minimal'
             ? 'Minimal'
             : region.wrinkleLevel === 'low'

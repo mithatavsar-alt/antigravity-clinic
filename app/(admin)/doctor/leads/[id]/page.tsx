@@ -296,7 +296,7 @@ function AIScoresPanel({ aiScores }: { aiScores: Record<string, unknown> }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
         {symmetry != null && (
           <div>
-            <p className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-1">Simetri</p>
+            <p className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-1">Simetri</p>
             <p className="font-mono text-[26px] font-light text-[#1A1A2E]">
               {symmetry}
               <span className="text-[13px] text-[rgba(26,26,46,0.42)]">%</span>
@@ -305,7 +305,7 @@ function AIScoresPanel({ aiScores }: { aiScores: Record<string, unknown> }) {
         )}
         {proportion != null && (
           <div>
-            <p className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-1">Altın Oran</p>
+            <p className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-1">Altın Oran</p>
             <p className="font-mono text-[26px] font-light text-[#1A1A2E]">
               {proportion}
               <span className="text-[13px] text-[rgba(26,26,46,0.42)]">%</span>
@@ -317,7 +317,7 @@ function AIScoresPanel({ aiScores }: { aiScores: Record<string, unknown> }) {
             .slice(0, 4)
             .map(([key, value]) => (
               <div key={key}>
-                <p className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-1">
+                <p className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-1">
                   {key === 'faceRatio'
                     ? 'Yüz Oranı'
                     : key === 'eyeDistanceRatio'
@@ -337,7 +337,7 @@ function AIScoresPanel({ aiScores }: { aiScores: Record<string, unknown> }) {
 
       {suggestions && suggestions.length > 0 && (
         <div className="pt-3 border-t border-[rgba(196,163,90,0.12)]">
-          <p className="font-body text-[11px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-2">Bulgular</p>
+          <p className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-2">Bulgular</p>
           <ul className="flex flex-col gap-1">
             {suggestions.map((suggestion, index) => (
               <li key={index} className="font-body text-[14px] text-[rgba(26,26,46,0.72)] flex items-start gap-2">
