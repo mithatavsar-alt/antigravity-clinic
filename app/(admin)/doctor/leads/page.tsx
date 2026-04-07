@@ -8,8 +8,7 @@ import { SectionLabel } from '@/components/design-system/SectionLabel'
 import type { Lead, LeadStatus, ReadinessBand } from '@/types/lead'
 import { concernAreaLabels } from '@/types/lead'
 import { formatDate } from '@/lib/utils'
-import { createClient } from '@/lib/supabase/client'
-import { fetchLeadsWithResults, sessionToLead } from '@/lib/supabase/queries'
+import { sessionToLead } from '@/lib/supabase/queries'
 
 export default function LeadsPage() {
   const { leads } = useClinicStore()
@@ -19,22 +18,24 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState<LeadStatus | ''>('')
   const [bandFilter, setBandFilter] = useState<ReadinessBand | ''>('')
 
-  // Fetch leads from Supabase on mount, merge with Zustand
+  // Fetch leads from server API on mount, merge with Zustand
   useEffect(() => {
-    const sb = createClient()
-    fetchLeadsWithResults(sb).then(({ data, error }) => {
-      if (error) {
-        setFetchError('Veriler yüklenirken bir hata oluştu.')
-        console.error('[Leads] Supabase fetch error:', error.message)
-        return
-      }
-      if (data && data.length > 0) {
-        setSupabaseLeads(data.map((row: Record<string, unknown>) => sessionToLead(row)))
-      }
-    }).catch((e) => {
-      setFetchError('Sunucuya bağlanılamadı.')
-      console.error('[Leads] Network error:', e)
-    })
+    fetch('/api/doctor/leads')
+      .then(async (res) => {
+        if (!res.ok) {
+          setFetchError('Veriler yüklenirken bir hata oluştu.')
+          console.error('[Leads] API error:', res.status)
+          return
+        }
+        const { data } = await res.json()
+        if (data && data.length > 0) {
+          setSupabaseLeads(data.map((row: Record<string, unknown>) => sessionToLead(row)))
+        }
+      })
+      .catch((e) => {
+        setFetchError('Sunucuya bağlanılamadı.')
+        console.error('[Leads] Network error:', e)
+      })
   }, [])
 
   // Merge: Zustand leads + Supabase leads (deduplicate by id, Zustand wins)

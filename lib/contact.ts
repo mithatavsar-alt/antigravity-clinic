@@ -15,4 +15,7 @@ export const contact = {
   whatsappNumber: WHATSAPP_NUMBER,
   whatsappUrl: `https://wa.me/${WHATSAPP_NUMBER}`,
   whatsappBookingUrl: `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(BOOKING_MESSAGE)}`,
+  /** Build a booking URL with a custom pre-filled message. */
+  whatsappBookingUrlWith: (message: string) =>
+    `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`,
 } as const

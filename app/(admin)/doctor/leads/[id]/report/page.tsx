@@ -7,8 +7,7 @@ import { PremiumButton } from '@/components/design-system/PremiumButton'
 import { RegionBar } from '@/components/design-system/RegionBar'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { readinessBandConfig } from '@/lib/readiness'
-import { createClient } from '@/lib/supabase/client'
-import { fetchSessionById, sessionToLead } from '@/lib/supabase/queries'
+import { sessionToLead } from '@/lib/supabase/queries'
 import {
   concernAreaLabels,
   consultationTimingLabels,
@@ -34,13 +33,16 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const [sbLead, setSbLead] = useState<ReturnType<typeof sessionToLead> | null>(null)
   const lead = zustandLead ?? sbLead
 
-  // Fetch from Supabase if not found in Zustand
+  // Fetch from server API if not found in Zustand (bypasses RLS)
   useEffect(() => {
     if (!zustandLead) {
-      const sb = createClient()
-      fetchSessionById(sb, id).then(({ data }) => {
-        if (data) setSbLead(sessionToLead(data as Record<string, unknown>))
-      }).catch(() => {})
+      fetch(`/api/doctor/leads/${id}`)
+        .then(async (res) => {
+          if (!res.ok) return
+          const { data } = await res.json()
+          if (data) setSbLead(sessionToLead(data as Record<string, unknown>))
+        })
+        .catch(() => {})
     }
   }, [id, zustandLead])
 

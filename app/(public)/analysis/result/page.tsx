@@ -12,6 +12,7 @@ import type { Lead } from '@/types/lead'
 import { getPhoto, getViewPhotos } from '@/lib/photo-bridge'
 import { LandmarkOverlay, type OverlayState } from '@/components/analysis/LandmarkOverlay'
 import { contact } from '@/lib/contact'
+import { generateWhatsAppMessage } from '@/lib/ai/whatsapp-message-generator'
 import RadarChartSection from '@/components/analysis/RadarChart'
 import { RegionalScoreCards } from '@/components/analysis/RegionalScoreCards'
 import { deriveRadarAnalysis } from '@/lib/ai/radar-scores'
@@ -1656,10 +1657,16 @@ function ResultContent() {
           </div>
         </div>
 
-        {/* Ã¯¿½"?Ã¯¿½"? CTA Buttons Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"? */}
+        {/* CTA Buttons */}
         <div className="flex flex-col gap-4 max-w-md mx-auto w-full px-1 sm:px-0" style={{ animation: 'sectionReveal 0.6s ease-out 0.6s both' }}>
           <a
-            href={contact.whatsappBookingUrl}
+            href={contact.whatsappBookingUrlWith(
+              generateWhatsAppMessage({
+                overallScore: hasAI ? Math.round(((aiScores!.symmetry + aiScores!.proportion) / 2)) : undefined,
+                analysisConfidence: analysisConfidence ?? undefined,
+                focusAreas: detailedFocusAreas ?? undefined,
+              }).message,
+            )}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => {

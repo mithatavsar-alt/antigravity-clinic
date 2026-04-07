@@ -5,8 +5,7 @@ import Link from 'next/link'
 import { GlassCard } from '@/components/design-system/GlassCard'
 import { SectionLabel } from '@/components/design-system/SectionLabel'
 import { StatusBadge } from '@/components/design-system/StatusBadge'
-import { createClient } from '@/lib/supabase/client'
-import { fetchLeadsWithResults, sessionToLead } from '@/lib/supabase/queries'
+import { sessionToLead } from '@/lib/supabase/queries'
 import { concernAreaLabels } from '@/types/lead'
 import { formatDate } from '@/lib/utils'
 import type { Lead } from '@/types/lead'
@@ -23,14 +22,14 @@ export default function DashboardPage() {
   const [fetchError, setFetchError] = useState<string | null>(null)
 
   useEffect(() => {
-    const sb = createClient()
-    fetchLeadsWithResults(sb)
-      .then(({ data, error }) => {
-        if (error) {
+    fetch('/api/doctor/leads')
+      .then(async (res) => {
+        if (!res.ok) {
           setFetchError('Veriler yüklenirken bir hata oluştu.')
-          console.error('[Dashboard] Supabase fetch error:', error.message)
+          console.error('[Dashboard] API error:', res.status)
           return
         }
+        const { data } = await res.json()
         if (data && data.length > 0) {
           setLeads(data.map((row: Record<string, unknown>) => sessionToLead(row)))
         }

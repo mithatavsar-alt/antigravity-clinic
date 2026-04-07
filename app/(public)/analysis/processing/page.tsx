@@ -43,8 +43,7 @@ import { runMultiViewPipeline, type MultiViewInput, type ViewKey } from '@/lib/a
 import { buildTemporalViewAggregate, type TemporalDetectionSample, type TemporalViewAggregate } from '@/lib/ai/temporal-aggregation'
 import { buildCanonicalAnalysisPayload, deriveOverallReliabilityBand, generateAnalysisRunId } from '@/lib/ai/canonical-analysis'
 import { logAuditEvent } from '@/lib/audit'
-import { createClient } from '@/lib/supabase/client'
-import { upsertResult, updateSession } from '@/lib/supabase/queries'
+// Analysis result persistence uses /api/analysis/save-results (admin client, bypasses RLS)
 import type { CaptureViewManifest, CaptureViewKey } from '@/types/capture'
 
 // ─── Dev-only logging ───────────────────────────────────────
@@ -1850,12 +1849,14 @@ function ProcessingContent() {
           } : undefined,
         })
 
-        // ── Supabase: persist analysis results (fire-and-forget) ──
+        // ── Persist analysis results via server API (bypasses RLS) ──
         if (sbSessionId) {
-          const sb = createClient()
-          ;(async () => {
-            try {
-              await updateSession(sb, sbSessionId, {
+          fetch('/api/analysis/save-results', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId: sbSessionId,
+              sessionUpdate: {
                 status: 'analysis_ready',
                 analysis_source: {
                   provider: 'human-local',
@@ -1870,8 +1871,8 @@ function ProcessingContent() {
                 recapture_views: recaptureViews,
                 output_degraded: outputDegraded,
                 canonical_analysis: canonicalAnalysis as unknown as Record<string, unknown>,
-              })
-              await upsertResult(sb, {
+              },
+              resultData: {
                 session_id: sbSessionId,
                 ai_scores: {
                   symmetry: geometry.scores.symmetry,
@@ -1914,11 +1915,11 @@ function ProcessingContent() {
                 consultation_readiness: readiness as unknown as Record<string, unknown>,
                 readiness_score: readiness.readiness_score,
                 readiness_band: readiness.readiness_band,
-              })
-            } catch (e) {
-              console.error('[Supabase] Result persist error (non-blocking):', e)
-            }
-          })()
+              },
+            }),
+          }).catch(e => {
+            console.error('[SaveResults] Result persist error (non-blocking):', e)
+          })
         }
 
         // ── Final freeze 0.5s then navigate ──

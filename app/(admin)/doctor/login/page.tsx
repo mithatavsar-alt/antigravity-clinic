@@ -40,47 +40,24 @@ export default function LoginPage() {
         return
       }
 
-      // Verify the user exists in admin_users table.
-      // admin_users.id IS the Supabase Auth user UUID.
-      const { data: adminRow, error: adminError } = await sb
-        .from('admin_users')
-        .select('id, role, is_active')
-        .eq('id', data.user.id)
-        .maybeSingle()
+      // Verify admin role via server API (reads identity from session cookies, not body)
+      const verifyRes = await fetch('/api/doctor/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+      const verifyData = await verifyRes.json()
 
-      // Fallback: match by email if id lookup returned nothing
-      // (covers edge cases where admin_users.id differs from auth UUID)
-      let finalRow = adminRow
-      if (!finalRow && !adminError) {
-        const { data: byEmail } = await sb
-          .from('admin_users')
-          .select('id, role, is_active')
-          .eq('email', data.user.email!)
-          .maybeSingle()
-        finalRow = byEmail
-      }
-
-      if (adminError) {
-        console.error('[Login] admin_users query failed:', adminError.message)
-      }
-
-      if (!finalRow) {
+      if (!verifyRes.ok || !verifyData.authorized) {
         await sb.auth.signOut()
-        setError('Bu hesap doktor paneline erişim yetkisine sahip değil.')
-        setLoading(false)
-        return
-      }
-
-      if (finalRow.is_active === false) {
-        await sb.auth.signOut()
-        setError('Bu hesap devre dışı bırakılmış. Yönetici ile iletişime geçin.')
-        setLoading(false)
-        return
-      }
-
-      if (!['admin', 'doctor'].includes(finalRow.role)) {
-        await sb.auth.signOut()
-        setError('Bu hesabın doktor paneline erişim rolü yok.')
+        const reason = verifyData.reason
+        if (reason === 'inactive') {
+          setError('Bu hesap devre dışı bırakılmış. Yönetici ile iletişime geçin.')
+        } else if (reason === 'wrong_role') {
+          setError('Bu hesabın doktor paneline erişim rolü yok.')
+        } else {
+          setError('Bu hesap doktor paneline erişim yetkisine sahip değil.')
+        }
         setLoading(false)
         return
       }

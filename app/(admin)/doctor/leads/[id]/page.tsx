@@ -14,7 +14,7 @@ import { CollapsibleSection } from '@/components/design-system/CollapsibleSectio
 import { readinessBandConfig } from '@/lib/readiness'
 import { logAuditEvent } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
-import { insertDoctorNote, updateSession, fetchSessionById, sessionToLead } from '@/lib/supabase/queries'
+import { insertDoctorNote, updateSession, sessionToLead } from '@/lib/supabase/queries'
 import {
   communicationPreferenceLabels,
   concernAreaLabels,
@@ -77,21 +77,23 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [fetchError, setFetchError] = useState<string | null>(null)
   const lead = zustandLead ?? sbLead
 
-  // Fetch from Supabase if not found in Zustand
+  // Fetch from server API if not found in Zustand (bypasses RLS)
   useEffect(() => {
     if (!zustandLead) {
-      const sb = createClient()
-      fetchSessionById(sb, id).then(({ data, error }) => {
-        if (error) {
-          setFetchError('Lead verileri yüklenemedi.')
-          console.error('[LeadDetail] Supabase fetch error:', error.message)
-          return
-        }
-        if (data) setSbLead(sessionToLead(data as Record<string, unknown>))
-      }).catch((e) => {
-        setFetchError('Sunucuya bağlanılamadı.')
-        console.error('[LeadDetail] Network error:', e)
-      })
+      fetch(`/api/doctor/leads/${id}`)
+        .then(async (res) => {
+          if (!res.ok) {
+            setFetchError('Lead verileri yüklenemedi.')
+            console.error('[LeadDetail] API error:', res.status)
+            return
+          }
+          const { data } = await res.json()
+          if (data) setSbLead(sessionToLead(data as Record<string, unknown>))
+        })
+        .catch((e) => {
+          setFetchError('Sunucuya bağlanılamadı.')
+          console.error('[LeadDetail] Network error:', e)
+        })
     }
   }, [id, zustandLead])
 
