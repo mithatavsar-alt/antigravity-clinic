@@ -12,8 +12,10 @@ import { buildPatientSummary } from '@/lib/lead-helpers'
 import { deriveConsultationReadiness } from '@/lib/ai/derive-doctor-analysis'
 import { generateLeadId } from '@/lib/utils'
 import { getActiveConsentVersion } from '@/lib/data/consent-versions'
+import { saveCaptureManifest } from '@/lib/photo-bridge'
 import { logAuditEvent } from '@/lib/audit'
 import type { Lead } from '@/types/lead'
+import type { CaptureManifest } from '@/components/analysis/FaceGuideCapture'
 
 export default function AnalysisConsentPage() {
   const router = useRouter()
@@ -35,7 +37,7 @@ export default function AnalysisConsentPage() {
   // Render guard — currentLead stays populated until processing page clears it
   if (!currentLead?.full_name || !currentLead?.patient_photo_url) return null
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (loading) return
     setLoading(true)
     setError(null)
@@ -52,6 +54,7 @@ export default function AnalysisConsentPage() {
       const now = new Date().toISOString()
       const id = generateLeadId()
 
+      // Build lead with all capture metadata
       const lead: Omit<Lead, 'readiness_score' | 'readiness_band'> = {
         id,
         full_name: currentLead.full_name ?? '',
@@ -72,11 +75,22 @@ export default function AnalysisConsentPage() {
         created_at: now,
         updated_at: now,
         patient_photo_url: currentLead.patient_photo_url ?? '',
+        captured_frames: currentLead.captured_frames,
         doctor_frontal_photos: currentLead.doctor_frontal_photos ?? [],
         doctor_mimic_photos: currentLead.doctor_mimic_photos ?? [],
         optional_video_url: currentLead.optional_video_url,
         before_media: [],
         after_media: [],
+        capture_confidence: currentLead.capture_confidence,
+        capture_quality_score: currentLead.capture_quality_score,
+        recapture_recommended: currentLead.recapture_recommended,
+        recapture_views: currentLead.recapture_views,
+        capture_manifest: currentLead.capture_manifest,
+        liveness_status: currentLead.liveness_status,
+        liveness_confidence: currentLead.liveness_confidence,
+        liveness_required: currentLead.liveness_required,
+        liveness_passed: currentLead.liveness_passed,
+        liveness_signals: currentLead.liveness_signals,
         patient_summary: buildPatientSummary({
           concern_area: currentLead.concern_area,
           patient_photo_url: currentLead.patient_photo_url,
@@ -86,12 +100,102 @@ export default function AnalysisConsentPage() {
 
       setCurrentLead({ consent_given: true, consent_timestamp: now, consent_text_version: consentVersion.version })
       addLead(lead)
+
+      // Save capture manifest locally
+      const manifest = currentLead.capture_manifest as CaptureManifest | undefined
+      if (manifest) {
+        saveCaptureManifest(id, { ...manifest, session_id: id })
+      }
       logAuditEvent('form_completed', { lead_id: id })
       logAuditEvent('consent_granted', { lead_id: id, version: consentVersion.version })
 
-      // DO NOT call clearCurrentLead() here.
-      // Clearing currentLead triggers the step guard which races with navigation.
-      // The processing page clears it after reading the lead from the persisted store.
+      // Capture-specific audit
+      if (currentLead.capture_quality_score != null || currentLead.liveness_status) {
+        logAuditEvent('capture_completed', {
+          lead_id: id,
+          capture_quality_score: currentLead.capture_quality_score,
+          recapture_recommended: currentLead.recapture_recommended ?? false,
+          liveness_status: currentLead.liveness_status,
+          liveness_confidence: currentLead.liveness_confidence,
+          liveness_passed: currentLead.liveness_passed ?? false,
+        })
+      }
+      if (currentLead.recapture_recommended) {
+        logAuditEvent('capture_recapture_recommended', {
+          lead_id: id,
+          views: currentLead.recapture_views ?? [],
+        })
+      }
+
+      // ── Persist to Supabase (non-blocking) ──
+      const photos: Record<string, string> = {}
+      const frontal = currentLead.doctor_frontal_photos ?? [currentLead.patient_photo_url]
+      if (frontal[0]) photos.front = frontal[0]
+      if (frontal[1]) photos.left = frontal[1]
+      if (frontal[2]) photos.right = frontal[2]
+      if (!photos.front && currentLead.patient_photo_url) photos.front = currentLead.patient_photo_url
+
+      const rawLivenessConfidence = currentLead.liveness_confidence as number | undefined
+      const normalizedLivenessConfidence = rawLivenessConfidence != null && Number.isFinite(rawLivenessConfidence)
+        ? Math.min(1, Math.max(0, rawLivenessConfidence > 1 ? rawLivenessConfidence / 100 : rawLivenessConfidence))
+        : undefined
+
+      try {
+        const response = await fetch('/api/analysis/persist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId: id,
+            patient: {
+              full_name: currentLead.full_name ?? '',
+              phone: currentLead.phone ?? '',
+              age_range: (currentLead.age_range as string) ?? '25-34',
+              gender: (currentLead.gender as string) ?? 'female',
+              city: currentLead.city,
+              source: 'website',
+            },
+            intake: {
+              concern_area: (currentLead.concern_area as string) ?? 'genel_yuz_dengesi',
+              concern_sub_areas: currentLead.concern_sub_areas as string[] | undefined,
+              desired_result_style: (currentLead.desired_result_style as string) ?? 'emin_degil',
+              prior_treatment: currentLead.prior_treatment ?? false,
+              consultation_timing: (currentLead.consultation_timing as string) ?? 'bilgi_almak',
+              expectation_note: currentLead.expectation_note,
+            },
+            consent: {
+              consent_given: true,
+              consent_text_version: consentVersion.version,
+              consent_timestamp: now,
+              user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+            },
+            session: {
+              status: 'consented',
+              capture_confidence: currentLead.capture_confidence,
+              capture_quality_score: currentLead.capture_quality_score,
+              capture_manifest: currentLead.capture_manifest,
+              liveness_status: currentLead.liveness_status,
+              liveness_passed: currentLead.liveness_passed,
+              liveness_confidence: normalizedLivenessConfidence,
+            },
+            photos,
+            rawLivenessConfidence: rawLivenessConfidence ?? null,
+          }),
+        })
+
+        const result = await response.json() as { sessionId?: string; patientId?: string; warnings?: Array<{ step: string; message: string }> }
+        if (result.sessionId && result.patientId) {
+          setCurrentLead({
+            _supabase_session_id: result.sessionId,
+            _supabase_patient_id: result.patientId,
+          } as Partial<Lead>)
+        }
+        if (result.warnings && result.warnings.length > 0) {
+          console.warn('[Consent] Persist warnings:', result.warnings)
+        }
+      } catch (e) {
+        console.error('[Consent] Persist error (non-blocking):', e)
+      }
+
       router.push(`/analysis/processing?id=${id}`)
     } catch (err) {
       console.error('[Consent] Error:', err)
