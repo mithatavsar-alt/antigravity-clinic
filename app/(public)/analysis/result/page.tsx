@@ -16,6 +16,8 @@ import RadarChartSection from '@/components/analysis/RadarChart'
 import { RegionalScoreCards } from '@/components/analysis/RegionalScoreCards'
 import { deriveRadarAnalysis } from '@/lib/ai/radar-scores'
 import type { EnhancedAnalysisResult, ImageQualityAssessment, SkinTextureProfile, SymmetryAnalysis, WrinkleAnalysisResult } from '@/lib/ai/types'
+import { createClient } from '@/lib/supabase/client'
+import { insertAppointment } from '@/lib/supabase/queries'
 
 /* Ã¯¿½"?Ã¯¿½"? Radial gauge Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"?Ã¯¿½"? */
 function RadialGauge({ score, label, color }: { score: number; label: string; color: string }) {
@@ -496,26 +498,6 @@ function MultiViewSynthesisSummary({ multiView }: { multiView: NonNullable<Lead[
         </div>
       )}
 
-      {/* Improvement areas — full-width, 2-col card grid */}
-      {synthesis.improvementAreas.length > 0 && (
-        <div className="flex flex-col gap-2.5">
-          <span className="font-body text-[11px] tracking-[0.16em] uppercase text-[rgba(214,185,140,0.75)] font-medium flex items-center gap-1.5">
-            <span className="text-[11px]">◇</span> Değerlendirme Önerilen
-          </span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {synthesis.improvementAreas.map(area => (
-              <div key={area.region} className="flex items-start gap-2.5 px-4 py-3 rounded-lg bg-[rgba(214,185,140,0.04)] border border-[rgba(214,185,140,0.10)]">
-                <span className="text-[10px] mt-0.5 text-[#D6B98C]">◇</span>
-                <div className="flex-1 min-w-0">
-                  <span className="font-body text-[13px] font-medium text-[rgba(248,246,242,0.80)]">{area.label}</span>
-                  <p className="font-body text-[12px] text-[rgba(248,246,242,0.50)] leading-[1.65] mt-1">{area.note}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Bilateral comparisons */}
       {synthesis.bilateralComparisons.length > 0 && (
         <div className="flex flex-col gap-2.5">
@@ -583,38 +565,6 @@ function MultiViewSynthesisSummary({ multiView }: { multiView: NonNullable<Lead[
         </div>
       )}
 
-      {/* View summaries */}
-      {multiView.viewSummaries && multiView.viewSummaries.length > 0 && (
-        <div className="flex flex-col gap-2.5">
-          <span className="font-body text-[11px] tracking-[0.16em] uppercase text-[rgba(248,246,242,0.50)] font-medium flex items-center gap-1.5">
-            <span className="text-[11px]">◎</span> Görünüm Özetleri
-          </span>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {multiView.viewSummaries.map(vs => (
-              <div key={vs.view} className="rounded-lg border border-[rgba(248,246,242,0.07)] bg-[rgba(248,246,242,0.025)] p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-body text-[13px] font-medium text-[rgba(248,246,242,0.78)]">{vs.label}</span>
-                  {vs.usable ? (
-                    <span className="font-mono text-[13px] font-medium text-[#3D9B7A]">%{vs.qualityScore}</span>
-                  ) : (
-                    <span className="font-mono text-[13px] font-medium text-[#C8785A]">Yetersiz</span>
-                  )}
-                </div>
-                <p className="font-body text-[11px] text-[rgba(248,246,242,0.52)] leading-[1.7]">{vs.narrative}</p>
-                {vs.limitations.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {vs.limitations.map((lim, i) => (
-                      <span key={i} className="font-body text-[10px] text-[rgba(200,120,90,0.65)] bg-[rgba(200,120,90,0.08)] px-2 py-0.5 rounded">
-                        {lim}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -1117,7 +1067,6 @@ function ResultContent() {
     )
   }
 
-  const focusAreas = selectedLead.patient_summary?.focus_areas ?? ['Genel Yüz Dengesi']
   const photoQuality = selectedLead.patient_summary?.photo_quality
   const aiScores = selectedLead.ai_scores
   const skinScores = selectedLead.skin_scores
@@ -1163,14 +1112,16 @@ function ResultContent() {
     ?.filter(view => view.recapture_required || !view.captured)
     .map(view => view.view) ?? []
   // Photo may have been stripped from localStorage (quota protection).
-  // Recover from sessionStorage bridge if needed.
-  const photoUrl = selectedLead.patient_photo_url || (id ? getPhoto(id) : null)
+  // Recover from sessionStorage bridge: primary photo OR front view photo.
+  const bridgePhotos = id ? getViewPhotos(id) : [null, null, null] as [string | null, string | null, string | null]
+  const photoUrl = selectedLead.patient_photo_url
+    || (id ? getPhoto(id) : null)
+    || bridgePhotos[0]
 
   // Multi-view photos: [front, left, right]
   const multiViewAnalysis = selectedLead.multi_view_analysis
   const hasMultiView = !!multiViewAnalysis && (multiViewAnalysis.centralRegions.length > 0 || multiViewAnalysis.leftRegions.length > 0)
   const storedPhotos = selectedLead.doctor_frontal_photos ?? []
-  const bridgePhotos = id ? getViewPhotos(id) : [null, null, null] as [string | null, string | null, string | null]
   const viewPhotos: [string | null, string | null, string | null] = [
     storedPhotos[0] || bridgePhotos[0] || photoUrl,
     storedPhotos[1] || bridgePhotos[1],
@@ -1688,21 +1639,6 @@ function ResultContent() {
                   </>
                 )}
 
-                {/* Priority Focus Areas */}
-                <div>
-                  <span className="text-label text-[rgba(248,246,242,0.55)] sm:text-[rgba(248,246,242,0.50)] mb-4 block">Öncelikli Odak Alanları</span>
-                  <div className="flex flex-wrap gap-2.5">
-                    {focusAreas.map((area) => (
-                      <span
-                        key={area}
-                        className="font-body text-[12px] sm:text-[11px] px-4 py-2.5 sm:py-2 rounded-full border border-[rgba(214,185,140,0.12)] sm:border-[rgba(214,185,140,0.10)] text-[rgba(214,185,140,0.70)] sm:text-[rgba(214,185,140,0.65)] bg-[rgba(214,185,140,0.04)] sm:bg-[rgba(214,185,140,0.03)]"
-                      >
-                        {area}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Expert evaluation Ã¯¿½?" single clean card */}
                 <div className="rounded-xl border border-[rgba(61,155,122,0.10)] bg-[rgba(61,155,122,0.02)] px-5 py-4">
                   <div className="flex items-center gap-2.5 mb-2.5">
@@ -1726,6 +1662,23 @@ function ResultContent() {
             href={contact.whatsappBookingUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => {
+              // Fire-and-forget: persist appointment request to Supabase
+              try {
+                const cl = useClinicStore.getState().currentLead ?? {}
+                const patientId = (cl as Record<string, unknown>)._supabase_patient_id as string | undefined
+                const sessionId = (cl as Record<string, unknown>)._supabase_session_id as string | undefined
+                if (patientId) {
+                  const sb = createClient()
+                  insertAppointment(sb, {
+                    patient_id: patientId,
+                    session_id: sessionId,
+                    channel: 'whatsapp',
+                    status: 'requested',
+                  }).catch(() => {})
+                }
+              } catch { /* best-effort */ }
+            }}
           >
             <PremiumButton variant="gold" size="lg" className="w-full justify-center gap-3">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">

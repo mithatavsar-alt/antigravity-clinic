@@ -9,11 +9,7 @@ import {
   INITIAL_WORKFLOW_STATE,
   transition,
 } from '@/lib/workflow-state'
-// Mock leads only seeded in development for doctor dashboard demo
-const initialLeads: Lead[] = process.env.NODE_ENV === 'development'
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  ? (require('@/data/mock-leads') as { mockLeads: Lead[] }).mockLeads
-  : []
+const initialLeads: Lead[] = []
 import { calculateReadiness } from '@/lib/readiness'
 
 interface LeadAnalysisUpdate {
@@ -84,20 +80,6 @@ interface ClinicStore {
   /** Reset workflow to initial state (e.g. on new scan start) */
   resetWorkflow: () => void
 
-  isAuthenticated: boolean
-  login: (credentials: { email: string; password: string }) => boolean
-  logout: () => void
-}
-
-function setAuthCookie(token: string) {
-  if (typeof window === 'undefined') return
-  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
-  document.cookie = `ag_auth_token=${token}; path=/; max-age=86400; SameSite=Strict${secure}`
-}
-
-function clearAuthCookie() {
-  if (typeof window === 'undefined') return
-  document.cookie = 'ag_auth_token=; path=/; max-age=0; SameSite=Strict'
 }
 
 // Hydration tracking — persist loads async from localStorage
@@ -141,6 +123,7 @@ export const useClinicStore = create<ClinicStore>()(
       addLead: (lead) => {
         const { score, band } = calculateReadiness(lead)
         const enriched: Lead = { ...lead, readiness_score: score, readiness_band: band }
+        console.log('[Store] addLead:', lead.id, '| total after:', useClinicStore.getState().leads.length + 1)
         set((s) => ({ leads: [enriched, ...s.leads] }))
       },
       updateLeadAnalysis: (id, update) =>
@@ -184,39 +167,72 @@ export const useClinicStore = create<ClinicStore>()(
         return result
       },
       resetWorkflow: () => set({ scanWorkflow: { ...INITIAL_WORKFLOW_STATE } }),
-
-      isAuthenticated: false,
-      login: ({ email, password }) => {
-        if (email === 'doctor@clinic.com' && password === 'clinic2026') {
-          set({ isAuthenticated: true })
-          setAuthCookie('ag-session-token')
-          return true
-        }
-        return false
-      },
-      logout: () => {
-        set({ isAuthenticated: false })
-        clearAuthCookie()
-      },
     }),
     {
       name: 'ag-clinic-store',
-      // isAuthenticated intentionally excluded — cookie is the sole auth source
-      partialize: (s) => ({
+      storage: {
+        getItem: (name) => {
+          try {
+            const value = localStorage.getItem(name)
+            return value ? JSON.parse(value) : null
+          } catch (e) {
+            console.warn('[Store] Failed to read localStorage:', e)
+            return null
+          }
+        },
+        setItem: (name, value) => {
+          try {
+            localStorage.setItem(name, JSON.stringify(value))
+          } catch {
+            console.warn('[Store] localStorage quota exceeded — clearing stale data and retrying')
+            try {
+              // Remove the stale key entirely, then retry with the new (smaller) value
+              localStorage.removeItem(name)
+              localStorage.setItem(name, JSON.stringify(value))
+            } catch {
+              // Still failing — localStorage is truly full. App continues in-memory only.
+              console.error('[Store] localStorage write failed after cleanup — running in-memory only')
+            }
+          }
+        },
+        removeItem: (name) => {
+          try { localStorage.removeItem(name) } catch { /* noop */ }
+        },
+      },
+      partialize: ((s: ClinicStore) => ({
+        // currentLead is transient (accumulates data URIs during capture) — never persist
+        // formStep resets with currentLead — no need to persist
+        // scanWorkflow is session-scoped FSM state — no need to persist
         leads: s.leads.map((l) => ({
           ...l,
-          // Strip large base64 data-URIs to avoid exceeding localStorage quota.
-          // Object URLs (blob:) are session-scoped and can't be restored anyway.
+
+          // ── Strip base64 / blob URIs from photo fields ──
           patient_photo_url: stripDataUri(l.patient_photo_url),
-          // Multi-frame captures are large base64 — strip from persistence (used in-session only)
-          captured_frames: undefined,
           doctor_frontal_photos: l.doctor_frontal_photos.map(stripDataUri).filter(Boolean) as string[],
           doctor_mimic_photos: l.doctor_mimic_photos.map(stripDataUri).filter(Boolean) as string[],
           optional_video_url: stripDataUri(l.optional_video_url),
           before_media: l.before_media.map(stripDataUri).filter(Boolean) as string[],
           after_media: l.after_media.map(stripDataUri).filter(Boolean) as string[],
+
+          // ── Drop large blobs that blow up localStorage (re-fetched from Supabase) ──
+          captured_frames: undefined,
+          canonical_analysis: undefined,
+          specialist_analysis: undefined,
+          multi_view_analysis: undefined,
+          trust_pipeline: undefined,
+          radar_analysis: undefined,
+          capture_manifest: undefined,
+          liveness_signals: undefined,
+          focus_areas: undefined,
+          wrinkle_scores: undefined,
+          lip_analysis: undefined,
+          suggested_zones: undefined,
+          patient_summary: undefined,
+          consultation_readiness: undefined,
+          doctor_analysis: undefined,
+          age_estimation: undefined,
         })),
-      }),
+      })) as unknown as (state: ClinicStore) => ClinicStore,
     }
   )
 )

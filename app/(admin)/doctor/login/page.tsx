@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useClinicStore } from '@/lib/store'
+import { createClient } from '@/lib/supabase/client'
 import { GlassCard } from '@/components/design-system/GlassCard'
 import { PremiumButton } from '@/components/design-system/PremiumButton'
 import { ThinLine } from '@/components/design-system/ThinLine'
@@ -10,17 +10,18 @@ import { SectionLabel } from '@/components/design-system/SectionLabel'
 import { FormField } from '@/components/design-system/FormField'
 
 export default function LoginPage() {
-  const { login } = useClinicStore()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // If already authenticated, redirect
   useEffect(() => {
-    if (document.cookie.includes('ag_auth_token=')) {
-      router.replace('/doctor/leads')
-    }
+    const sb = createClient()
+    sb.auth.getSession().then(({ data }) => {
+      if (data.session) router.replace('/doctor/dashboard')
+    })
   }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,16 +29,67 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
 
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    const success = login({ email, password })
+    try {
+      const sb = createClient()
 
-    if (success) {
-      router.push('/doctor/leads')
-      return
+      // Authenticate with Supabase Auth
+      const { data, error: authError } = await sb.auth.signInWithPassword({ email, password })
+      if (authError || !data.user) {
+        setError('E-posta veya şifre hatalı.')
+        setLoading(false)
+        return
+      }
+
+      // Verify the user exists in admin_users table.
+      // admin_users.id IS the Supabase Auth user UUID.
+      const { data: adminRow, error: adminError } = await sb
+        .from('admin_users')
+        .select('id, role, is_active')
+        .eq('id', data.user.id)
+        .maybeSingle()
+
+      // Fallback: match by email if id lookup returned nothing
+      // (covers edge cases where admin_users.id differs from auth UUID)
+      let finalRow = adminRow
+      if (!finalRow && !adminError) {
+        const { data: byEmail } = await sb
+          .from('admin_users')
+          .select('id, role, is_active')
+          .eq('email', data.user.email!)
+          .maybeSingle()
+        finalRow = byEmail
+      }
+
+      if (adminError) {
+        console.error('[Login] admin_users query failed:', adminError.message)
+      }
+
+      if (!finalRow) {
+        await sb.auth.signOut()
+        setError('Bu hesap doktor paneline erişim yetkisine sahip değil.')
+        setLoading(false)
+        return
+      }
+
+      if (finalRow.is_active === false) {
+        await sb.auth.signOut()
+        setError('Bu hesap devre dışı bırakılmış. Yönetici ile iletişime geçin.')
+        setLoading(false)
+        return
+      }
+
+      if (!['admin', 'doctor'].includes(finalRow.role)) {
+        await sb.auth.signOut()
+        setError('Bu hesabın doktor paneline erişim rolü yok.')
+        setLoading(false)
+        return
+      }
+
+      router.push('/doctor/dashboard')
+    } catch {
+      setError('Giriş sırasında bir hata oluştu.')
+      setLoading(false)
     }
-
-    setError('E-posta veya şifre hatalı.')
-    setLoading(false)
   }
 
   return (

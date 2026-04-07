@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { getTreatment, getRelatedTreatments, getAllSlugs } from '@/data/treatments'
-import { TreatmentHero } from '@/components/treatments/TreatmentHero'
-import { TreatmentSection } from '@/components/treatments/TreatmentSection'
-import { TreatmentLayout } from '@/components/treatments/TreatmentLayout'
+import { getTreatment, getRelatedTreatments, getAllSlugs } from '@/lib/data/treatments'
+import { TreatmentHero } from '@/components/public/treatments/TreatmentHero'
+import { TreatmentSection } from '@/components/public/treatments/TreatmentSection'
+import { TreatmentLayout } from '@/components/public/treatments/TreatmentLayout'
 
 // ─── Static params for pre-rendering ────────────────────────
 

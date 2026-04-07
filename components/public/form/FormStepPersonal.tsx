@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useClinicStore } from '@/lib/store'
 import { PremiumButton } from '@/components/design-system/PremiumButton'
+import { isValidTurkishPhone, normalizeTurkishPhone } from '@/lib/utils'
 import { CONCERN_GROUPS, concernSubAreaLabels } from '@/types/lead'
 import type { ConcernArea, ConcernSubArea } from '@/types/lead'
 
@@ -13,10 +14,9 @@ import type { ConcernArea, ConcernSubArea } from '@/types/lead'
 
 const schema = z.object({
   full_name: z.string().min(2, 'Ad soyad en az 2 karakter'),
-  phone: z.string().regex(
-    /^0[5][0-9]{2}[\s]?[0-9]{3}[\s]?[0-9]{2}[\s]?[0-9]{2}$/,
-    'Geçerli bir Türk telefon numarası girin (05XX XXX XX XX)'
-  ),
+  phone: z.string().refine(isValidTurkishPhone, {
+    message: 'Geçerli bir cep telefonu girin (ör. 05XX XXX XX XX)',
+  }),
   age_range: z.enum(['18-24', '25-34', '35-44', '45-54', '55+']),
   gender: z.enum(['female', 'male', 'other']),
   expectation_note: z.string().max(300).optional(),
@@ -134,6 +134,7 @@ export function FormStepPersonal() {
     }
     setCurrentLead({
       ...data,
+      phone: normalizeTurkishPhone(data.phone) ?? data.phone,
       concern_area: selectedGroup,
       concern_sub_areas: selectedSubs.length > 0 ? selectedSubs : undefined,
     })
@@ -215,7 +216,7 @@ export function FormStepPersonal() {
         </label>
 
         {/* Group cards — premium selectable */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {CONCERN_GROUPS.map(g => {
             const isActive = selectedGroup === g.key
             const meta = CONCERN_META[g.key]

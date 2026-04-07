@@ -43,6 +43,8 @@ import { runMultiViewPipeline, type MultiViewInput, type ViewKey } from '@/lib/a
 import { buildTemporalViewAggregate, type TemporalDetectionSample, type TemporalViewAggregate } from '@/lib/ai/temporal-aggregation'
 import { buildCanonicalAnalysisPayload, deriveOverallReliabilityBand, generateAnalysisRunId } from '@/lib/ai/canonical-analysis'
 import { logAuditEvent } from '@/lib/audit'
+import { createClient } from '@/lib/supabase/client'
+import { upsertResult, updateSession } from '@/lib/supabase/queries'
 import type { CaptureViewManifest, CaptureViewKey } from '@/types/capture'
 
 // ─── Dev-only logging ───────────────────────────────────────
@@ -1089,6 +1091,8 @@ function ProcessingContent() {
         if (abortRef.current) return
 
         const { leads, updateLeadAnalysis, clearCurrentLead } = useClinicStore.getState()
+        const currentLeadSnapshot = useClinicStore.getState().currentLead as (Record<string, unknown> | null)
+        const sbSessionId = currentLeadSnapshot?._supabase_session_id as string | undefined
         const lead = leads.find((l) => l.id === leadId)
 
         if (!lead) {
@@ -1116,11 +1120,31 @@ function ProcessingContent() {
         const { transitionWorkflow } = useClinicStore.getState()
         transitionWorkflow('start_processing', { analysisRunId: leadId })
 
+        if (!sbSessionId) {
+          console.warn('[Processing] No Supabase session id linked before clearing currentLead:', { leadId })
+        } else {
+          console.log('[Processing] Supabase session link ready:', { leadId, sessionId: sbSessionId })
+        }
+
         clearCurrentLead()
 
         const photo = lead.patient_photo_url
-        if (photo) {
+        const viewPhotos = lead.doctor_frontal_photos ?? []
+        const hasMultiView = viewPhotos.length >= 3
+
+        if (hasMultiView) {
+          // Multi-view: save front+left+right via saveViewPhotos.
+          // Skip separate savePhoto — front is included in viewPhotos[0],
+          // and result page falls back: viewPhotos[0] || getPhoto(id).
+          // This avoids writing the front photo twice (~1-5MB saved),
+          // keeping left/right within the ~5MB sessionStorage quota.
+          saveViewPhotos(leadId, viewPhotos)
+        } else if (photo) {
+          // Single capture: save primary photo only
           savePhoto(leadId, photo)
+        }
+
+        if (photo) {
           setPhotoUrl(photo)
         }
 
@@ -1128,12 +1152,6 @@ function ProcessingContent() {
         const capturedFrames = lead.captured_frames ?? []
         if (capturedFrames.length > 0) {
           saveCapturedFrames(leadId, capturedFrames)
-        }
-
-        // Save all 3 view photos to session bridge (survives localStorage quota stripping)
-        const viewPhotos = lead.doctor_frontal_photos ?? []
-        if (viewPhotos.length >= 3) {
-          saveViewPhotos(leadId, viewPhotos)
         }
 
         if (!photo) {
@@ -1832,6 +1850,77 @@ function ProcessingContent() {
           } : undefined,
         })
 
+        // ── Supabase: persist analysis results (fire-and-forget) ──
+        if (sbSessionId) {
+          const sb = createClient()
+          ;(async () => {
+            try {
+              await updateSession(sb, sbSessionId, {
+                status: 'analysis_ready',
+                analysis_source: {
+                  provider: 'human-local',
+                  source: 'real-client-side',
+                  facemesh_ok: true,
+                  perfectcorp_ok: false,
+                  analyzed_at: new Date().toISOString(),
+                },
+                overall_reliability_band: overallReliabilityBand,
+                report_confidence: reportConfidence,
+                recapture_recommended: recaptureRecommended,
+                recapture_views: recaptureViews,
+                output_degraded: outputDegraded,
+                canonical_analysis: canonicalAnalysis as unknown as Record<string, unknown>,
+              })
+              await upsertResult(sb, {
+                session_id: sbSessionId,
+                ai_scores: {
+                  symmetry: geometry.scores.symmetry,
+                  proportion: geometry.scores.proportion,
+                  suggestions,
+                  metrics: geometry.metrics,
+                },
+                wrinkle_scores: wrinkleAnalysis ? {
+                  regions: wrinkleAnalysis.regions,
+                  overallScore: wrinkleAnalysis.overallScore,
+                  overallLevel: wrinkleAnalysis.overallLevel,
+                } : null,
+                focus_areas: focusAreas.map(a => ({
+                  region: a.region, label: a.label, score: a.score,
+                  insight: a.insight, doctorReviewRecommended: a.doctorReviewRecommended,
+                })),
+                radar_analysis: radarAnalysis as unknown as Record<string, unknown>,
+                trust_pipeline: (useClinicStore.getState().leads.find(l => l.id === leadId)?.trust_pipeline ?? null) as Record<string, unknown> | null,
+                specialist_analysis: specialistResult as unknown as Record<string, unknown>,
+                multi_view_analysis: multiViewResult as unknown as Record<string, unknown>,
+                lip_analysis: finalTrustResult.lipMetric ? {
+                  volume: finalTrustResult.lipMetric.data.volume,
+                  symmetry: finalTrustResult.lipMetric.data.symmetry,
+                  contour: finalTrustResult.lipMetric.data.contour,
+                  surface: finalTrustResult.lipMetric.data.surface,
+                  evaluable: finalTrustResult.lipMetric.data.evaluable,
+                  confidence: finalTrustResult.lipMetric.data.confidence,
+                } : null,
+                age_estimation: ageEstimation as unknown as Record<string, unknown>,
+                estimated_age: estimatedAge,
+                estimated_gender: enhanced.gender ?? null,
+                doctor_analysis: doctorAnalysis as unknown as Record<string, unknown>,
+                patient_summary: {
+                  status: 'ready',
+                  photo_quality: analysisInputQualityScore >= 75 ? 'good' : analysisInputQualityScore >= 50 ? 'acceptable' : 'poor',
+                  focus_areas: focusLabels.length > 0 ? focusLabels : ['Genel Yuz Dengesi'],
+                  consultation_recommended: true,
+                  summary_text: summaryText,
+                },
+                consultation_readiness: readiness as unknown as Record<string, unknown>,
+                readiness_score: readiness.readiness_score,
+                readiness_band: readiness.readiness_band,
+              })
+            } catch (e) {
+              console.error('[Supabase] Result persist error (non-blocking):', e)
+            }
+          })()
+        }
+
         // ── Final freeze 0.5s then navigate ──
         logAuditEvent('analysis_completed', {
           lead_id: leadId,
@@ -2270,7 +2359,6 @@ export default function AnalysisProcessingPage() {
     </Suspense>
   )
 }
-
 
 
 

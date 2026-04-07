@@ -1,22 +1,26 @@
 'use client'
 
 import Link from 'next/link'
-import { useClinicStore } from '@/lib/store'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 export function DoctorTopNav() {
-  const { logout } = useClinicStore()
   const router = useRouter()
 
-  const handleLogout = () => {
-    logout()
-    document.cookie = 'ag_auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT'
-    router.push('/doctor/login')
+  const handleLogout = async () => {
+    try {
+      const sb = createClient()
+      await sb.auth.signOut()
+    } catch (e) {
+      console.error('[Auth] Logout error:', e)
+    } finally {
+      router.push('/doctor/login')
+    }
   }
 
   return (
     <header className="bg-[var(--glass-bg-strong)] backdrop-blur-sm border-b border-[var(--color-border-gold)] px-6 h-16 flex items-center justify-between sticky top-0 z-40">
-      <Link href="/doctor/leads" className="font-display text-lg font-light tracking-[0.05em] text-[var(--color-text)]">
+      <Link href="/doctor/dashboard" className="font-display text-lg font-light tracking-[0.05em] text-[var(--color-text)]">
         Dr. Müjde Ocak <span className="text-gradient-gold">Aesthetic Clinic</span>
         <span className="font-body text-[11px] tracking-[0.15em] uppercase text-[var(--color-text-muted)] ml-3">
           · Doktor Paneli

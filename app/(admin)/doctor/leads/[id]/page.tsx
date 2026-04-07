@@ -13,6 +13,8 @@ import { ThinLine } from '@/components/design-system/ThinLine'
 import { CollapsibleSection } from '@/components/design-system/CollapsibleSection'
 import { readinessBandConfig } from '@/lib/readiness'
 import { logAuditEvent } from '@/lib/audit'
+import { createClient } from '@/lib/supabase/client'
+import { insertDoctorNote, updateSession, fetchSessionById, sessionToLead } from '@/lib/supabase/queries'
 import {
   communicationPreferenceLabels,
   concernAreaLabels,
@@ -26,6 +28,7 @@ import {
   upsellPotentialLabels,
 } from '@/types/lead'
 import { formatDateTime } from '@/lib/utils'
+import { useSignedUrls, resolvePhotoSrc } from '@/lib/supabase/use-signed-urls'
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -36,18 +39,27 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function MediaGrid({ title, items }: { title: string; items: string[] }) {
+function MediaGrid({ title, items, signedUrls }: { title: string; items: string[]; signedUrls: Record<string, string> }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)]">{title}</p>
       {items.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {items.map((item, index) => (
-            <div key={`${title}-${index}`} className="rounded-[14px] overflow-hidden border border-[rgba(196,163,90,0.16)]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={item} alt={`${title} ${index + 1}`} className="w-full h-32 object-cover" />
-            </div>
-          ))}
+          {items.map((item, index) => {
+            const src = resolvePhotoSrc(item, signedUrls)
+            return (
+              <div key={`${title}-${index}`} className="rounded-[14px] overflow-hidden border border-[rgba(196,163,90,0.16)]">
+                {src ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={src} alt={`${title} ${index + 1}`} className="w-full h-32 object-cover" />
+                ) : (
+                  <div className="w-full h-32 flex items-center justify-center bg-[rgba(196,163,90,0.04)]">
+                    <p className="font-body text-[10px] text-[rgba(26,26,46,0.35)] animate-pulse">Yükleniyor...</p>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       ) : (
         <PlaceholderImage variant="media" className="h-28" label="Henüz medya yüklenmedi" />
@@ -60,10 +72,48 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const { id } = use(params)
   const { leads, updateLeadStatus, updateDoctorNotes, generateReport } = useClinicStore()
   const router = useRouter()
-  const lead = leads.find((item) => item.id === id)
+  const zustandLead = leads.find((item) => item.id === id)
+  const [sbLead, setSbLead] = useState<ReturnType<typeof sessionToLead> | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const lead = zustandLead ?? sbLead
 
-  const [notes, setNotes] = useState(lead?.doctor_notes ?? '')
+  // Fetch from Supabase if not found in Zustand
+  useEffect(() => {
+    if (!zustandLead) {
+      const sb = createClient()
+      fetchSessionById(sb, id).then(({ data, error }) => {
+        if (error) {
+          setFetchError('Lead verileri yüklenemedi.')
+          console.error('[LeadDetail] Supabase fetch error:', error.message)
+          return
+        }
+        if (data) setSbLead(sessionToLead(data as Record<string, unknown>))
+      }).catch((e) => {
+        setFetchError('Sunucuya bağlanılamadı.')
+        console.error('[LeadDetail] Network error:', e)
+      })
+    }
+  }, [id, zustandLead])
+
+  // Use sbLead?.doctor_notes as the initial value when it becomes available.
+  // This avoids setState-in-effect: we derive the initial value from the latest lead.
+  const resolvedInitialNotes = (sbLead?.doctor_notes ?? zustandLead?.doctor_notes) || ''
+  const [notes, setNotes] = useState('')
+  const [notesSourceKey, setNotesSourceKey] = useState('')
   const [notesSaved, setNotesSaved] = useState(false)
+  const [notesSaveError, setNotesSaveError] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  // One-time sync: when the Supabase lead arrives and notes are still empty
+  if (resolvedInitialNotes && !notes && notesSourceKey !== id) {
+    setNotes(resolvedInitialNotes)
+    setNotesSourceKey(id)
+  }
+
+  // Resolve private storage paths to signed URLs for doctor photo display
+  const allPhotoPaths = lead
+    ? [lead.patient_photo_url, ...lead.doctor_frontal_photos, ...lead.doctor_mimic_photos, ...lead.before_media, ...lead.after_media].filter(Boolean) as string[]
+    : []
+  const signedUrlMap = useSignedUrls(allPhotoPaths)
 
   useEffect(() => {
     if (lead) {
@@ -74,7 +124,14 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   if (!lead) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <p className="font-display text-2xl font-light text-[#1A1A2E]">Lead bulunamadı</p>
+        <p className="font-display text-2xl font-light text-[#1A1A2E]">
+          {fetchError ?? 'Lead bulunamadı'}
+        </p>
+        {fetchError && (
+          <button type="button" onClick={() => window.location.reload()} className="font-body text-[12px] text-medical-trust hover:underline">
+            Tekrar Dene
+          </button>
+        )}
         <PremiumButton onClick={() => router.push('/doctor/leads')} variant="ghost">
           Geri Dön
         </PremiumButton>
@@ -91,9 +148,34 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const lowerFace = ['dudak', 'marionette', 'jawline', 'cene_ucu']
   const general = ['cilt_kalitesi', 'simetri_gozlemi']
 
-  const handleSaveNotes = () => {
+  const handleSaveNotes = async () => {
     updateDoctorNotes(lead.id, notes)
     logAuditEvent('doctor_note_added', { lead_id: lead.id })
+    setNotesSaveError(false)
+
+    // Persist to Supabase
+    // For Supabase-loaded leads, lead.id IS the session UUID.
+    // For Zustand-originated leads, try _supabase_session_id first.
+    const cl = useClinicStore.getState().currentLead ?? {} as Record<string, unknown>
+    const sessionId = sbLead
+      ? lead.id
+      : ((cl as Record<string, unknown>)._supabase_session_id as string | undefined) ?? lead.id
+
+    if (sessionId && notes.trim()) {
+      try {
+        const sb = createClient()
+        const { error } = await insertDoctorNote(sb, sessionId, notes)
+        if (error) {
+          setNotesSaveError(true)
+          console.error('[DoctorNotes] Supabase save error:', error.message)
+          return
+        }
+      } catch (e) {
+        setNotesSaveError(true)
+        console.error('[DoctorNotes] Network error:', e)
+        return
+      }
+    }
     setNotesSaved(true)
     window.setTimeout(() => setNotesSaved(false), 3000)
   }
@@ -128,8 +210,17 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         <select
           value={lead.status}
           onChange={(e) => {
-            updateLeadStatus(lead.id, e.target.value as LeadStatus)
-            logAuditEvent('lead_status_changed', { lead_id: lead.id, status: e.target.value })
+            const newStatus = e.target.value as LeadStatus
+            updateLeadStatus(lead.id, newStatus)
+            logAuditEvent('lead_status_changed', { lead_id: lead.id, status: newStatus })
+            // Persist status change to Supabase
+            try {
+              const sessionId = sbLead
+                ? lead.id
+                : ((useClinicStore.getState().currentLead as Record<string, unknown> | null)?._supabase_session_id as string | undefined) ?? lead.id
+              const sb = createClient()
+              updateSession(sb, sessionId, { status: newStatus }).catch(() => {})
+            } catch { /* best-effort */ }
           }}
           className="field-input field-input-sm"
         >
@@ -176,56 +267,76 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
       <CollapsibleSection title="Medya İnceleme">
         <div className="flex flex-col gap-6">
+          {/* Front / Left / Right capture thumbnails */}
           <div>
             <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)] mb-3">
-              Hasta Yüklemesi
+              Çekim Seti (Ön / Sol / Sağ)
             </p>
-            {lead.patient_photo_url ? (
-              <div className="max-w-sm rounded-[16px] overflow-hidden border border-[rgba(196,163,90,0.18)]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={lead.patient_photo_url} alt={`${lead.full_name} hasta fotoğrafı`} className="w-full h-72 object-cover" />
+            {lead.doctor_frontal_photos.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-xl">
+                {(['Ön', 'Sol', 'Sağ'] as const).map((label, i) => {
+                  const rawPath = lead.doctor_frontal_photos[i]
+                  const src = resolvePhotoSrc(rawPath, signedUrlMap)
+                  return (
+                    <div key={label} className="flex flex-col gap-1.5">
+                      <p className="font-body text-[9px] tracking-[0.15em] uppercase text-[rgba(26,26,46,0.4)] text-center">
+                        {label}
+                      </p>
+                      {src ? (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewUrl(src)}
+                          className="rounded-[14px] overflow-hidden border border-[rgba(196,163,90,0.16)] hover:border-[rgba(196,163,90,0.4)] transition-colors cursor-pointer"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={src} alt={`${lead.full_name} ${label}`} className="w-full h-44 object-cover" />
+                        </button>
+                      ) : rawPath ? (
+                        <div className="h-44 rounded-[14px] border border-[rgba(196,163,90,0.16)] bg-[rgba(196,163,90,0.04)] flex items-center justify-center">
+                          <p className="font-body text-[10px] text-[rgba(26,26,46,0.35)] animate-pulse">Yükleniyor...</p>
+                        </div>
+                      ) : (
+                        <PlaceholderImage variant="media" className="h-44" label="Yok" />
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             ) : (
-              <PlaceholderImage variant="upload" className="h-48 max-w-sm" />
+              <PlaceholderImage variant="upload" className="h-48 max-w-sm" label="Çekim fotoğrafları henüz yüklenmedi" />
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <GlassCard padding="sm">
-              <p className="font-body text-[10px] tracking-[0.18em] uppercase text-[rgba(26,26,46,0.4)] mb-2">
-                Klinik Referans Seti
-              </p>
-              <p className="font-body text-[16px] text-[#1A1A2E]">{lead.doctor_frontal_photos.length} fotoğraf</p>
-              <p className="font-body text-[11px] text-[rgba(26,26,46,0.5)] mt-1">
-                {lead.doctor_frontal_photos.length > 0 ? 'Klinik çekim seti hazır.' : 'Klinik referans fotoğrafları henüz yüklenmedi.'}
-              </p>
-            </GlassCard>
-
-            <GlassCard padding="sm">
-              <p className="font-body text-[10px] tracking-[0.18em] uppercase text-[rgba(26,26,46,0.4)] mb-2">
-                Mimik Seti
-              </p>
-              <p className="font-body text-[16px] text-[#1A1A2E]">{lead.doctor_mimic_photos.length} fotoğraf</p>
-              <p className="font-body text-[11px] text-[rgba(26,26,46,0.5)] mt-1">
-                {lead.doctor_mimic_photos.length > 0 ? 'Dinamik mimik seti hazır.' : 'Dinamik mimik fotoğrafları bekleniyor.'}
-              </p>
-            </GlassCard>
-
-            <GlassCard padding="sm">
-              <p className="font-body text-[10px] tracking-[0.18em] uppercase text-[rgba(26,26,46,0.4)] mb-2">
-                Video
-              </p>
-              <p className="font-body text-[16px] text-[#1A1A2E]">{lead.optional_video_url ? 'Mevcut' : 'Yok'}</p>
-              <p className="font-body text-[11px] text-[rgba(26,26,46,0.5)] mt-1">
-                {lead.optional_video_url ? 'Dinamik yüz hareket videosu yüklendi.' : '10 saniyelik referans video henüz eklenmedi.'}
-              </p>
-            </GlassCard>
-          </div>
-
-          <MediaGrid title="Klinik Referans Fotoğrafları" items={lead.doctor_frontal_photos} />
-          <MediaGrid title="Mimik Fotoğrafları" items={lead.doctor_mimic_photos} />
+          {/* Mimic photos if any */}
+          {lead.doctor_mimic_photos.length > 0 && (
+            <MediaGrid title="Mimik Fotoğrafları" items={lead.doctor_mimic_photos} signedUrls={signedUrlMap} />
+          )}
         </div>
       </CollapsibleSection>
+
+      {/* Fullscreen preview modal */}
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <div className="relative max-w-3xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setPreviewUrl(null)}
+              className="absolute -top-10 right-0 font-body text-[12px] text-white/70 hover:text-white transition-colors"
+            >
+              Kapat ✕
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewUrl}
+              alt="Büyük önizleme"
+              className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            />
+          </div>
+        </div>
+      )}
 
       {doctorAnalysis && (
         <CollapsibleSection title="Bölgesel Değerlendirme">
@@ -342,7 +453,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <PremiumButton onClick={handleSaveNotes} size="sm">
               Kaydet
             </PremiumButton>
-            {notesSaved && <p className="font-body text-[11px] text-[#3D7A5F]">✓ Kaydedildi</p>}
+            {notesSaved && <p className="font-body text-[11px] text-[#3D7A5F]">Kaydedildi</p>}
+            {notesSaveError && <p className="font-body text-[11px] text-[#A05252]">Kaydetme hatasi — tekrar deneyin</p>}
             {lead.doctor_notes_updated_at && (
               <p className="font-body text-[10px] text-[rgba(26,26,46,0.4)]">Son: {formatDateTime(lead.doctor_notes_updated_at)}</p>
             )}
@@ -356,12 +468,21 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)]">Öncesi</p>
             {lead.before_media.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
-                {lead.before_media.map((item, index) => (
-                  <div key={`before-${index}`} className="rounded-[14px] overflow-hidden border border-[rgba(196,163,90,0.16)]">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item} alt={`Öncesi ${index + 1}`} className="w-full h-32 object-cover" />
-                  </div>
-                ))}
+                {lead.before_media.map((item, index) => {
+                  const src = resolvePhotoSrc(item, signedUrlMap)
+                  return (
+                    <div key={`before-${index}`} className="rounded-[14px] overflow-hidden border border-[rgba(196,163,90,0.16)]">
+                      {src ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={src} alt={`Öncesi ${index + 1}`} className="w-full h-32 object-cover" />
+                      ) : (
+                        <div className="w-full h-32 flex items-center justify-center bg-[rgba(196,163,90,0.04)]">
+                          <p className="font-body text-[10px] text-[rgba(26,26,46,0.35)] animate-pulse">Yükleniyor...</p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             ) : (
               <PlaceholderImage variant="before-after" className="h-40" label="Henüz öncesi görseli eklenmedi" />
@@ -372,12 +493,21 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <p className="font-body text-[10px] tracking-[0.2em] uppercase text-[rgba(26,26,46,0.4)]">Sonrası</p>
             {lead.after_media.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
-                {lead.after_media.map((item, index) => (
-                  <div key={`after-${index}`} className="rounded-[14px] overflow-hidden border border-[rgba(196,163,90,0.16)]">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item} alt={`Sonrası ${index + 1}`} className="w-full h-32 object-cover" />
-                  </div>
-                ))}
+                {lead.after_media.map((item, index) => {
+                  const src = resolvePhotoSrc(item, signedUrlMap)
+                  return (
+                    <div key={`after-${index}`} className="rounded-[14px] overflow-hidden border border-[rgba(196,163,90,0.16)]">
+                      {src ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={src} alt={`Sonrası ${index + 1}`} className="w-full h-32 object-cover" />
+                      ) : (
+                        <div className="w-full h-32 flex items-center justify-center bg-[rgba(196,163,90,0.04)]">
+                          <p className="font-body text-[10px] text-[rgba(26,26,46,0.35)] animate-pulse">Yükleniyor...</p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             ) : (
               <PlaceholderImage variant="before-after" className="h-40" label="Henüz sonrası görseli eklenmedi" />

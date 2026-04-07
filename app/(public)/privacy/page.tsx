@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { getActiveConsentVersion } from '@/data/consent-versions'
+import { getActiveConsentVersion } from '@/lib/data/consent-versions'
 import { GlassCard } from '@/components/design-system/GlassCard'
 import { PrintButton } from '@/components/shared/PrintButton'
 import { SectionLabel } from '@/components/design-system/SectionLabel'

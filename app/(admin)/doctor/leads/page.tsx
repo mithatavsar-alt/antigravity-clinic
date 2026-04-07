@@ -1,29 +1,61 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { useClinicStore } from '@/lib/store'
 import { StatusBadge } from '@/components/design-system/StatusBadge'
 import { SectionLabel } from '@/components/design-system/SectionLabel'
-import type { LeadStatus, ReadinessBand } from '@/types/lead'
+import type { Lead, LeadStatus, ReadinessBand } from '@/types/lead'
 import { concernAreaLabels } from '@/types/lead'
 import { formatDate } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
+import { fetchLeadsWithResults, sessionToLead } from '@/lib/supabase/queries'
 
 export default function LeadsPage() {
   const { leads } = useClinicStore()
+  const [supabaseLeads, setSupabaseLeads] = useState<Lead[]>([])
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<LeadStatus | ''>('')
   const [bandFilter, setBandFilter] = useState<ReadinessBand | ''>('')
 
+  // Fetch leads from Supabase on mount, merge with Zustand
+  useEffect(() => {
+    const sb = createClient()
+    fetchLeadsWithResults(sb).then(({ data, error }) => {
+      if (error) {
+        setFetchError('Veriler yüklenirken bir hata oluştu.')
+        console.error('[Leads] Supabase fetch error:', error.message)
+        return
+      }
+      if (data && data.length > 0) {
+        setSupabaseLeads(data.map((row: Record<string, unknown>) => sessionToLead(row)))
+      }
+    }).catch((e) => {
+      setFetchError('Sunucuya bağlanılamadı.')
+      console.error('[Leads] Network error:', e)
+    })
+  }, [])
+
+  // Merge: Zustand leads + Supabase leads (deduplicate by id, Zustand wins)
+  const allLeads = useMemo(() => {
+    const map = new Map<string, Lead>()
+    for (const l of supabaseLeads) map.set(l.id, l)
+    for (const l of leads) map.set(l.id, l) // Zustand overwrites Supabase
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+  }, [leads, supabaseLeads])
+
   const filtered = useMemo(() => {
-    return leads.filter((l) => {
+    return allLeads.filter((l) => {
       const q = search.toLowerCase()
       const matchSearch = !q || l.full_name.toLowerCase().includes(q) || l.phone.includes(q)
       const matchStatus = !statusFilter || l.status === statusFilter
       const matchBand = !bandFilter || l.readiness_band === bandFilter
       return matchSearch && matchStatus && matchBand
     })
-  }, [leads, search, statusFilter, bandFilter])
+  }, [allLeads, search, statusFilter, bandFilter])
 
   return (
     <div className="flex flex-col gap-6">
@@ -34,7 +66,7 @@ export default function LeadsPage() {
           <h1 className="font-display text-[28px] font-light text-[var(--color-text)]">Lead Listesi</h1>
         </div>
         <div className="font-mono text-[11px] text-[var(--color-text-muted)] tracking-[0.1em]">
-          {filtered.length} / {leads.length} kayıt
+          {filtered.length} / {allLeads.length} kayıt
         </div>
       </div>
 
@@ -68,6 +100,16 @@ export default function LeadsPage() {
           <option value="low">Düşük</option>
         </select>
       </div>
+
+      {/* Fetch error banner */}
+      {fetchError && (
+        <div className="bg-[rgba(160,82,82,0.06)] border border-[rgba(160,82,82,0.2)] rounded-[10px] px-4 py-3 flex items-center justify-between">
+          <p className="font-body text-[12px] text-[#A05252]">{fetchError}</p>
+          <button type="button" onClick={() => window.location.reload()} className="font-body text-[11px] text-medical-trust hover:underline">
+            Tekrar Dene
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border border-[var(--color-border-gold)] bg-[var(--glass-bg)]">

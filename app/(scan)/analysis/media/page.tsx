@@ -8,9 +8,20 @@ import { saveCaptureManifest, saveCapturedFramesByView } from '@/lib/photo-bridg
 import { buildPatientSummary } from '@/lib/lead-helpers'
 import { deriveConsultationReadiness } from '@/lib/ai/derive-doctor-analysis'
 import { generateLeadId } from '@/lib/utils'
-import { getActiveConsentVersion } from '@/data/consent-versions'
+import { getActiveConsentVersion } from '@/lib/data/consent-versions'
 import { logAuditEvent } from '@/lib/audit'
 import type { Lead } from '@/types/lead'
+
+interface PersistCaptureResponse {
+  ok?: boolean
+  patientId?: string
+  intakeId?: string | null
+  consentId?: string | null
+  sessionId?: string
+  photoPaths?: Record<string, string>
+  warnings?: Array<{ step: string; message: string }>
+  error?: string
+}
 
 export default function AnalysisMediaPage() {
   const router = useRouter()
@@ -23,21 +34,18 @@ export default function AnalysisMediaPage() {
       router.replace('/analysis')
       return
     }
-    // ── Workflow: entering capture phase ──
-    // If re-entering for recapture, transition from result→recapture→capture.
-    // Otherwise start fresh capture.
+
+    // Workflow: entering capture phase.
     const { scanWorkflow, transitionWorkflow, resetWorkflow } = useClinicStore.getState()
     if (scanWorkflow.phase === 'result') {
       transitionWorkflow('start_recapture')
       transitionWorkflow('start_capture')
     } else if (scanWorkflow.phase !== 'capture') {
-      // Fresh scan — reset any stale state
       resetWorkflow()
       transitionWorkflow('start_capture')
     }
   }, [currentLead, router])
 
-  /** Persist the real capture manifest produced by FaceGuideCapture */
   const persistManifest = useCallback((leadId: string, meta?: CaptureMetadata) => {
     if (meta?.captureManifest) {
       saveCaptureManifest(leadId, {
@@ -50,8 +58,7 @@ export default function AnalysisMediaPage() {
     }
   }, [])
 
-  /** Shared logic: create lead and navigate to processing (used by auto-advance and consent) */
-  const createLeadAndProcess = useCallback((photoUrl: string, confidence: 'high' | 'medium' | 'low', meta?: CaptureMetadata) => {
+  const createLeadAndProcess = useCallback(async (photoUrl: string, confidence: 'high' | 'medium' | 'low', meta?: CaptureMetadata) => {
     if (navigatingRef.current) return
     navigatingRef.current = true
 
@@ -105,7 +112,6 @@ export default function AnalysisMediaPage() {
     addLead(lead)
     persistManifest(id, meta)
 
-    // ── Workflow: capture complete ──
     const { transitionWorkflow } = useClinicStore.getState()
     transitionWorkflow('capture_complete', { leadId: id })
 
@@ -131,10 +137,115 @@ export default function AnalysisMediaPage() {
         views: meta.recaptureViews ?? [],
       })
     }
+
+    const photos: Record<string, string> = {}
+    const frontal = cl.doctor_frontal_photos ?? [photoUrl]
+    if (frontal[0]) photos.front = frontal[0]
+    if (frontal[1]) photos.left = frontal[1]
+    if (frontal[2]) photos.right = frontal[2]
+    if (!photos.front) photos.front = photoUrl
+
+    const rawLivenessConfidence = meta?.livenessConfidence
+    const normalizedLivenessConfidence = rawLivenessConfidence != null && Number.isFinite(rawLivenessConfidence)
+      ? Math.min(1, Math.max(0, rawLivenessConfidence > 1 ? rawLivenessConfidence / 100 : rawLivenessConfidence))
+      : undefined
+
+    const consentPayload = {
+      consent_given: true,
+      consent_text_version: consentVersion.version,
+      consent_timestamp: now,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+    }
+
+    const sessionPayload = {
+      status: 'consented',
+      capture_confidence: confidence,
+      capture_quality_score: meta?.captureQualityScore,
+      capture_manifest: meta?.captureManifest,
+      liveness_status: meta?.livenessStatus,
+      liveness_passed: meta?.livenessPassed,
+      liveness_confidence: normalizedLivenessConfidence,
+    }
+
+    console.log('[Media] Persistence diagnostics:', {
+      leadId: id,
+      consent_given: consentPayload.consent_given,
+      has_consent_timestamp: Boolean(consentPayload.consent_timestamp),
+      consent_payload_keys: Object.keys(consentPayload).filter((key) => consentPayload[key as keyof typeof consentPayload] != null),
+      raw_liveness_confidence: rawLivenessConfidence ?? null,
+      normalized_liveness_confidence: normalizedLivenessConfidence ?? null,
+      session_payload_keys: Object.keys(sessionPayload).filter((key) => sessionPayload[key as keyof typeof sessionPayload] != null),
+      photo_views: Object.keys(photos),
+      photo_details: Object.fromEntries(
+        Object.entries(photos).map(([view, dataUrl]) => [view, {
+          chars: dataUrl.length,
+          kb: Math.round(dataUrl.length / 1024),
+          prefix: dataUrl.slice(0, 40),
+          isDataUri: dataUrl.startsWith('data:'),
+        }]),
+      ),
+    })
+
+    try {
+      const response = await fetch('/api/analysis/persist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          leadId: id,
+          patient: {
+            full_name: cl.full_name ?? '',
+            phone: cl.phone ?? '',
+            age_range: (cl.age_range as string) ?? '25-34',
+            gender: (cl.gender as string) ?? 'female',
+            city: cl.city,
+            source: 'website',
+          },
+          intake: {
+            concern_area: (cl.concern_area as string) ?? 'genel_yuz_dengesi',
+            concern_sub_areas: cl.concern_sub_areas as string[] | undefined,
+            desired_result_style: (cl.desired_result_style as string) ?? 'emin_degil',
+            prior_treatment: cl.prior_treatment ?? false,
+            consultation_timing: (cl.consultation_timing as string) ?? 'bilgi_almak',
+            expectation_note: cl.expectation_note,
+          },
+          consent: consentPayload,
+          session: sessionPayload,
+          photos,
+          rawLivenessConfidence: rawLivenessConfidence ?? null,
+        }),
+      })
+
+      const result = await response.json() as PersistCaptureResponse
+      if (!response.ok || !result.sessionId || !result.patientId) {
+        console.error('[Media] Persist request failed:', {
+          status: response.status,
+          error: result.error ?? 'Unknown persistence error',
+        })
+      } else {
+        useClinicStore.getState().setCurrentLead({
+          _supabase_session_id: result.sessionId,
+          _supabase_patient_id: result.patientId,
+        } as Partial<Lead>)
+        console.log('[Media] Persist request completed:', {
+          patientId: result.patientId,
+          sessionId: result.sessionId,
+          photoPaths: result.photoPaths ?? {},
+          warnings: result.warnings ?? [],
+        })
+      }
+
+      if (result.warnings && result.warnings.length > 0) {
+        console.warn('[Media] Persist warnings:', result.warnings)
+      }
+    } catch (e) {
+      console.error('[Media] Persist request exception (non-blocking):', e)
+    }
+
     router.push(`/analysis/processing?id=${id}`)
   }, [addLead, persistManifest, router])
 
-  /** Multi-angle capture: front + left + right */
   const handleMultiCapture = useCallback((photos: MultiCaptureResult, meta?: CaptureMetadata) => {
     const confidence = meta?.confidence ?? 'high'
 
@@ -151,9 +262,7 @@ export default function AnalysisMediaPage() {
     createLeadAndProcess(photos.front, confidence, meta)
   }, [setCurrentLead, createLeadAndProcess])
 
-  /** Fallback single capture (e.g. if multi fails or for legacy compat) */
   // With strict capture gate, all captured frames meet quality criteria.
-  // Always go directly to processing — no consent detour needed.
   const handleCapture = useCallback((dataUrl: string, meta?: CaptureMetadata) => {
     const confidence = meta?.confidence ?? 'high'
 
@@ -180,8 +289,6 @@ export default function AnalysisMediaPage() {
       className="theme-dark fixed inset-0 overflow-hidden"
       style={{ background: 'linear-gradient(160deg, #0E0B09 0%, #14110E 40%, #0B0E10 100%)' }}
     >
-      {/* FaceGuideCapture renders as its own fixed full-screen overlay (z-[60]).
-          This wrapper prevents background scroll and ensures no content leaks beneath. */}
       <FaceGuideCapture
         mode="multi"
         onCapture={handleCapture}

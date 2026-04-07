@@ -11,7 +11,7 @@ import { ConsentForm } from '@/components/analysis/ConsentForm'
 import { buildPatientSummary } from '@/lib/lead-helpers'
 import { deriveConsultationReadiness } from '@/lib/ai/derive-doctor-analysis'
 import { generateLeadId } from '@/lib/utils'
-import { getActiveConsentVersion } from '@/data/consent-versions'
+import { getActiveConsentVersion } from '@/lib/data/consent-versions'
 import { logAuditEvent } from '@/lib/audit'
 import type { Lead } from '@/types/lead'
 

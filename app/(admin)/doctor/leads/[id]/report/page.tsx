@@ -1,12 +1,14 @@
 'use client'
 
-import { use } from 'react'
+import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useClinicStore } from '@/lib/store'
 import { PremiumButton } from '@/components/design-system/PremiumButton'
 import { RegionBar } from '@/components/design-system/RegionBar'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { readinessBandConfig } from '@/lib/readiness'
+import { createClient } from '@/lib/supabase/client'
+import { fetchSessionById, sessionToLead } from '@/lib/supabase/queries'
 import {
   concernAreaLabels,
   consultationTimingLabels,
@@ -28,12 +30,24 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const { id } = use(params)
   const { leads } = useClinicStore()
   const router = useRouter()
-  const lead = leads.find((l) => l.id === id)
+  const zustandLead = leads.find((l) => l.id === id)
+  const [sbLead, setSbLead] = useState<ReturnType<typeof sessionToLead> | null>(null)
+  const lead = zustandLead ?? sbLead
+
+  // Fetch from Supabase if not found in Zustand
+  useEffect(() => {
+    if (!zustandLead) {
+      const sb = createClient()
+      fetchSessionById(sb, id).then(({ data }) => {
+        if (data) setSbLead(sessionToLead(data as Record<string, unknown>))
+      }).catch(() => {})
+    }
+  }, [id, zustandLead])
 
   if (!lead) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#FAF6F1]">
-        <p className="font-body text-[14px] text-[rgba(26,26,46,0.5)]">Rapor bulunamadı</p>
+        <p className="font-body text-[14px] text-[rgba(26,26,46,0.5)]">Rapor yükleniyor...</p>
       </div>
     )
   }
@@ -89,7 +103,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         {/* Patient Info */}
         <section className="mb-8">
           <h2 className="font-body text-[14px] font-medium text-[#1A1A2E] tracking-[0.1em] uppercase mb-4">Hasta Bilgileri</h2>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-0">
             <InfoRow label="Ad Soyad" value={lead.full_name} />
             <InfoRow label="Cinsiyet" value={lead.gender === 'female' ? 'Kadın' : lead.gender === 'male' ? 'Erkek' : 'Diğer'} />
             <InfoRow label="Yaş Aralığı" value={lead.age_range} />
@@ -113,7 +127,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         {aiScores && (
           <section className="mb-8">
             <h2 className="font-body text-[14px] font-medium text-[#1A1A2E] tracking-[0.1em] uppercase mb-4">AI Analiz Skorları</h2>
-            <div className="grid grid-cols-2 gap-6 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
               <div className="border border-[rgba(196,163,90,0.15)] rounded-[14px] bg-[rgba(255,254,249,0.5)] p-4">
                 <p className="text-[10px] text-[rgba(26,26,46,0.4)] uppercase tracking-[0.15em] mb-2">Simetri Skoru</p>
                 <p className="text-[32px] font-light text-[#1A1A2E]">{aiScores.symmetry}<span className="text-[14px] text-[rgba(26,26,46,0.4)]">/100</span></p>
@@ -123,7 +137,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
                 <p className="text-[32px] font-light text-[#1A1A2E]">{aiScores.proportion}<span className="text-[14px] text-[rgba(26,26,46,0.4)]">/100</span></p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-0">
               <InfoRow label="Yüz Genişlik / Uzunluk" value={aiScores.metrics.faceRatio.toFixed(2)} />
               <InfoRow label="Göz Mesafesi Oranı" value={aiScores.metrics.eyeDistanceRatio.toFixed(2)} />
               <InfoRow label="Burun Genişliği Oranı" value={aiScores.metrics.noseToFaceWidth.toFixed(2)} />
@@ -151,7 +165,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         {analysis && (
           <section className="mb-8">
             <h2 className="font-body text-[14px] font-medium text-[#1A1A2E] tracking-[0.1em] uppercase mb-4">Bölgesel Değerlendirme</h2>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {[
                 { title: 'Üst Yüz', keys: upperFace },
                 { title: 'Orta Yüz', keys: midFace },
@@ -204,7 +218,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
                 <p className="text-[12px] text-[rgba(26,26,46,0.5)]">{readinessConfig?.action}</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-0">
               <InfoRow label="Motivasyon" value={readiness.primary_motivation} />
               <InfoRow label="Hedef Netliği" value={goalClarityLabels[readiness.goal_clarity]} />
               <InfoRow label="Zamanlama Niyeti" value={timeIntentLabels[readiness.time_intent]} />

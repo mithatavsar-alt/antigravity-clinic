@@ -1,48 +1,51 @@
 import type { CaptureManifest, CaptureViewKey } from '@/types/capture'
 
 /**
- * Photo Bridge — preserves patient photos across hard navigations.
+ * Photo Bridge: preserves patient photos across hard navigations.
  *
- * Problem: Photos are captured as data: URIs (1-5MB). Zustand's localStorage
- * persist strips them to avoid exceeding the 5MB quota. Hard navigation
- * (window.location.replace) kills in-memory state, so the result page
- * loses the photo.
+ * Problem: Photos are captured as data URIs. Zustand persist strips them to avoid
+ * localStorage quota pressure, but hard navigation would otherwise lose them.
  *
- * Solution: Use sessionStorage as a temporary bridge. It's per-tab,
- * survives hard navigation, and is automatically cleaned up when the tab closes.
- * We only store one photo at a time (keyed by lead ID), so quota is not an issue.
+ * Solution: Use sessionStorage as a temporary, per-tab bridge and keep large
+ * frame arrays in memory only.
  */
 
 const SESSION_KEY_PREFIX = 'ag-photo-bridge:'
 const VIEW_KEY_PREFIX = 'ag-photo-view:'
 const FRAMES_KEY_PREFIX = 'ag-photo-frames:'
 const VIEW_FRAMES_KEY_PREFIX = 'ag-photo-view-frames:'
+const MANIFEST_KEY_PREFIX = 'ag-capture-manifest:'
 
-/** Save a photo for a lead ID. Call before hard navigation. */
 export function savePhoto(leadId: string, dataUrl: string): void {
   try {
     clearPrimaryPhotos()
+    console.log('[PhotoBridge] savePhoto ->', `${SESSION_KEY_PREFIX}${leadId}`, `(${Math.round(dataUrl.length / 1024)}KB)`)
     sessionStorage.setItem(`${SESSION_KEY_PREFIX}${leadId}`, dataUrl)
   } catch (e) {
     console.warn('[PhotoBridge] Failed to save photo to sessionStorage:', e)
   }
 }
 
-/** Save all 3 view photos (front, left, right) for a lead ID. */
 export function saveViewPhotos(leadId: string, photos: string[]): void {
-  try {
-    const views = ['front', 'left', 'right'] as const
-    for (let i = 0; i < Math.min(photos.length, 3); i++) {
-      if (photos[i]) {
-        sessionStorage.setItem(`${VIEW_KEY_PREFIX}${leadId}:${views[i]}`, photos[i])
-      }
+  clearViewPhotos()
+  const views = ['front', 'left', 'right'] as const
+  console.log(
+    '[PhotoBridge] saveViewPhotos keys:',
+    views.slice(0, Math.min(photos.length, 3)).map((view) => `${VIEW_KEY_PREFIX}${leadId}:${view}`),
+  )
+
+  for (let i = 0; i < Math.min(photos.length, 3); i++) {
+    if (!photos[i]) continue
+
+    try {
+      console.log('[PhotoBridge] saveViewPhotos ->', `${VIEW_KEY_PREFIX}${leadId}:${views[i]}`, `(${Math.round(photos[i].length / 1024)}KB)`)
+      sessionStorage.setItem(`${VIEW_KEY_PREFIX}${leadId}:${views[i]}`, photos[i])
+    } catch (e) {
+      console.warn(`[PhotoBridge] Quota exceeded saving ${views[i]} view; flow continues without blocking`, e)
     }
-  } catch (e) {
-    console.warn('[PhotoBridge] Failed to save view photos to sessionStorage:', e)
   }
 }
 
-/** Retrieve a photo for a lead ID. Returns null if not found. */
 export function getPhoto(leadId: string): string | null {
   try {
     return sessionStorage.getItem(`${SESSION_KEY_PREFIX}${leadId}`)
@@ -51,7 +54,6 @@ export function getPhoto(leadId: string): string | null {
   }
 }
 
-/** Retrieve all 3 view photos for a lead ID. Returns [front, left, right] or nulls. */
 export function getViewPhotos(leadId: string): [string | null, string | null, string | null] {
   try {
     return [
@@ -64,23 +66,17 @@ export function getViewPhotos(leadId: string): [string | null, string | null, st
   }
 }
 
-/** Save multi-frame capture data URLs for a lead ID. */
-export function saveCapturedFrames(leadId: string, frames: string[]): void {
-  try {
-    for (let i = 0; i < frames.length; i++) {
-      sessionStorage.setItem(`${FRAMES_KEY_PREFIX}${leadId}:${i}`, frames[i])
-    }
-    sessionStorage.setItem(`${FRAMES_KEY_PREFIX}${leadId}:count`, String(frames.length))
-  } catch (e) {
-    console.warn('[PhotoBridge] Failed to save captured frames to sessionStorage:', e)
+export function saveCapturedFrames(_leadId: string, _frames: string[]): void {
+  if (_frames.length > 0) {
+    console.info('[PhotoBridge] saveCapturedFrames skipped: frame arrays stay in memory only to avoid quota pressure')
   }
 }
 
-/** Retrieve multi-frame capture data URLs for a lead ID. */
 export function getCapturedFrames(leadId: string): string[] {
   try {
     const countStr = sessionStorage.getItem(`${FRAMES_KEY_PREFIX}${leadId}:count`)
     if (!countStr) return []
+
     const count = parseInt(countStr, 10)
     const frames: string[] = []
     for (let i = 0; i < count; i++) {
@@ -93,26 +89,15 @@ export function getCapturedFrames(leadId: string): string[] {
   }
 }
 
-/** Save accepted frame sets per view for temporal aggregation. */
 export function saveCapturedFramesByView(
-  leadId: string,
-  framesByView: Partial<Record<CaptureViewKey, string[]>>,
+  _leadId: string,
+  _framesByView: Partial<Record<CaptureViewKey, string[]>>,
 ): void {
-  try {
-    const views: CaptureViewKey[] = ['front', 'left', 'right']
-    for (const view of views) {
-      const frames = framesByView[view] ?? []
-      sessionStorage.setItem(`${VIEW_FRAMES_KEY_PREFIX}${leadId}:${view}:count`, String(frames.length))
-      for (let i = 0; i < frames.length; i++) {
-        sessionStorage.setItem(`${VIEW_FRAMES_KEY_PREFIX}${leadId}:${view}:${i}`, frames[i])
-      }
-    }
-  } catch (e) {
-    console.warn('[PhotoBridge] Failed to save per-view captured frames:', e)
+  if (Object.values(_framesByView).some((frames) => (frames?.length ?? 0) > 0)) {
+    console.info('[PhotoBridge] saveCapturedFramesByView skipped: per-view frame arrays stay in memory only to avoid quota pressure')
   }
 }
 
-/** Retrieve accepted frame sets per view. */
 export function getCapturedFramesByView(
   leadId: string,
 ): Partial<Record<CaptureViewKey, string[]>> {
@@ -122,8 +107,10 @@ export function getCapturedFramesByView(
     for (const view of views) {
       const countStr = sessionStorage.getItem(`${VIEW_FRAMES_KEY_PREFIX}${leadId}:${view}:count`)
       if (!countStr) continue
+
       const count = parseInt(countStr, 10)
       if (!Number.isFinite(count) || count <= 0) continue
+
       const frames: string[] = []
       for (let i = 0; i < count; i++) {
         const frame = sessionStorage.getItem(`${VIEW_FRAMES_KEY_PREFIX}${leadId}:${view}:${i}`)
@@ -137,29 +124,23 @@ export function getCapturedFramesByView(
   return result
 }
 
-/** Remove the photo for a lead ID. */
 export function removePhoto(leadId: string): void {
   try {
     sessionStorage.removeItem(`${SESSION_KEY_PREFIX}${leadId}`)
-  } catch { /* ignore */ }
+  } catch {
+    // ignore
+  }
 }
 
-// ─── Capture Manifest ─────────────────────────────────────
-// Structured metadata about the capture session, preserved
-// alongside photo data to inform downstream quality assessment.
-
-const MANIFEST_KEY_PREFIX = 'ag-capture-manifest:'
-
-/** Save a structured capture manifest for a lead. */
 export function saveCaptureManifest(leadId: string, manifest: CaptureManifest): void {
   try {
+    console.log('[PhotoBridge] saveCaptureManifest ->', `${MANIFEST_KEY_PREFIX}${leadId}`)
     sessionStorage.setItem(`${MANIFEST_KEY_PREFIX}${leadId}`, JSON.stringify(manifest))
   } catch (e) {
     console.warn('[PhotoBridge] Failed to save capture manifest:', e)
   }
 }
 
-/** Retrieve the capture manifest for a lead. */
 export function getCaptureManifest(leadId: string): CaptureManifest | null {
   try {
     const raw = sessionStorage.getItem(`${MANIFEST_KEY_PREFIX}${leadId}`)
@@ -168,10 +149,6 @@ export function getCaptureManifest(leadId: string): CaptureManifest | null {
     return null
   }
 }
-
-// ─── Bridge Integrity ─────────────────────────────────────
-// Validates that required data is present and internally consistent
-// before the processing page commits to an analysis run.
 
 export interface BridgeIntegrityResult {
   valid: boolean
@@ -182,7 +159,6 @@ export interface BridgeIntegrityResult {
   issues: string[]
 }
 
-/** Validate bridge data integrity for a lead before processing. */
 export function validateBridgeIntegrity(leadId: string): BridgeIntegrityResult {
   const issues: string[] = []
 
@@ -197,10 +173,9 @@ export function validateBridgeIntegrity(leadId: string): BridgeIntegrityResult {
   const [front, left, right] = getViewPhotos(leadId)
   const hasViewPhotos = !!front || !!left || !!right
 
-  // Cross-check: if manifest says multi-mode, we should have side photos
   let manifestMatchesPhotos = true
   if (manifest?.mode === 'multi') {
-    const capturedViews = manifest.views.filter(v => v.captured).map(v => v.view)
+    const capturedViews = manifest.views.filter((view) => view.captured).map((view) => view.view)
     if (capturedViews.includes('left') && !left) {
       issues.push('manifest_claims_left_but_missing')
       manifestMatchesPhotos = false
@@ -225,22 +200,22 @@ export function validateBridgeIntegrity(leadId: string): BridgeIntegrityResult {
   }
 }
 
-/** Remove ALL bridge data for a lead (full cleanup). */
 export function clearBridgeForLead(leadId: string): void {
   try {
     const prefixes = [SESSION_KEY_PREFIX, VIEW_KEY_PREFIX, FRAMES_KEY_PREFIX, VIEW_FRAMES_KEY_PREFIX, MANIFEST_KEY_PREFIX]
     const keys: string[] = []
     for (let i = 0; i < sessionStorage.length; i++) {
       const key = sessionStorage.key(i)
-      if (key && prefixes.some(p => key.startsWith(p) && key.includes(leadId))) {
+      if (key && prefixes.some((prefix) => key.startsWith(prefix) && key.includes(leadId))) {
         keys.push(key)
       }
     }
-    keys.forEach(k => sessionStorage.removeItem(k))
-  } catch { /* ignore */ }
+    keys.forEach((key) => sessionStorage.removeItem(key))
+  } catch {
+    // ignore
+  }
 }
 
-/** Clear all bridge photos (cleanup). */
 function clearPrimaryPhotos(): void {
   try {
     const keys: string[] = []
@@ -248,6 +223,21 @@ function clearPrimaryPhotos(): void {
       const key = sessionStorage.key(i)
       if (key?.startsWith(SESSION_KEY_PREFIX)) keys.push(key)
     }
-    keys.forEach((k) => sessionStorage.removeItem(k))
-  } catch { /* ignore */ }
+    keys.forEach((key) => sessionStorage.removeItem(key))
+  } catch {
+    // ignore
+  }
+}
+
+function clearViewPhotos(): void {
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i)
+      if (key?.startsWith(VIEW_KEY_PREFIX)) keys.push(key)
+    }
+    keys.forEach((key) => sessionStorage.removeItem(key))
+  } catch {
+    // ignore
+  }
 }

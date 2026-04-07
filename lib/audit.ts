@@ -51,6 +51,21 @@ export function logAuditEvent(
     } catch {
       // Best-effort audit sink — never break UX
     }
+
+    // ── Supabase: persist audit event (fire-and-forget) ──
+    try {
+      import('@/lib/supabase/client').then(({ createClient }) => {
+        const sb = createClient()
+        sb.from('audit_events').insert({
+          event,
+          patient_id: payload.patient_id ?? null,
+          session_id: payload.session_id ?? null,
+          payload: { ...payload, schema_version: AUDIT_SCHEMA_VERSION },
+        }).then(() => {}, () => {})
+      }).catch(() => {})
+    } catch {
+      // Supabase not available — sessionStorage is the fallback
+    }
   }
 
   if (process.env.NODE_ENV === 'development') {

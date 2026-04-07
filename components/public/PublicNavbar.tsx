@@ -84,6 +84,15 @@ export function PublicNavbar() {
         </ul>
 
         <div className="hidden md:flex items-center gap-3">
+          <Link
+            href="/doctor/login"
+            className={cn(
+              'font-body text-[11px] tracking-[0.1em] uppercase transition-colors',
+              linkColor
+            )}
+          >
+            Doktor Girişi
+          </Link>
           <Link href="/analysis">
             <PremiumButton variant="primary" size="sm">Ön Değerlendirme</PremiumButton>
           </Link>
@@ -120,6 +129,16 @@ export function PublicNavbar() {
             <PremiumButton variant="primary" size="sm" className="mt-2 w-full justify-center">
               Ön Değerlendirme
             </PremiumButton>
+          </Link>
+          <Link
+            href="/doctor/login"
+            onClick={() => setMenuOpen(false)}
+            className={cn(
+              'font-body text-[11px] tracking-[0.1em] uppercase text-center py-1',
+              linkColor
+            )}
+          >
+            Doktor Girişi
           </Link>
         </div>
       )}
