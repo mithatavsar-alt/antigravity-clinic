@@ -30,7 +30,7 @@ export function ConsentForm({ onConfirm, onBack, loading = false }: ConsentFormP
 
   const checkboxClass = 'mt-0.5 accent-[#D6B98C] flex-shrink-0 w-4 h-4'
   const labelClass = 'flex items-start gap-3 cursor-pointer'
-  const textClass = 'font-body text-[12px] text-[rgba(248,246,242,0.55)] leading-relaxed'
+  const textClass = 'font-body text-[14px] text-[rgba(248,246,242,0.55)] leading-relaxed'
   const linkClass = 'text-[#D6B98C] hover:underline'
 
   return (
@@ -61,13 +61,13 @@ export function ConsentForm({ onConfirm, onBack, loading = false }: ConsentFormP
       </div>
 
       <GlassCard padding="sm" rounded="md">
-        <p className="font-body text-[10px] text-[rgba(248,246,242,0.45)] leading-relaxed">
+        <p className="font-body text-[12px] text-[rgba(248,246,242,0.45)] leading-relaxed">
           Verileriniz KVKK kapsamında korunmaktadır. Hiçbir ücret talep edilmez. Dilediğiniz zaman geri çekebilirsiniz.
         </p>
       </GlassCard>
 
       {error && (
-        <p className="font-body text-[12px] text-[#C47A7A] bg-[rgba(160,82,82,0.1)] rounded-[10px] px-4 py-3">
+        <p className="font-body text-[14px] text-[#C47A7A] bg-[rgba(160,82,82,0.1)] rounded-[10px] px-4 py-3">
           {error}
         </p>
       )}

@@ -329,7 +329,7 @@ export default function RadarChartSection({
             {/* Quality caveat */}
             {captureQuality && captureQuality !== 'high' && (
               <div className="rounded-[10px] px-3.5 py-2.5" style={{ background: 'rgba(214,185,140,0.04)', border: '1px solid rgba(214,185,140,0.10)' }}>
-                <p className="font-body text-[12px] text-[rgba(248,246,242,0.45)] leading-relaxed italic text-center">
+                <p className="font-body text-[14px] text-[rgba(248,246,242,0.45)] leading-relaxed italic text-center">
                   {captureQuality === 'low'
                     ? 'Bu değerlendirme mevcut görüntü kalitesine göre yaklaşık olarak oluşturulmuştur.'
                     : 'Görüntü kalitesi orta düzeydedir. Sonuçlar genel yönelimi yansıtmaktadır.'}
@@ -339,7 +339,7 @@ export default function RadarChartSection({
 
             {(suppressedCount > 0 || currentRegion.status === 'low') && (
               <div className="rounded-[10px] px-3.5 py-2.5" style={{ background: 'rgba(200,120,90,0.04)', border: '1px solid rgba(200,120,90,0.12)' }}>
-                <p className="font-body text-[12px] text-[rgba(248,246,242,0.50)] leading-relaxed text-center">
+                <p className="font-body text-[14px] text-[rgba(248,246,242,0.50)] leading-relaxed text-center">
                   {suppressedCount > 0
                     ? `${suppressedCount} bölge yeterli kanıt olmadığı için normal skor gibi gösterilmemiştir.`
                     : 'Seçili bölge düşük güvenle değerlendirilmiştir; sonuç yön gösterici olarak okunmalıdır.'}
@@ -370,10 +370,10 @@ export default function RadarChartSection({
             animation: 'sectionReveal 0.6s ease-out 0.5s both',
           }}
         >
-          <p className="font-body text-[13px] text-[rgba(248,246,242,0.55)] leading-[1.8]">
+          <p className="font-body text-[15px] text-[rgba(248,246,242,0.55)] leading-[1.8]">
             {summaryText}
           </p>
-          <p className="font-body text-[11px] text-[rgba(248,246,242,0.38)] leading-relaxed mt-2 italic">
+          <p className="font-body text-[13px] text-[rgba(248,246,242,0.38)] leading-relaxed mt-2 italic">
             Bu analiz AI destekli ön değerlendirme niteliğindedir. Kesin sonuçlar klinik muayene gerektirir.
           </p>
         </div>

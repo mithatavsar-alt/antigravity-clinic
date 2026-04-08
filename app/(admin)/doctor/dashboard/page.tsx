@@ -389,7 +389,7 @@ function LeadCard({ lead }: { lead: Lead }) {
               <h3 className="truncate font-display text-[26px] font-light leading-[0.96] tracking-[-0.03em] text-[#1A1A2E] transition-colors duration-300 group-hover:text-[#B38C4B]">
                 {lead.full_name}
               </h3>
-              <p className="mt-1 font-body text-[13px] text-[rgba(26,26,46,0.44)]">{formatDate(lead.created_at)}</p>
+              <p className="mt-1 font-body text-[15px] text-[rgba(26,26,46,0.44)]">{formatDate(lead.created_at)}</p>
             </div>
           </div>
         </div>
@@ -432,7 +432,7 @@ function LeadScoreDial({ score }: { score?: number }) {
   if (score == null) {
     return (
       <div className="doctor-score-dial doctor-card-soft flex h-14 w-14 items-center justify-center rounded-full">
-        <span className="font-mono text-[12px] text-[rgba(26,26,46,0.36)]">—</span>
+        <span className="font-mono text-[14px] text-[rgba(26,26,46,0.36)]">—</span>
       </div>
     )
   }

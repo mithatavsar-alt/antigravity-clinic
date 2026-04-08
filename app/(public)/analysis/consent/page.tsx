@@ -230,7 +230,7 @@ export default function AnalysisConsentPage() {
           </div>
         )}
 
-        <p className="text-center font-body text-[11px] text-[var(--color-text-muted)] mt-6 leading-relaxed">
+        <p className="text-center font-body text-[13px] text-[var(--color-text-muted)] mt-6 leading-relaxed">
           Verileriniz KVKK kapsamında korunmaktadır.
         </p>
       </div>

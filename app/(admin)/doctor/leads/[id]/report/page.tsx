@@ -18,7 +18,7 @@ import {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between py-1.5 border-b border-[rgba(196,163,90,0.10)] print:border-[rgba(0,0,0,0.08)]">
-      <span className="font-body text-[12px] text-[rgba(26,26,46,0.50)] print:text-[rgba(0,0,0,0.5)]">{label}</span>
+      <span className="font-body text-[14px] text-[rgba(26,26,46,0.50)] print:text-[rgba(0,0,0,0.5)]">{label}</span>
       <span className="font-body text-[12px] text-[#1A1A2E] font-medium print:text-[#1A1A2E]">{value}</span>
     </div>
   )

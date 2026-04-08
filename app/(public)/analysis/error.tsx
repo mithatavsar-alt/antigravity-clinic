@@ -29,7 +29,7 @@ export default function AnalysisError({
             Analiz sırasında bir sorun oluştu. Fotoğrafınızı tekrar yükleyerek deneyebilirsiniz.
           </p>
           {process.env.NODE_ENV === 'development' && error.message && (
-            <p className="mt-3 font-mono text-[11px] text-[rgba(176,96,96,0.7)] bg-[rgba(176,96,96,0.05)] rounded-lg p-3 text-left break-all">
+            <p className="mt-3 font-mono text-[13px] text-[rgba(176,96,96,0.7)] bg-[rgba(176,96,96,0.05)] rounded-lg p-3 text-left break-all">
               {error.message}
             </p>
           )}

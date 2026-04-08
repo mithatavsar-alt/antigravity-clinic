@@ -106,10 +106,10 @@ export default function PrivacyPage() {
             <span className="font-mono text-[12px] tracking-[0.12em] text-[rgba(26,26,46,0.4)] bg-[rgba(196,163,90,0.08)] border border-[rgba(196,163,90,0.2)] rounded-full px-3 py-1">
               v{version.version}
             </span>
-            <span className="font-mono text-[10px] tracking-[0.1em] text-[rgba(26,26,46,0.35)]">
+            <span className="font-mono text-[12px] tracking-[0.1em] text-[rgba(26,26,46,0.35)]">
               Yürürlük: {effectiveDate}
             </span>
-            <span className="font-mono text-[10px] tracking-[0.1em] text-[rgba(26,26,46,0.35)]">
+            <span className="font-mono text-[12px] tracking-[0.1em] text-[rgba(26,26,46,0.35)]">
               6698 Sayılı KVKK
             </span>
           </div>
@@ -132,7 +132,7 @@ export default function PrivacyPage() {
               >
                 {/* Number + section label */}
                 <div className="flex items-start gap-3 sm:w-52 flex-shrink-0 mb-2 sm:mb-0">
-                  <span className="font-mono text-[10px] text-[rgba(196,163,90,0.45)] mt-0.5 select-none tabular-nums">
+                  <span className="font-mono text-[12px] text-[rgba(196,163,90,0.45)] mt-0.5 select-none tabular-nums">
                     {String(i + 1).padStart(2, '0')}
                   </span>
                   <h2 className="font-body text-[11px] tracking-[0.12em] uppercase text-[#C4A35A] font-medium leading-snug">
@@ -160,7 +160,7 @@ export default function PrivacyPage() {
 
         {/* Footer */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2 print:hidden">
-          <p className="font-body text-[11px] text-[rgba(26,26,46,0.4)] leading-relaxed">
+          <p className="font-body text-[13px] text-[rgba(26,26,46,0.4)] leading-relaxed">
             Sorularınız için{' '}
             <a
               href="mailto:info@drmujdeocak.com"
@@ -184,7 +184,7 @@ export default function PrivacyPage() {
 
         {/* Print-only footer */}
         <div className="hidden print:block pt-8 border-t border-[rgba(196,163,90,0.15)] mt-4">
-          <p className="text-[11px] text-[rgba(26,26,46,0.4)] text-center">
+          <p className="text-[13px] text-[rgba(26,26,46,0.4)] text-center">
             Dr. Müjde Ocak Aesthetic Clinic · v{version.version} · {effectiveDate}
           </p>
         </div>

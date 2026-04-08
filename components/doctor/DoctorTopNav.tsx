@@ -38,7 +38,7 @@ export function DoctorTopNav() {
         >
           Leads
         </Link>
-        <span className="hidden sm:inline font-body text-[11px] text-[rgba(26,26,46,0.55)]">Dr. Müjde Ocak</span>
+        <span className="hidden sm:inline font-body text-[13px] text-[rgba(26,26,46,0.55)]">Dr. Müjde Ocak</span>
         <button
           onClick={handleLogout}
           className="font-body text-[12px] tracking-[0.12em] uppercase text-[rgba(26,26,46,0.45)] hover:text-[#A05252] transition-colors"

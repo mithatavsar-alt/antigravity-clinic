@@ -64,10 +64,10 @@ export default function ConsentPage() {
             <span className="font-mono text-[12px] tracking-[0.12em] text-[rgba(26,26,46,0.4)] bg-[rgba(196,163,90,0.08)] border border-[rgba(196,163,90,0.2)] rounded-full px-3 py-1">
               v{version.version}
             </span>
-            <span className="font-mono text-[10px] tracking-[0.1em] text-[rgba(26,26,46,0.35)]">
+            <span className="font-mono text-[12px] tracking-[0.1em] text-[rgba(26,26,46,0.35)]">
               Yürürlük: {effectiveDate}
             </span>
-            <span className="font-mono text-[10px] tracking-[0.1em] text-[rgba(26,26,46,0.35)]">
+            <span className="font-mono text-[12px] tracking-[0.1em] text-[rgba(26,26,46,0.35)]">
               6698 Sayılı KVKK · Md. 5-6
             </span>
           </div>
@@ -98,7 +98,7 @@ export default function ConsentPage() {
 
             <ThinLine />
 
-            <p className="font-body text-[11px] text-[rgba(26,26,46,0.45)] leading-relaxed">
+            <p className="font-body text-[13px] text-[rgba(26,26,46,0.45)] leading-relaxed">
               Rızanızı istediğiniz zaman geri alabilirsiniz. Geri alma talepleriniz için{' '}
               <a
                 href="mailto:info@drmujdeocak.com"
@@ -129,10 +129,10 @@ export default function ConsentPage() {
             </div>
 
             <div className="flex items-center gap-3 pt-3 border-t border-[rgba(196,163,90,0.12)]">
-              <span className="font-mono text-[10px] tracking-[0.1em] text-[rgba(26,26,46,0.3)]">
+              <span className="font-mono text-[12px] tracking-[0.1em] text-[rgba(26,26,46,0.3)]">
                 Belge referansı:
               </span>
-              <span className="font-mono text-[10px] tracking-[0.1em] text-[rgba(26,26,46,0.35)]">
+              <span className="font-mono text-[12px] tracking-[0.1em] text-[rgba(26,26,46,0.35)]">
                 CONSENT-v{version.version}-{new Date(version.effective_date).getFullYear()}
               </span>
             </div>
@@ -141,7 +141,7 @@ export default function ConsentPage() {
 
         {/* Footer */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2 print:hidden">
-          <p className="font-body text-[11px] text-[rgba(26,26,46,0.4)] leading-relaxed">
+          <p className="font-body text-[13px] text-[rgba(26,26,46,0.4)] leading-relaxed">
             Kişisel verilerinizin nasıl işlendiğini öğrenmek için{' '}
             <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#2D5F5D] hover:underline underline-offset-2">
               KVKK Aydınlatma Metni
@@ -163,7 +163,7 @@ export default function ConsentPage() {
 
         {/* Print-only footer */}
         <div className="hidden print:block pt-8 border-t border-[rgba(196,163,90,0.15)] mt-4">
-          <p className="text-[11px] text-[rgba(26,26,46,0.4)] text-center">
+          <p className="text-[13px] text-[rgba(26,26,46,0.4)] text-center">
             Dr. Müjde Ocak Aesthetic Clinic · v{version.version} · {effectiveDate}
           </p>
         </div>

@@ -40,7 +40,7 @@ export function PatientImageReview({
             <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 001.5-1.5V5.25a1.5 1.5 0 00-1.5-1.5H3.75a1.5 1.5 0 00-1.5 1.5V19.5a1.5 1.5 0 001.5 1.5z" />
           </svg>
         </div>
-        <p className="font-body text-[12px] text-[rgba(26,26,46,0.45)]">Hasta fotoğrafı mevcut değil</p>
+        <p className="font-body text-[14px] text-[rgba(26,26,46,0.45)]">Hasta fotoğrafı mevcut değil</p>
       </div>
     )
   }

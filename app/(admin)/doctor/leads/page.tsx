@@ -297,11 +297,11 @@ function LeadRow({ lead }: { lead: Lead }) {
               </h3>
               <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
                 {lead.age_range && (
-                  <span className="doctor-card-soft rounded-full px-3 py-1 font-body text-[13px] text-[rgba(26,26,46,0.50)]">
+                  <span className="doctor-card-soft rounded-full px-3 py-1 font-body text-[15px] text-[rgba(26,26,46,0.50)]">
                     {lead.age_range}
                   </span>
                 )}
-                <span className="font-body text-[14px] text-[rgba(26,26,46,0.42)]">{formatDate(lead.created_at)}</span>
+                <span className="font-body text-[16px] text-[rgba(26,26,46,0.42)]">{formatDate(lead.created_at)}</span>
               </div>
             </div>
           </div>
@@ -366,7 +366,7 @@ function LeadScoreDial({ score }: { score?: number }) {
   if (score == null) {
     return (
       <div className="doctor-score-dial doctor-card-soft flex h-[72px] w-[72px] items-center justify-center rounded-full">
-        <span className="font-mono text-[13px] text-[rgba(26,26,46,0.36)]">—</span>
+        <span className="font-mono text-[15px] text-[rgba(26,26,46,0.36)]">—</span>
       </div>
     )
   }

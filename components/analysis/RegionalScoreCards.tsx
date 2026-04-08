@@ -513,7 +513,7 @@ function BilateralBar({ item }: { item: BilateralComparisonData }) {
         </span>
       </div>
       <div className="flex items-center gap-3 mb-2">
-        <span className="font-mono text-[12px] text-[rgba(248,246,242,0.58)] w-7 text-right">Sol</span>
+        <span className="font-mono text-[14px] text-[rgba(248,246,242,0.58)] w-7 text-right">Sol</span>
         <div className="flex-1 h-[5px] rounded-full bg-white/[0.06] overflow-hidden">
           <div className="h-full rounded-full transition-all duration-700 ease-out"
             style={{ width: mounted ? `${item.leftScore}%` : '0%', background: levelColor }} />
@@ -521,14 +521,14 @@ function BilateralBar({ item }: { item: BilateralComparisonData }) {
         <span className="font-mono text-[14px] text-[rgba(248,246,242,0.68)] w-7">{item.leftScore}</span>
       </div>
       <div className="flex items-center gap-3 mb-3">
-        <span className="font-mono text-[12px] text-[rgba(248,246,242,0.58)] w-7 text-right">Sağ</span>
+        <span className="font-mono text-[14px] text-[rgba(248,246,242,0.58)] w-7 text-right">Sağ</span>
         <div className="flex-1 h-[5px] rounded-full bg-white/[0.06] overflow-hidden">
           <div className="h-full rounded-full transition-all duration-700 ease-out"
             style={{ width: mounted ? `${item.rightScore}%` : '0%', background: levelColor }} />
         </div>
         <span className="font-mono text-[14px] text-[rgba(248,246,242,0.68)] w-7">{item.rightScore}</span>
       </div>
-      <p className="font-body text-[13px] sm:text-[14px] text-[rgba(248,246,242,0.52)] leading-[1.7] italic">{item.note}</p>
+      <p className="font-body text-[15px] sm:text-[16px] text-[rgba(248,246,242,0.52)] leading-[1.7] italic">{item.note}</p>
     </div>
   )
 }

@@ -194,7 +194,7 @@ function RegionCard({ region }: { region: MergedRegion }) {
             <div className="w-16 h-1 rounded-full bg-[rgba(26,26,46,0.10)] overflow-hidden">
               <div className="h-full rounded-full" style={{ width: `${Math.round(region.confidence * 100)}%`, backgroundColor: color }} />
             </div>
-            <span className="font-mono text-[13px] text-[rgba(26,26,46,0.38)]">{Math.round(region.confidence * 100)}%</span>
+            <span className="font-mono text-[15px] text-[rgba(26,26,46,0.38)]">{Math.round(region.confidence * 100)}%</span>
           </div>
         )}
         {region.evidenceStrength && (

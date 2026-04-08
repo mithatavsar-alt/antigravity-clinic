@@ -121,7 +121,7 @@ export function AnalysisHeroSummary({
                 <svg className="w-3.5 h-3.5 text-[#C4883A] flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                 </svg>
-                <span className="font-body text-[13px] text-[#C4883A]">Yeniden çekim önerilir, analiz güvenilirliği düşük.</span>
+                <span className="font-body text-[15px] text-[#C4883A]">Yeniden çekim önerilir, analiz güvenilirliği düşük.</span>
               </div>
             )}
           </div>
@@ -139,7 +139,7 @@ function MetricTile({ label, value, color, sub }: { label: string; value: string
         <span className="font-mono text-[20px] font-light" style={{ color }}>
           {value}
         </span>
-        {sub && <span className="font-mono text-[12px] text-[rgba(26,26,46,0.38)]">{sub}</span>}
+        {sub && <span className="font-mono text-[14px] text-[rgba(26,26,46,0.38)]">{sub}</span>}
       </div>
     </div>
   )

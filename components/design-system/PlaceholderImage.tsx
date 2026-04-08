@@ -85,9 +85,9 @@ export function PlaceholderImage({
           <svg className="w-10 h-10 text-[rgba(139,127,168,0.5)]" fill="none" stroke="currentColor" strokeWidth={1} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
-          <p className="font-body text-[11px] text-[rgba(26,26,46,0.5)] text-center">
+          <p className="font-body text-[13px] text-[rgba(26,26,46,0.5)] text-center">
             Fotoğraf yüklemek için tıklayın<br/>
-            <span className="text-[10px] text-[rgba(26,26,46,0.35)]">veya sürükleyip bırakın</span>
+            <span className="text-[12px] text-[rgba(26,26,46,0.35)]">veya sürükleyip bırakın</span>
           </p>
           <p className="font-body text-[11px] text-[rgba(26,26,46,0.3)] tracking-[0.1em] uppercase">
             JPEG · PNG · WebP · Maks 5MB

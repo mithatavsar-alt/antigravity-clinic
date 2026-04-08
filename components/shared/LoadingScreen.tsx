@@ -42,7 +42,7 @@ export function LoadingScreen({
                       style={{ animationDelay: `${i * 180}ms` }}
                     >
                       <span className="w-2.5 h-2.5 rounded-full bg-[#C4A35A] flex-shrink-0" />
-                      <span className="font-body text-[13px] text-[rgba(26,26,46,0.62)]">{step}</span>
+                      <span className="font-body text-[15px] text-[rgba(26,26,46,0.62)]">{step}</span>
                     </div>
                   ))}
                 </div>

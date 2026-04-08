@@ -22,7 +22,7 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
 
   return (
     <div className="flex justify-between items-baseline gap-4 py-2 border-b border-[rgba(196,163,90,0.10)]">
-      <span className="font-body text-[13px] text-[rgba(26,26,46,0.52)] flex-shrink-0">{label}</span>
+      <span className="font-body text-[15px] text-[rgba(26,26,46,0.52)] flex-shrink-0">{label}</span>
       <span className="font-body text-[14px] text-[rgba(26,26,46,0.72)] text-right">{value}</span>
     </div>
   )

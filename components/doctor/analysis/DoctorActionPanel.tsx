@@ -95,7 +95,7 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
               <span className="font-mono text-[28px] font-light" style={{ color: scoreColor(readinessScore) }}>
                 {readinessScore}
               </span>
-              <span className="font-body text-[13px] text-[rgba(26,26,46,0.38)]">/ 100</span>
+              <span className="font-body text-[15px] text-[rgba(26,26,46,0.38)]">/ 100</span>
             </div>
           </div>
         )}
@@ -107,7 +107,7 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
                 <span className="font-mono text-[11px]" style={{ color: insight.color }}>
                   {insight.icon}
                 </span>
-                <span className="font-body text-[13px]" style={{ color: insight.color }}>
+                <span className="font-body text-[15px]" style={{ color: insight.color }}>
                   {insight.label}
                 </span>
               </div>
@@ -121,7 +121,7 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
         <div className="flex items-center justify-between mb-4">
           <h4 className="font-body text-[15px] tracking-[0.15em] uppercase text-[#C4A35A]">Doktor Notları</h4>
           {lead.doctor_notes_updated_at && (
-            <span className="font-mono text-[13px] text-[rgba(26,26,46,0.38)]">
+            <span className="font-mono text-[15px] text-[rgba(26,26,46,0.38)]">
               Son güncelleme: {new Date(lead.doctor_notes_updated_at).toLocaleDateString('tr-TR')}
             </span>
           )}
@@ -137,10 +137,10 @@ export function DoctorActionPanel({ lead, onStatusChange, onSaveNotes }: DoctorA
         />
 
         <div className="flex items-center justify-between mt-3">
-          <span className="font-mono text-[13px] text-[rgba(26,26,46,0.38)]">{notes.length} / 2000</span>
+          <span className="font-mono text-[15px] text-[rgba(26,26,46,0.38)]">{notes.length} / 2000</span>
           <div className="flex items-center gap-3">
-            {saved && <span className="font-body text-[13px] text-[#3D7A5F]">Kaydedildi</span>}
-            {saveError && <span className="font-body text-[13px] text-[#C47A7A]">Kayıt başarısız</span>}
+            {saved && <span className="font-body text-[15px] text-[#3D7A5F]">Kaydedildi</span>}
+            {saveError && <span className="font-body text-[15px] text-[#C47A7A]">Kayıt başarısız</span>}
             <button
               onClick={handleSave}
               disabled={saving}

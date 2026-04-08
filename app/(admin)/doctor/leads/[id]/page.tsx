@@ -171,7 +171,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           ← Lead Listesi
         </button>
         <span className="text-[rgba(26,26,46,0.22)]">/</span>
-        <span className="font-mono text-[12px] text-[rgba(26,26,46,0.40)]">{lead.id.slice(0, 8)}</span>
+        <span className="font-mono text-[14px] text-[rgba(26,26,46,0.40)]">{lead.id.slice(0, 8)}</span>
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -181,12 +181,12 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <StatusBadge status={lead.status} type="lead" />
             {lead.readiness_band && <StatusBadge status={lead.readiness_band} type="readiness" />}
             {lead.age_range && (
-              <span className="doctor-card-soft font-mono text-[12px] text-[rgba(26,26,46,0.60)] px-2 py-0.5 rounded-md">
+              <span className="doctor-card-soft font-mono text-[14px] text-[rgba(26,26,46,0.60)] px-2 py-0.5 rounded-md">
                 {lead.age_range}
               </span>
             )}
             {lead.phone && (
-              <span className="font-mono text-[12px] text-[rgba(26,26,46,0.50)]">{lead.phone}</span>
+              <span className="font-mono text-[14px] text-[rgba(26,26,46,0.50)]">{lead.phone}</span>
             )}
           </div>
           <p className="font-body text-[14px] text-[rgba(26,26,46,0.45)] mt-1">{formatDateTime(lead.created_at)}</p>
@@ -299,7 +299,7 @@ function AIScoresPanel({ aiScores }: { aiScores: Record<string, unknown> }) {
             <p className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-1">Simetri</p>
             <p className="font-mono text-[26px] font-light text-[#1A1A2E]">
               {symmetry}
-              <span className="text-[13px] text-[rgba(26,26,46,0.42)]">%</span>
+              <span className="text-[15px] text-[rgba(26,26,46,0.42)]">%</span>
             </p>
           </div>
         )}
@@ -308,7 +308,7 @@ function AIScoresPanel({ aiScores }: { aiScores: Record<string, unknown> }) {
             <p className="font-body text-[13px] tracking-[0.1em] uppercase text-[rgba(26,26,46,0.42)] mb-1">Altın Oran</p>
             <p className="font-mono text-[26px] font-light text-[#1A1A2E]">
               {proportion}
-              <span className="text-[13px] text-[rgba(26,26,46,0.42)]">%</span>
+              <span className="text-[15px] text-[rgba(26,26,46,0.42)]">%</span>
             </p>
           </div>
         )}

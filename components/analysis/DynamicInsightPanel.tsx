@@ -109,7 +109,7 @@ export default function DynamicInsightPanel({ insight, score, regionIndex, confi
 
             {/* Info */}
             <p
-              className="font-body text-[12px] sm:text-[13px] leading-[1.7]"
+              className="font-body text-[14px] sm:text-[15px] leading-[1.7]"
               style={{ color: 'rgba(248,246,242,0.48)' }}
             >
               {insight.info}
@@ -118,7 +118,7 @@ export default function DynamicInsightPanel({ insight, score, regionIndex, confi
             {/* Low-confidence caveat */}
             {isLowConfidence && (
               <p
-                className="font-body text-[11px] leading-[1.5] mt-2 flex items-center gap-1.5"
+                className="font-body text-[13px] leading-[1.5] mt-2 flex items-center gap-1.5"
                 style={{ color: 'rgba(200,120,90,0.65)' }}
               >
                 <span className="opacity-60">⚠</span>

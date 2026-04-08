@@ -63,7 +63,7 @@ export function ClinicApproachSection() {
             >
               <p className="font-mono text-[11px] tracking-[0.2em] uppercase text-[var(--color-gold-dim)] mb-0.5">Uzman Hekim</p>
               <p className="font-display text-[16px] font-light text-[var(--color-text)]">Dr. Müjde Ocak</p>
-              <p className="font-body text-[11px] text-[var(--color-text-muted)]">Medikal Estetik Uzmanı</p>
+              <p className="font-body text-[13px] text-[var(--color-text-muted)]">Medikal Estetik Uzmanı</p>
             </div>
           </div>
         </motion.div>

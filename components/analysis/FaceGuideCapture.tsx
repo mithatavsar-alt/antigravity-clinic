@@ -2408,8 +2408,8 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                 <div className="absolute inset-3 rounded-full border border-[rgba(196,163,90,0.12)]" />
               </div>
               <div className="text-center px-4">
-                <p className="font-body text-[12px] sm:text-[13px] text-white/60 tracking-wide">AI tarama motoru hazırlanıyor</p>
-                <p className="font-body text-[10px] text-white/40 mt-1">İlk kullanımda birkaç saniye sürebilir</p>
+                <p className="font-body text-[14px] sm:text-[15px] text-white/60 tracking-wide">AI tarama motoru hazırlanıyor</p>
+                <p className="font-body text-[12px] text-white/40 mt-1">İlk kullanımda birkaç saniye sürebilir</p>
               </div>
             </div>
           )}
@@ -2422,7 +2422,7 @@ export function FaceGuideCapture({ onCapture, onClose, mode = 'single', autoConf
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                 </svg>
               </div>
-              <p className="font-body text-[11px] sm:text-[12px] text-white/60 text-center leading-relaxed">{initError}</p>
+              <p className="font-body text-[13px] sm:text-[14px] text-white/60 text-center leading-relaxed">{initError}</p>
               <button type="button" onClick={onClose} className="mt-1 font-body text-[12px] tracking-[0.15em] uppercase text-[#C4A35A] hover:text-[#D4B96A] transition-colors">
                 Kapat
               </button>
